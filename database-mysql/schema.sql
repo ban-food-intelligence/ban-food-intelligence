@@ -1,0 +1,1 @@
+﻿-- Ali, MySQL semasini ve WITH RECURSIVE sorgularini buraya yaz

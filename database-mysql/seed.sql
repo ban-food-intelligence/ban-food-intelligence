@@ -1,0 +1,1 @@
+﻿-- Ali, Seed verilerini buraya yaz
