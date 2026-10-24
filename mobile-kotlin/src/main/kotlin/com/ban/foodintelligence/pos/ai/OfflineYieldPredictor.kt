@@ -253,9 +253,11 @@ class OfflineYieldPredictor(
     ) {
         val lockIntent = Intent(appContext, RedRecallLockActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            putExtra("EXTRA_RECALL_CODE", anomaly.anomalyCode)
-            putExtra("EXTRA_AFFECTED_LOT", affectedLot)
-            putExtra("EXTRA_ROOT_LOT", rootLot)
+            putExtra(RedRecallLockActivity.EXTRA_RECALL_CODE, anomaly.anomalyCode)
+            putExtra(RedRecallLockActivity.EXTRA_AFFECTED_LOT, affectedLot)
+            putExtra(RedRecallLockActivity.EXTRA_ROOT_LOT, rootLot)
+            putExtra(RedRecallLockActivity.EXTRA_OOD_METRIC, anomaly.offendingMetric)
+            putExtra(RedRecallLockActivity.EXTRA_OOD_VALUE, anomaly.observedValue)
         }
         appContext.startActivity(lockIntent)
     }
