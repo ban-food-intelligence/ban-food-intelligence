@@ -1,0 +1,164 @@
+# BAN Food Intelligence - Enterprise ERP Security Architecture & Pentest Guidelines
+
+**Classification:** Restricted / Enterprise Internal  
+**Author:** Nuri (Security Specialist & Lead POS Architect)  
+**Scope:** AVATAR AI Monorepo (`ban-food-intelligence`)
+
+---
+
+## 1. Executive Summary & Threat Model
+
+The BAN Food Intelligence system handles mission-critical ERP operations:
+1. Real-time livestock batch costing & butchery reconciliation
+2. Multi-tier recursive batch genealogy (`ET-2026-001` &rarr; `URT-2026-045` &rarr; `SUC-2026-045`)
+3. Emergency Class I Recall quarantine commands broadcasted to retail POS terminals
+4. Offline retail transaction synchronization from Android POS terminals
+
+Given that contaminated food or manipulated batch genealogy poses direct public health hazards and financial liability, our security architecture enforces a zero-trust model across edge POS terminals, API gateways, and the central database.
+
+---
+
+## 2. HMAC-SHA256 Outbox Payload Verification
+
+### 2.1 Threat Mitigated
+- **Man-in-the-Middle (MITM) tampering** of price, lot quantities, or barcode scans transmitted by POS terminals.
+- **Replay attacks** attempting to resubmit old sales or inventory deductions.
+
+### 2.2 Cryptographic Implementation
+All offline POS mutations stored in `sync_outbox_queue` are signed using hardware-backed keys stored inside the device's **Android Keystore** (`AndroidKeyStore` provider).
+
+1. **Hardware Isolation:** The private HMAC key is generated inside the hardware Secure Element (SE) / StrongBox Keymaster and marked `PURPOSE_SIGN`. The key material can never be extracted into user-space RAM.
+2. **Canonical Payload Construction:**
+   ```
+   canonical_string = device_id + ":" + outbox_id + ":" + client_timestamp + ":" + payload_json
+   signature = HMAC_SHA256(hardware_key, canonical_string)
+   ```
+3. **Constant-Time Verification on Go API Gateway:**
+   ```go
+   func VerifyHMAC(payload, receivedSigHex string, secret []byte) bool {
+       mac := hmac.New(sha256.New, secret)
+       mac.Write([]byte(payload))
+       expectedSig := mac.Sum(nil)
+       actualSig, err := hex.DecodeString(receivedSigHex)
+       if err != nil {
+           return false
+       }
+       // Prevent timing side-channel attacks via constant-time comparison
+       return hmac.Equal(actualSig, expectedSig)
+   }
+   ```
+4. **Replay Window Enforcement:** Payloads with `client_timestamp` drifting by more than ±300 seconds from server clock are rejected unless accompanied by an authorized offline sync token.
+
+---
+
+## 3. UUIDv7 Distributed Idempotency
+
+### 3.1 Threat Mitigated
+- Network timeouts, duplicate HTTP retries from mobile cellular edge, and double-spend inventory deductions.
+
+### 3.2 UUIDv7 Architecture
+Standard UUIDv4 suffers from B-Tree index fragmentation and lacks chronological ordering. BAN Food Intelligence mandates **UUIDv7** (RFC 9562):
+- **48-bit UNIX timestamp (milliseconds):** Guarantees natural monotonic ordering and high-performance B-tree indexing in MySQL and SQLite.
+- **74 bits of cryptographically secure pseudo-random entropy:** Ensures global collision resistance across hundreds of concurrent POS devices.
+
+```
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                           unix_ts_ms                          |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|          unix_ts_ms           |  ver  |       rand_a          |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|var|                        rand_b                             |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                            rand_b                             |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+### 3.3 Idempotent Processing Rule
+1. Database schema enforces `UNIQUE INDEX (idempotency_key)` on both SQLite Room (`sync_outbox_queue`) and MySQL (`immutable_audit_logs`).
+2. Go API Gateway maintains an in-memory dedup filter (`sync.Map`) backed by Redis.
+3. If an already-processed `outbox_id` arrives, the server immediately returns HTTP 200 with the original acknowledgement receipt without re-executing inventory debits.
+
+---
+
+## 4. SQL Injection (SQLi) Prevention: Mandatory Prepared Statements
+
+### 4.1 Strict Architectural Mandate
+Dynamic SQL string interpolation (`fmt.Sprintf`, `+`, string concatenation) is **STRICTLY PROHIBITED** across all Go controllers, Kotlin Room queries, and MySQL stored procedures.
+
+### 4.2 Parameterized Recursive Lot Tracing (Ali's Queries)
+Even complex recursive common table expressions (CTEs) MUST bind variables through placeholder arguments:
+
+```sql
+-- CORRECT (Parameterized Query)
+PREPARE stmt FROM 'CALL TraceLotBackward(?)';
+SET @target = 'SUC-2026-045';
+EXECUTE stmt USING @target;
+DEALLOCATE PREPARE stmt;
+
+-- FORBIDDEN (Critical Vulnerability)
+-- SELECT * FROM lots WHERE lot_number = ' + userInput + ';
+```
+
+### 4.3 SQLite Room Prepared Statements (Kotlin)
+All queries in `OutboxDao` use Room's pre-compiled SQLite statements:
+```kotlin
+@Query("SELECT * FROM sync_outbox_queue WHERE status = :status ORDER BY created_at ASC LIMIT :limit")
+suspend fun getPendingItems(status: String = "PENDING", limit: Int): List<SyncOutboxQueue>
+```
+
+---
+
+## 5. BFLA & IDOR Authorization Architecture
+
+### 5.1 Broken Function Level Authorization (BFLA)
+Different roles have distinct capabilities:
+- `ROLE_POS_DEVICE` / `ROLE_POS_CASHIER`: May ONLY call `/sync` and query product prices. Prohibited from accessing `/production`, `/butchery`, or triggering `/recall`.
+- `ROLE_BUTCHER`: May access `/butchery` reconciliation, prohibited from `/recall`.
+- `ROLE_QUALITY_DIRECTOR`: Full authority over `/trace` and `/recall`.
+- `ROLE_ADMIN`: Superuser operations.
+
+Enforced by `middleware.ValidateJWTAndAuthorize(...)` before handler dispatch.
+
+### 5.2 Insecure Direct Object Reference (IDOR)
+- When a POS terminal requests store-level records or outbox synchronization, the JWT claims `TenantID` and `DeviceID` are strictly validated against request headers (`X-Tenant-ID`) and URL parameters.
+- Terminals from Market A cannot query or mutate records belonging to Market B or Market C.
+
+---
+
+## 6. Immutable Audit Logging (Tamper Detection)
+
+The `immutable_audit_logs` table in MySQL 8.0:
+1. Rejects all `UPDATE` and `DELETE` operations via database-level triggers (`SIGNAL SQLSTATE '45000'`).
+2. Every audit log record includes a cryptographic SHA-256 tamper hash:
+   $$\text{Hash}_i = \text{SHA256}(\text{EventUUID} \parallel \text{EntityName} \parallel \text{Action} \parallel \text{ActorID} \parallel \text{NewStateJSON})$$
+3. Verification jobs periodically recompute hash chains to detect unauthorized direct database tampering by rogue DBAs.
+
+---
+
+## 7. Emergency Recall Red Screen Lock Specification
+
+When `/recall` broadcasts an emergency lockdown:
+1. Mobile POS receives high-priority WebSocket / Push notification with `RecallEventDto`.
+2. Hardware lock screen `RedRecallLockActivity` engages immediately:
+   - Overlays all applications (`FLAG_SHOW_WHEN_LOCKED`).
+   - Disables barcode scanner peripheral listeners.
+   - Deactivates cash drawer & payment terminal integration.
+   - Requires Dual-Key Supervisor Cryptographic Signature to dismiss.
+
+---
+
+## 8. Edge AI Security: Offline AI Inference via ONNX to Prevent API MITM Attacks
+
+### 8.1 Threat Mitigated
+- **API Man-in-the-Middle (MITM) Inference Tampering:** Relying on cloud REST endpoints for real-time retail yield and spoilage predictions exposes POS terminals to MITM payload manipulation (e.g., an attacker intercepting HTTP responses to mask spoiled batches as high-yield safe inventory).
+- **Adversarial Telemetry & Out-of-Distribution (OOD) Sensor Spoofing:** Rogue IoT cold-chain sensors injecting biologically or physically impossible temperatures (e.g., `tempC > 100°C` or IEEE-754 `NaN`/`Infinity`) to poison ERP valuation models.
+
+### 8.2 Zero-Network ONNX Runtime Architecture (`OfflineYieldPredictor.kt`)
+1. **Offline AI Inference via ONNX to prevent API MITM attacks:**
+   - Nuri's Level-2 Grandmaster Meta-Learner pipeline is compiled into a static, verifiable ONNX computation graph (`nuri_edge_model.onnx`) bundled inside the signed Android APK (`assets/nuri_edge_model.onnx`).
+   - All retail yield predictions execute 100% locally on the POS terminal via `com.microsoft.onnxruntime:onnxruntime-android:1.16.0` (`OrtEnvironment` & `OrtSession`) with zero external network calls.
+2. **Biophysical Out-of-Distribution (OOD) Lockdown Guardrails:**
+   - Prior to tensor execution, `OfflineYieldPredictor.predictYield(...)` enforces strict thermodynamic and biological bounds (`tempC` in `[-40°C, 100°C]`, `transitHours` in `[0, 720]`, `humidity` in `[0%, 100%]`, `packIntegrity` in `(0.0, 1.0]`).
+   - Any OOD violation immediately throws `AnomalyDetectedException` and triggers `RedRecallLockActivity` to quarantine the batch and lock POS checkout hardware.

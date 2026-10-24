@@ -55,4 +55,7 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // Edge AI Inference: ONNX Runtime for Offline Yield Prediction (Zero-Network MITM Protection)
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.16.0")
 }
