@@ -1,0 +1,2 @@
+row_id,source,order_date,product_sku,pack_size_kg,subcontractor_code,meat_supplier_code,meat_kg,spice_kg,casing_kg,meat_fat_pct,meat_age_days,drying_days,meat_unit_price,spice_unit_price,casing_unit_price,service_unit_price,planned_qty,actual_qty,yield_pct,ekp
+DB-P-URT-2026-045,db,2026-10-02,MM-SUCUK-1KG,1.0,FAS-01,TED-ET-01,100.0,2.0,5.0,22.0,1,5,9.7,24.0,11.6,5.5,85.0,78.0,78.0,19.2949
