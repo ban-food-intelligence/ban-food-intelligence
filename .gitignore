@@ -1,3 +1,7 @@
-﻿mobile-kotlin/.gradle/
+mobile-kotlin/.gradle/
 ml-engine/*_nuri.py
 ml-engine/stacking_meta_learner.py
+__pycache__/
+.pytest_cache/
+# Ali modelleri ~1 dk'da yeniden üretilir: python ml-engine/train_model_ali.py
+ml-engine/artifacts/**/*.joblib
