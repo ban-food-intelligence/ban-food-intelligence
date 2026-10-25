@@ -68,7 +68,9 @@ def _random_dates(rng, n):
     return pd.Series(np.sort(rng.choice(days, size=n))).dt.normalize()
 
 
-def generate_production(n: int, rng: np.random.Generator) -> pd.DataFrame:
+def generate_production(n: int, rng: np.random.Generator, with_fault_label: bool = False) -> pd.DataFrame:
+    """with_fault_label=True: gerçek arıza etiketi `fault` kolonu eklenir (yalnız anomali değerlendirmesi için;
+    CSV'ye yazılmaz, rastgele çekimler değişmez -> aynı seed ile CSV'deki satırların aynısı)."""
     dates = _random_dates(rng, n)
     t = _years_since_spec(dates)
     month = dates.dt.month.to_numpy()
@@ -120,7 +122,7 @@ def generate_production(n: int, rng: np.random.Generator) -> pd.DataFrame:
     material = meat_kg * meat_price + spice_kg * spice_price + casing_kg * casing_price
     ekp = (material + actual_qty * service_price) / actual_qty
 
-    return pd.DataFrame({
+    df = pd.DataFrame({
         "row_id": [f"ALI-P-{i:06d}" for i in range(1, n + 1)],
         "source": "ali",
         "order_date": dates.dt.strftime("%Y-%m-%d"),
@@ -143,6 +145,9 @@ def generate_production(n: int, rng: np.random.Generator) -> pd.DataFrame:
         "yield_pct": np.round(100 * actual_qty * pack_kg / meat_kg, 3),
         "ekp": np.round(ekp, 4),
     })
+    if with_fault_label:
+        df["fault"] = anomaly
+    return df
 
 
 def generate_butchery(n: int, rng: np.random.Generator) -> pd.DataFrame:

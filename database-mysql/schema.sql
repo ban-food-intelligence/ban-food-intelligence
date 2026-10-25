@@ -431,6 +431,36 @@ CREATE TABLE ml_prediction (
   INDEX ix_mlp_ref (ref_type, ref_id)
 ) ENGINE=InnoDB;
 
+-- KI anomali uyarıları (ml-engine/anomaly_ali.py): tahmin edilen ile gerçek arasındaki açıklanamayan sapma.
+-- Berke'nin API'si v_ml_anomaly_alert'ten okur, status'ü günceller; FALSE_ALARM/RESOLVED geri bildirimi
+-- v_ml_anomaly_feedback ile gerçek işletmedeki precision'ı ölçer.
+CREATE TABLE ml_anomaly_alert (
+  id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  task             ENUM('PRODUCTION_YIELD','BUTCHERY_YIELD') NOT NULL,
+  detector         VARCHAR(30)  NOT NULL,                  -- robust_z / mahalanobis_mcd
+  model_version    VARCHAR(60)  NOT NULL,                  -- ali-1.0.0+ali-anomaly-1.0.0
+  ref_type         VARCHAR(30)  NOT NULL,                  -- production_order / butchery_operation
+  ref_id           INT UNSIGNED NOT NULL,
+  score            DECIMAL(10,3) NOT NULL,                 -- üretim: z (negatif = düşük verim); parçalama: d²
+  threshold_warn   DECIMAL(10,3) NOT NULL,
+  threshold_crit   DECIMAL(10,3) NOT NULL,
+  severity         ENUM('WARN','CRITICAL') NOT NULL,
+  direction        ENUM('LOW_YIELD','HIGH_YIELD','FIRE_HIGH','PART_MISMATCH') NOT NULL,
+  expected_value   DECIMAL(14,3) NOT NULL,                 -- üretim: paket; parçalama: fire kg
+  actual_value     DECIMAL(14,3) NOT NULL,
+  deviation        DECIMAL(14,3) NOT NULL,                 -- gerçek − beklenen
+  est_loss_eur     DECIMAL(12,2) NOT NULL DEFAULT 0,       -- eksik paket × EKP / fazla fire × alış fiyatı
+  top_parts        VARCHAR(120) NULL,                      -- 'fire +0.95 kg, but -0.90 kg'
+  message          VARCHAR(255) NOT NULL,
+  status           ENUM('OPEN','ACKNOWLEDGED','RESOLVED','FALSE_ALARM') NOT NULL DEFAULT 'OPEN',
+  resolved_by      VARCHAR(64)  NULL,
+  resolved_at      DATETIME(3)  NULL,
+  resolution_note  VARCHAR(255) NULL,
+  created_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_mla_ref (task, ref_type, ref_id, model_version),   -- yeniden çalıştırma idempotent
+  INDEX ix_mla_open (status, severity)
+) ENGINE=InnoDB;
+
 -- ---------------------------------------------------------------------
 -- 10. Denetim günlüğü ve senkronizasyon idempotency (Nuri ile ortak)
 -- ---------------------------------------------------------------------
@@ -577,6 +607,38 @@ SELECT id, task, model_name, model_version, ref_type, ref_id, target_name,
        ROUND(100 * (actual_value - predicted_value) / NULLIF(actual_value, 0), 2) AS deviation_pct,
        created_at
 FROM ml_prediction;
+
+-- KI anomali uyarıları: API/panel için okunabilir hali (emir/parçalama no, mamul ya da karkas lotu)
+CREATE OR REPLACE VIEW v_ml_anomaly_alert AS
+SELECT a.id, a.task, a.severity, a.direction, a.status,
+       COALESCE(po.order_no, bo.op_no)                         AS ref_no,
+       COALESCE(po.order_date, bo.op_date)                     AS ref_date,
+       COALESCE(pl.lot_no, bl.lot_no)                          AS lot_no,
+       COALESCE(sub.name, bo.operator_name)                    AS responsible,
+       a.expected_value, a.actual_value, a.deviation, a.est_loss_eur,
+       a.score, a.threshold_warn, a.threshold_crit, a.detector, a.model_version,
+       a.top_parts, a.message, a.created_at, a.resolved_by, a.resolved_at, a.resolution_note,
+       a.ref_type, a.ref_id
+FROM ml_anomaly_alert a
+LEFT JOIN production_order po   ON a.ref_type = 'production_order'   AND po.id = a.ref_id
+LEFT JOIN supplier sub          ON sub.id = po.subcontractor_id
+LEFT JOIN (SELECT pout.production_order_id, MIN(l.lot_no) AS lot_no
+             FROM production_output pout JOIN lot l ON l.id = pout.lot_id
+            GROUP BY pout.production_order_id) pl ON pl.production_order_id = po.id
+LEFT JOIN butchery_operation bo ON a.ref_type = 'butchery_operation' AND bo.id = a.ref_id
+LEFT JOIN lot bl                ON bl.id = bo.input_lot_id;
+
+-- Gerçek kullanımda ölçülebilirlik: kapatılan uyarılardan precision (RESOLVED = gerçek sorun)
+CREATE OR REPLACE VIEW v_ml_anomaly_feedback AS
+SELECT task, model_version,
+       COUNT(*)                                                AS alerts,
+       SUM(status = 'OPEN' OR status = 'ACKNOWLEDGED')         AS open_alerts,
+       SUM(status = 'RESOLVED')                                AS confirmed,
+       SUM(status = 'FALSE_ALARM')                             AS false_alarms,
+       ROUND(SUM(status = 'RESOLVED') / NULLIF(SUM(status IN ('RESOLVED','FALSE_ALARM')), 0), 3) AS precision_observed,
+       SUM(IF(status = 'RESOLVED', est_loss_eur, 0))           AS confirmed_loss_eur
+FROM ml_anomaly_alert
+GROUP BY task, model_version;
 
 -- KI veri sözleşmesi (ml-engine/DATA_CONTRACT.md) ile aynı kolonlar: gerçek kayıtlar
 -- biriktikçe model sentetik veri yerine doğrudan bu görünümlerden eğitilir.

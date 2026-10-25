@@ -10,7 +10,7 @@ docker compose up -d mysql                     # schema.sql + seed.sql otomatik 
 MYSQL="mysql -uroot -p" ./database-mysql/load.sh
 
 pip install -r ml-engine/requirements.txt
-MYSQL_HOST=127.0.0.1 MYSQL_PASSWORD=ban pytest database-mysql/tests -q     # 26 entegrasyon testi
+MYSQL_HOST=127.0.0.1 MYSQL_PASSWORD=ban pytest database-mysql/tests -q     # 31 entegrasyon testi
 ```
 
 | Dosya | İçerik |
@@ -19,6 +19,7 @@ MYSQL_HOST=127.0.0.1 MYSQL_PASSWORD=ban pytest database-mysql/tests -q     # 26 
 | `seed.sql` | (1) şartnamedeki zorunlu senaryo (ET-2026-001 → URT-2026-045 → SUC-2026-045 → Market A/B/C) (2) çoktan-çoğa lotlar, 2. kademe dağıtım, kuzu parçalama, POS satışı (3) model tahmini + gerçek + sapma |
 | `queries/*.sql` | Tek ifadelik WITH RECURSIVE sorgular (`?` parametreli, Go'dan doğrudan) |
 | `demo/recall_demo.sql` | Videodaki geri çağırma akışı, adım adım |
+| `demo/anomaly_demo.sql` | KI anomali uyarısı what-if demosu (`[DEMO]` önekli 2 uyarı; seed'e dahil değil) |
 | `tests/` | pytest + gerçek MySQL 8 entegrasyon testleri |
 
 ## Veri modeli
@@ -132,6 +133,43 @@ Tetikleyiciler `SQLSTATE 45000` ve aşağıdaki mesaj önekleriyle döner; Go ta
 POS satışı için `sale.sale_uuid` (UUIDv7) benzersizdir; aynı outbox paketi ikinci kez gelirse
 `sync_inbox.event_uuid` birincil anahtarı tekrar işlemeyi engeller. `sale_line` eklenince tetikleyici
 SALE stok hareketini yazar ve satırın `stock_movement_id`'sine bağlar.
+
+## KI anomali uyarıları (API için)
+
+Üretici: `ml-engine/anomaly_ali.py` + `predict_ali.py --emit-sql` (yöntem ve ölçüm:
+[ml-engine/README_ali.md](../ml-engine/README_ali.md#ki-anomali-uyarıları-isteğe-bağlı-özellik-düşük-verim--beklenmedik-fire)).
+API **yalnız okur** `v_ml_anomaly_alert`'ten ve **yalnız `status`/`resolved_*` kolonlarını** günceller.
+
+```sql
+-- panel listesi: açık uyarılar, önce kritik ve büyük kayıp
+SELECT * FROM v_ml_anomaly_alert WHERE status IN ('OPEN','ACKNOWLEDGED')
+ ORDER BY severity = 'CRITICAL' DESC, est_loss_eur DESC, created_at DESC;
+-- kullanıcı uyarıyı kapatır (gerçek sorun / yanlış alarm)
+UPDATE ml_anomaly_alert SET status = ?, resolved_by = ?, resolved_at = NOW(3), resolution_note = ? WHERE id = ?;
+-- gerçek kullanımdaki precision
+SELECT * FROM v_ml_anomaly_feedback;
+```
+
+| Kolon (`v_ml_anomaly_alert`) | Anlam |
+|---|---|
+| `id` | `ml_anomaly_alert.id` (UPDATE için) |
+| `task` | `PRODUCTION_YIELD` (sucuk üretim emri) / `BUTCHERY_YIELD` (karkas parçalama) |
+| `severity` | `WARN` (sarı) / `CRITICAL` (kırmızı) |
+| `direction` | `LOW_YIELD`, `HIGH_YIELD` (sayım hatası şüphesi), `FIRE_HIGH`, `PART_MISMATCH` (etiket/tartım) |
+| `status` | `OPEN` → `ACKNOWLEDGED` → `RESOLVED` (gerçek sorun) / `FALSE_ALARM` |
+| `ref_no`, `ref_date` | `URT-2026-045` / `PRC-2026-001` ve tarihi |
+| `lot_no` | Üretimde mamul lotu (`SUC-…`), parçalamada karkas lotu (`KUZU-…`) → izleme ekranına link |
+| `responsible` | Fason firma adı / kasap |
+| `expected_value`, `actual_value`, `deviation` | Üretim: paket; parçalama: fire kg (gerçek − beklenen) |
+| `est_loss_eur` | Tahmini kayıp: eksik paket × EKP veya fazla fire kg × alış €/kg |
+| `score`, `threshold_warn`, `threshold_crit` | Üretim: z (negatif = düşük); parçalama: d² (Mahalanobis) |
+| `top_parts` | Parçalamada en çok sapan iki parça, ör. `fire +1.29 kg, but -1.19 kg` |
+| `message` | Kullanıcıya gösterilecek Türkçe metin |
+| `detector`, `model_version` | `robust_z` / `mahalanobis_mcd`, `ali-1.0.0+ali-anomaly-1.0.0` |
+| `ref_type`, `ref_id` | Ham referans (`production_order` / `butchery_operation` id) |
+
+`(task, ref_type, ref_id, model_version)` benzersizdir: aynı kayıt yeniden skorlanırsa yeni satır
+açılmaz, mevcut uyarı güncellenir (status korunur).
 
 ## Go modelleriyle eşleme (Berke için)
 
