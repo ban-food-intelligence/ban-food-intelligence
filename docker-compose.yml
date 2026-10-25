@@ -1,0 +1,19 @@
+# Merkezi MySQL 8 — schema.sql ve seed.sql ilk açılışta otomatik yüklenir.
+#   docker compose up -d mysql
+#   docker compose exec mysql mysql -uroot -pban food_intel -e "CALL sp_trace_forward('ET-2026-001')"
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ban
+      TZ: UTC
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./database-mysql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database-mysql/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-pban"]
+      interval: 5s
+      retries: 20
