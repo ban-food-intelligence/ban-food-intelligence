@@ -1,0 +1,2 @@
+row_id,source,op_date,species,breed,supplier_code,operator_code,carcass_weight_kg,age_months,sex,fat_score,conformation_score,chill_hours,purchase_unit_price,but_kg,sirt_kg,omuz_kg,kaburga_kg,kiyma_kg,fire_kg
+DB-B-PRC-2026-001,db,2026-10-13,KUZU,KIVIRCIK,TED-HAY-01,OP-1,25.0,5.0,E,3,3,24.0,11.5,6.5,3.5,5.0,3.0,4.0,3.0
