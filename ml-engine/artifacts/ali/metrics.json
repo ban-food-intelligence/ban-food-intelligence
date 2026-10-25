@@ -1,0 +1,224 @@
+{
+  "version": "ali-1.0.0",
+  "production": {
+    "n_train": 1198,
+    "n_test": 302,
+    "target": "yield_pct",
+    "models": {
+      "baseline_recipe": {
+        "cv_oof_yield_pct": {
+          "MAE": 2.238222871452421,
+          "RMSE": 2.8824633494231886,
+          "MAPE_pct": 2.742982857636064,
+          "R2": -0.5679642905304945
+        },
+        "test_yield_pct": {
+          "MAE": 2.3152880794701987,
+          "RMSE": 3.0159872945566515,
+          "MAPE_pct": 2.8463199048557706,
+          "R2": -0.5682756737983816
+        },
+        "test_actual_qty": {
+          "MAE": 3.263245033112583,
+          "RMSE": 4.7178240999862,
+          "MAPE_pct": 2.8463157089797035,
+          "R2": 0.9938990064105707
+        },
+        "test_ekp_eur": {
+          "MAE": 0.31996725219368766,
+          "RMSE": 0.43697605623493974,
+          "MAPE_pct": 1.897196525194371,
+          "R2": 0.9846309830299366
+        }
+      },
+      "baseline_hist_mean": {
+        "cv_oof_yield_pct": {
+          "MAE": 1.763096353700738,
+          "RMSE": 2.296211021184516,
+          "MAPE_pct": 2.1322872092972367,
+          "R2": 0.004979166490314935
+        },
+        "test_yield_pct": {
+          "MAE": 1.8488696272917986,
+          "RMSE": 2.4119016641102586,
+          "MAPE_pct": 2.243793172102286,
+          "R2": -0.002957626292119153
+        },
+        "test_actual_qty": {
+          "MAE": 2.688815914494375,
+          "RMSE": 3.8466262992202207,
+          "MAPE_pct": 2.243784662744901,
+          "R2": 0.9959441949408796
+        },
+        "test_ekp_eur": {
+          "MAE": 0.2588718388531666,
+          "RMSE": 0.3534761130436163,
+          "MAPE_pct": 1.5416421031040595,
+          "R2": 0.9899434052460457
+        }
+      },
+      "ali_ridge": {
+        "cv_oof_yield_pct": {
+          "MAE": 0.9161855232709178,
+          "RMSE": 1.3705523377128954,
+          "MAPE_pct": 1.1135189480849934,
+          "R2": 0.6455133949032961
+        },
+        "test_yield_pct": {
+          "MAE": 0.9741289477080096,
+          "RMSE": 1.3874335063668954,
+          "MAPE_pct": 1.1825402829482456,
+          "R2": 0.6681149057950699
+        },
+        "test_actual_qty": {
+          "MAE": 1.3688426659401782,
+          "RMSE": 2.000761618669802,
+          "MAPE_pct": 1.1825355918743201,
+          "R2": 0.9989027444790943
+        },
+        "test_ekp_eur": {
+          "MAE": 0.13756708822858318,
+          "RMSE": 0.2078890193030911,
+          "MAPE_pct": 0.8144601177939378,
+          "R2": 0.9965214847668987
+        }
+      },
+      "ali_catboost": {
+        "cv_oof_yield_pct": {
+          "MAE": 0.9679053543410419,
+          "RMSE": 1.4247563237407752,
+          "MAPE_pct": 1.175333722167122,
+          "R2": 0.6169197463683722
+        },
+        "test_yield_pct": {
+          "MAE": 0.9936481542966601,
+          "RMSE": 1.4071356520199556,
+          "MAPE_pct": 1.2075833685618136,
+          "R2": 0.6586221616023149
+        },
+        "test_actual_qty": {
+          "MAE": 1.3957741803729489,
+          "RMSE": 2.0331607706922323,
+          "MAPE_pct": 1.207590462240144,
+          "R2": 0.998866920133856
+        },
+        "test_ekp_eur": {
+          "MAE": 0.1391378230394537,
+          "RMSE": 0.20881786339979982,
+          "MAPE_pct": 0.8307919197709198,
+          "R2": 0.9964903314489475
+        }
+      }
+    },
+    "champion": "ali_ridge",
+    "interval90_yield_pct": {
+      "half_width": 1.7417244349959897,
+      "test_coverage": 0.890728476821192
+    },
+    "improvement_vs_hist_mean_pct": 49.09124650143312,
+    "catboost_feature_importance": {
+      "meat_fat_pct": 31.08,
+      "subcontractor_code": 19.7,
+      "drying_days": 18.22,
+      "meat_supplier_code": 4.67,
+      "meat_age_days": 4.45,
+      "is_summer": 4.25,
+      "spice_ratio": 3.8,
+      "casing_kg": 3.53,
+      "casing_ratio": 2.72,
+      "spice_kg": 2.25,
+      "planned_qty": 0.96,
+      "month_cos": 0.92,
+      "meat_kg": 0.91,
+      "month_sin": 0.9,
+      "inv_meat_kg": 0.78,
+      "pack_size_kg": 0.44,
+      "product_sku": 0.42
+    }
+  },
+  "butchery": {
+    "n_train": 2000,
+    "n_test": 500,
+    "targets": [
+      "but_pct",
+      "sirt_pct",
+      "omuz_pct",
+      "kaburga_pct",
+      "kiyma_pct",
+      "fire_pct"
+    ],
+    "models": {
+      "baseline_recipe": {
+        "cv_oof_pct_MAE": 0.8342770833333334,
+        "test_pct_MAE": 0.862332,
+        "test_kg_MAE": 0.18523400040000002,
+        "test_kg_MAE_per_part": {
+          "but": 0.21451426739999996,
+          "sirt": 0.12224565579999999,
+          "omuz": 0.12976757120000001,
+          "kaburga": 0.1342953154,
+          "kiyma": 0.25443821059999994,
+          "fire": 0.25614298199999996
+        },
+        "test_sellable_kg_MAE": 0.2561485444,
+        "mass_balance_max_err_kg": 7.105427357601002e-15
+      },
+      "baseline_hist_mean": {
+        "cv_oof_pct_MAE": 0.8245528858677523,
+        "test_pct_MAE": 0.8573184742027528,
+        "test_kg_MAE": 0.1838286985643039,
+        "test_kg_MAE_per_part": {
+          "but": 0.2120030166140722,
+          "sirt": 0.12001103598264587,
+          "omuz": 0.12953168781777002,
+          "kaburga": 0.13407579291741797,
+          "kiyma": 0.25651764908602326,
+          "fire": 0.250833008967894
+        },
+        "test_sellable_kg_MAE": 0.25083661842896926,
+        "mass_balance_max_err_kg": 4.021791045261125e-05
+      },
+      "ali_ridge": {
+        "cv_oof_pct_MAE": 0.5452783765116195,
+        "test_pct_MAE": 0.5383055669376843,
+        "test_kg_MAE": 0.11498330986328142,
+        "test_kg_MAE_per_part": {
+          "but": 0.12357102011247251,
+          "sirt": 0.09161159278149698,
+          "omuz": 0.12353230852821619,
+          "kaburga": 0.0964561472604798,
+          "kiyma": 0.141612102711606,
+          "fire": 0.11311668778541711
+        },
+        "test_sellable_kg_MAE": 0.11312478538339511,
+        "mass_balance_max_err_kg": 7.105427357601002e-15
+      },
+      "ali_catboost": {
+        "cv_oof_pct_MAE": 0.556467487948318,
+        "test_pct_MAE": 0.5485508446299242,
+        "test_kg_MAE": 0.11728065353084272,
+        "test_kg_MAE_per_part": {
+          "but": 0.1255427039965302,
+          "sirt": 0.09308813046350221,
+          "omuz": 0.12736408240737288,
+          "kaburga": 0.09758273810928565,
+          "kiyma": 0.14410316583419122,
+          "fire": 0.11600310037417408
+        },
+        "test_sellable_kg_MAE": 0.11600896677417404,
+        "mass_balance_max_err_kg": 1.4210854715202004e-14
+      }
+    },
+    "champion": "ali_ridge",
+    "interval90_pct": {
+      "but_pct": 1.1714230663815697,
+      "sirt_pct": 0.9405253275915848,
+      "omuz_pct": 1.1815560778566785,
+      "kaburga_pct": 0.932816388448017,
+      "kiyma_pct": 1.355419505605053,
+      "fire_pct": 1.1044272945825095
+    },
+    "interval90_test_coverage": 0.898,
+    "improvement_vs_hist_mean_pct": 37.45083832867376
+  }
+}
