@@ -19,7 +19,8 @@ import java.security.SecureRandom
  * - `timestamp`       : Time-ordered RFC 9562 UUIDv7 primary key & idempotency token
  * - `batch_id`        : Retail lot identifier (e.g., "BATCH-GM-00042" or "SUC-2026-045")
  * - `predicted_yield` : ONNX Edge AI predicted retention yield percentage
- * - `hmac_signature`  : Hardware-backed 256-bit HMAC-SHA256 signature (TEE/StrongBox)
+ * - `hmac_signature`  : Base64 ASN.1 ECDSA-P256 signature from the Keystore private key
+ *                       (legacy column name kept to avoid a schema migration)
  * - `tenant_id`       : Store/Market tenant scope for anti-IDOR verification
  * - `device_id`       : Bound POS terminal hardware ID for anti-BFLA/IDOR validation
  * - `actor_role`      : Least-privilege RBAC role (`ROLE_POS_DEVICE`)

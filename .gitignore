@@ -5,3 +5,10 @@ __pycache__/
 .pytest_cache/
 # Ali modelleri ~1 dk'da yeniden üretilir: python ml-engine/train_model_ali.py
 ml-engine/artifacts/**/*.joblib
+
+catboost_info/
+__pycache__/
+ml-engine/models/
+*.npy
+*.onnx
+ml-engine/data/train_task4_retail.csv
