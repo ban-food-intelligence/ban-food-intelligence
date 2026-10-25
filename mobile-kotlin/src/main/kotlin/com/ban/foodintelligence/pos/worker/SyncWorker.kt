@@ -1,11 +1,13 @@
 package com.ban.foodintelligence.pos.worker
 
 import android.content.Context
+import android.util.Log
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -13,7 +15,7 @@ import com.ban.foodintelligence.pos.database.AppDatabase
 import com.ban.foodintelligence.pos.model.SyncOutboxQueue
 import com.ban.foodintelligence.pos.security.KeystoreManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -22,34 +24,49 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.security.MessageDigest
+import java.util.Locale
 import java.util.concurrent.TimeUnit
-import kotlin.math.min
-import kotlin.math.pow
 
 /**
  * ============================================================================
- * BAN Food Intelligence - Resilient Offline Outbox Sync Worker (`SyncWorker`)
- * Author: Nuri (Principal Android Security Engineer & Lead POS Architect)
+ * BAN Food Intelligence - Offline Outbox Sync Worker (`SyncWorker`)
+ * Author: Nuri (Principal Android Security Architect)
  * ============================================================================
  *
- * Wakes up automatically when network connectivity is restored
- * (`NetworkType.CONNECTED`), drains pending [SyncOutboxQueue] records via
- * Room Coroutines & Flow, attaches hardware-backed HMAC-SHA256 signatures
- * and BFLA/IDOR security claims, and dispatches to Berke's Go API (`/sync`)
- * with exponential backoff resilience.
+ * Fixes vs. the previous version:
+ * 1. DRAIN LOOP: sends batches of [BATCH_SIZE] until the backlog is empty (the
+ *    old worker sent one batch of 50 and exited with `success`, stranding the
+ *    rest). A per-run cap [MAX_BATCHES_PER_RUN] keeps one run inside
+ *    WorkManager's execution window; if rows remain, the worker chains a
+ *    continuation run.
+ * 2. BOUNDED READS: each iteration reads `LIMIT [BATCH_SIZE]` rows from SQL.
+ * 3. DETERMINISTIC IDEMPOTENCY KEY: `X-Idempotency-UUIDv7` is derived from the
+ *    batch content, so a retry of the same batch carries the SAME key and the
+ *    server can dedupe it (the old key was random per attempt).
+ * 4. ASYMMETRIC SIGNATURES: the envelope is signed with the Keystore ECDSA
+ *    P-256 key. The server verifies with the enrolled public key.
+ *
+ * Loop termination: every iteration either removes rows from PENDING (acked, or
+ * quarantined as FAILED) or returns from the worker, so it cannot spin.
+ *
+ * SERVER CONTRACT (the Go `/sync` handler must match; it currently does not):
+ * - Body: `{ sync_envelope_uuid_v7, tenant_id, device_id, actor_role,
+ *   record_count, outbox_items:[{batch_id, predicted_yield, timestamp,
+ *   signature, signature_alg, ...}] }`
+ * - Optional response `{"acknowledged_ids":["<record timestamp>", ...]}`. Only
+ *   those rows are marked synced; the rest are retried. If the field is absent,
+ *   an HTTP 2xx acknowledges the whole batch.
+ * - `X-Tenant-ID`, `X-Device-ID`, `X-Actor-Role` are CLAIMS used to look up the
+ *   enrolled key. Authorization must come from the verified signature and an
+ *   authenticated identity, never from these headers alone.
  */
 class SyncWorker(
     appContext: Context,
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
 
-    private val database: AppDatabase by lazy {
-        AppDatabase.getInstance(applicationContext)
-    }
-
-    private val outboxDao by lazy {
-        database.outboxDao()
-    }
+    private val outboxDao by lazy { AppDatabase.getInstance(applicationContext).outboxDao() }
 
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -60,23 +77,63 @@ class SyncWorker(
             .build()
     }
 
+    private sealed class BatchOutcome {
+        data class Sent(val count: Int) : BatchOutcome()
+        object AllQuarantined : BatchOutcome()
+        data class Retry(val timestamps: List<String>, val reason: String) : BatchOutcome()
+        data class Fatal(val reason: String) : BatchOutcome()
+    }
+
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         println("📡 Network Restored: Flushing Outbox...")
+        Log.i(TAG, "📡 Network Restored: Flushing Outbox...")
+        var batchesSent = 0
+        var recordsSent = 0
 
-        // 1. Observe pending outbox queue via Kotlin Flow & snapshot batch
-        val pendingCount = outboxDao.observePendingCount().first()
-        if (pendingCount == 0) {
-            println("✅ [SYNC-WORKER] Outbox queue is empty. Zero pending records to flush.")
-            return@withContext Result.success()
+        while (true) {
+            ensureActive()
+
+            if (batchesSent >= MAX_BATCHES_PER_RUN) {
+                val remaining = outboxDao.countPending()
+                if (remaining > 0) {
+                    println("🔁 [SYNC-CHAIN] Per-run cap reached with $remaining pending. Re-enqueuing continuation worker...")
+                    Log.i(TAG, "🔁 Per-run cap reached with $remaining pending. Chaining continuation run...")
+                    scheduleContinuation(applicationContext)
+                }
+                return@withContext Result.success()
+            }
+
+            val pending = outboxDao.getPendingItems(limit = BATCH_SIZE)
+            if (pending.isEmpty()) break
+
+            when (val outcome = flushBatch(pending)) {
+                is BatchOutcome.Sent -> {
+                    batchesSent++
+                    recordsSent += outcome.count
+                    println("📦 [SYNC-LOOP] Batch #$batchesSent acknowledged (${outcome.count} records, $recordsSent total). Checking for remaining backlog...")
+                    Log.i(TAG, "📦 Batch #$batchesSent acknowledged (${outcome.count} records, $recordsSent total).")
+                }
+                BatchOutcome.AllQuarantined -> {
+                    Log.w(TAG, "🚨 Whole batch failed local integrity checks and was quarantined; continuing.")
+                }
+                is BatchOutcome.Retry -> return@withContext handleBackoff(outcome.timestamps, outcome.reason)
+                is BatchOutcome.Fatal -> {
+                    Log.e(TAG, "🛑 Fatal sync failure: ${outcome.reason}")
+                    return@withContext Result.failure()
+                }
+            }
         }
 
-        val pendingBatch = outboxDao.observePendingRecords().first().take(MAX_BATCH_SIZE)
-        println("📦 [SYNC-WORKER] Draining ${pendingBatch.size} of $pendingCount pending records from Room DB...")
+        println("✅ [SYNC-COMPLETE] Outbox backlog completely drained ($recordsSent records in $batchesSent batches).")
+        Log.i(TAG, "✅ Outbox fully drained ($recordsSent records in $batchesSent batches).")
+        Result.success()
+    }
 
-        // 2. Verify local HMAC-SHA256 integrity of each record before transmission
-        val verifiedRecords = mutableListOf<SyncOutboxQueue>()
-        for (record in pendingBatch) {
-            val expectedCanonical = KeystoreManager.buildCanonicalYieldPayload(
+    private suspend fun flushBatch(pending: List<SyncOutboxQueue>): BatchOutcome {
+        // 1. Local integrity: re-verify each record's ECDSA signature before sending.
+        val verified = ArrayList<SyncOutboxQueue>(pending.size)
+        for (record in pending) {
+            val canonical = KeystoreManager.buildCanonicalYieldPayload(
                 tenantId = record.tenantId,
                 deviceId = record.deviceId,
                 actorRole = record.actorRole,
@@ -84,172 +141,220 @@ class SyncWorker(
                 predictedYield = record.predictedYield,
                 timestampUuidV7 = record.timestamp
             )
-            if (KeystoreManager.verifyHMACSignature(expectedCanonical, record.hmacSignature)) {
-                verifiedRecords.add(record)
+            val valid = try {
+                KeystoreManager.verifySignature(canonical, record.hmacSignature)
+            } catch (e: SecurityException) {
+                return BatchOutcome.Fatal("Keystore unavailable or policy violation: ${e.message}")
+            }
+            if (valid) {
+                verified.add(record)
             } else {
-                println("🚨 [SECURITY-TAMPER-ALERT] Local SQLite tampering detected for UUIDv7=${record.timestamp}! Quarantining record.")
+                Log.e(TAG, "🚨 Signature check failed for UUIDv7=${record.timestamp}; quarantining.")
                 outboxDao.markFailed(record.timestamp)
             }
         }
+        if (verified.isEmpty()) return BatchOutcome.AllQuarantined
 
-        if (verifiedRecords.isEmpty()) {
-            return@withContext Result.failure()
+        // 2. Deterministic, content-derived idempotency key.
+        val idempotencyKey = deterministicBatchUuidV7(verified)
+        val head = verified.first()
+        val jsonPayload = buildSyncBatchJsonPayload(idempotencyKey, head, verified)
+
+        // 3. Sign the envelope (key id + identity claims + idempotency key + body).
+        val envelopeCanonical =
+            "${head.tenantId}:${head.deviceId}:${head.actorRole}:$idempotencyKey:$jsonPayload"
+        val envelopeSignature = try {
+            KeystoreManager.signPayload(envelopeCanonical)
+        } catch (e: SecurityException) {
+            return BatchOutcome.Fatal("Cannot sign envelope: ${e.message}")
         }
 
-        // 3. Construct JSON Payload & Sign Envelope with Hardware HMAC-SHA256
-        val primaryRecord = verifiedRecords.first()
-        val envelopeIdempotencyUuidV7 = SyncOutboxQueue.generateUuidV7()
-        val jsonPayload = buildSyncBatchJsonPayload(
-            envelopeUuidV7 = envelopeIdempotencyUuidV7,
-            tenantId = primaryRecord.tenantId,
-            deviceId = primaryRecord.deviceId,
-            actorRole = primaryRecord.actorRole,
-            records = verifiedRecords
-        )
-
-        // Sign entire JSON body to prevent MITM tampering and bind BFLA/IDOR headers
-        println("🔒 [SYNC-SECURITY] Signing `/sync` JSON envelope with Hardware TEE HMAC-SHA256...")
-        val envelopeCanonical = "${primaryRecord.tenantId}:${primaryRecord.deviceId}:${primaryRecord.actorRole}:$envelopeIdempotencyUuidV7:$jsonPayload"
-        val envelopeHmacSignature = KeystoreManager.generateHMACSignature(envelopeCanonical)
-
-        // 4. Transmit to Berke's Go REST API (`/sync`) with BFLA/IDOR & HMAC Headers
         val syncUrl = inputData.getString(KEY_GO_API_SYNC_URL) ?: DEFAULT_GO_API_SYNC_URL
         val request = Request.Builder()
             .url(syncUrl)
-            // MITM Protection: Hardware-backed 256-bit HMAC-SHA256 signature
-            .header("X-HMAC-Signature", envelopeHmacSignature)
-            // IDOR Protection: Binds request strictly to authenticated Store Tenant & POS Hardware ID
-            .header("X-Tenant-ID", primaryRecord.tenantId)
-            .header("X-Device-ID", primaryRecord.deviceId)
-            // BFLA Protection: Enforces least-privilege RBAC scope (POS device can only call /sync)
-            .header("X-Actor-Role", primaryRecord.actorRole)
-            // Replay Protection: RFC 9562 UUIDv7 monotonic idempotency token
-            .header("X-Idempotency-UUIDv7", envelopeIdempotencyUuidV7)
+            .header("X-Signature", envelopeSignature)
+            .header("X-Signature-Alg", "ECDSA-P256-SHA256")
+            .header("X-Key-Fingerprint", KeystoreManager.publicKeyFingerprintHex())
+            .header("X-Idempotency-UUIDv7", idempotencyKey)
+            .header("X-Tenant-ID", head.tenantId)
+            .header("X-Device-ID", head.deviceId)
+            .header("X-Actor-Role", head.actorRole)
             .post(jsonPayload.toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        return@withContext try {
-            println("🚀 [SYNC-HTTP] POST $syncUrl | Records: ${verifiedRecords.size} | HMAC: ${envelopeHmacSignature.take(16)}...")
+        val timestamps = verified.map { it.timestamp }
+        return try {
+            Log.i(TAG, "🚀 POST $syncUrl | records=${verified.size} | idem=$idempotencyKey")
             httpClient.newCall(request).execute().use { response ->
-                val timestamps = verifiedRecords.map { it.timestamp }
+                val body = response.body?.string().orEmpty()
                 when {
-                    response.isSuccessful -> {
-                        outboxDao.markAcknowledged(timestamps)
-                        println("✅ [SYNC-SUCCESS] Go API `/sync` acknowledged ${timestamps.size} records (HTTP ${response.code}).")
-                        Result.success()
-                    }
-                    response.code == 401 || response.code == 403 -> {
-                        println("🛑 [BFLA/IDOR-REJECTED] Go API rejected authorization or HMAC signature (HTTP ${response.code}).")
-                        Result.failure()
-                    }
-                    else -> {
-                        handleExponentialBackoff(timestamps, "HTTP ${response.code}")
-                    }
+                    response.isSuccessful -> applyAcknowledgement(verified, body)
+                    response.code == 401 || response.code == 403 ->
+                        BatchOutcome.Fatal("Server rejected authorization/signature (HTTP ${response.code})")
+                    else -> BatchOutcome.Retry(timestamps, "HTTP ${response.code}")
                 }
             }
-        } catch (ioEx: IOException) {
-            val timestamps = verifiedRecords.map { it.timestamp }
-            handleExponentialBackoff(timestamps, ioEx.message ?: "Network unreachable")
+        } catch (e: IOException) {
+            BatchOutcome.Retry(timestamps, e.message ?: "network unreachable")
         }
     }
 
     /**
-     * Builds the canonical JSON payload sent to Berke's Go API (`/sync`).
-     * Every item includes its individual `batch_id`, `predicted_yield`,
-     * `timestamp` (UUIDv7), and `hmac_signature`.
+     * Marks acknowledged rows as synced. Un-acknowledged rows stay PENDING and are
+     * reported as a retry so the loop cannot resend the same rows indefinitely.
      */
+    private suspend fun applyAcknowledgement(
+        verified: List<SyncOutboxQueue>,
+        responseBody: String
+    ): BatchOutcome {
+        val ackedIds = parseAcknowledgedIds(responseBody)
+        if (ackedIds == null) {
+            outboxDao.markAcknowledged(verified.map { it.timestamp })
+            return BatchOutcome.Sent(verified.size)
+        }
+        val acked = verified.filter { it.timestamp in ackedIds }
+        val rejected = verified.filter { it.timestamp !in ackedIds }
+        if (acked.isNotEmpty()) outboxDao.markAcknowledged(acked.map { it.timestamp })
+        return if (rejected.isEmpty()) {
+            BatchOutcome.Sent(acked.size)
+        } else {
+            BatchOutcome.Retry(rejected.map { it.timestamp }, "partial ack: ${rejected.size} rejected")
+        }
+    }
+
+    private fun parseAcknowledgedIds(body: String): Set<String>? {
+        if (body.isBlank()) return null
+        return try {
+            val array = JSONObject(body).optJSONArray("acknowledged_ids") ?: return null
+            buildSet { for (i in 0 until array.length()) add(array.getString(i)) }
+        } catch (e: org.json.JSONException) {
+            null
+        }
+    }
+
     private fun buildSyncBatchJsonPayload(
         envelopeUuidV7: String,
-        tenantId: String,
-        deviceId: String,
-        actorRole: String,
+        head: SyncOutboxQueue,
         records: List<SyncOutboxQueue>
     ): String {
-        val itemsArray = JSONArray()
+        val items = JSONArray()
         for (item in records) {
-            val itemObj = JSONObject().apply {
-                put("batch_id", item.batchId)
-                put("predicted_yield", item.predictedYield.toDouble())
-                put("timestamp", item.timestamp) // UUIDv7 format
-                put("hmac_signature", item.hmacSignature)
-                put("tenant_id", item.tenantId)
-                put("device_id", item.deviceId)
-                put("actor_role", item.actorRole)
-                put("retry_count", item.retryCount)
-            }
-            itemsArray.put(itemObj)
+            items.put(
+                JSONObject().apply {
+                    put("batch_id", item.batchId)
+                    put("predicted_yield", item.predictedYield.toDouble())
+                    put("timestamp", item.timestamp)
+                    put("signature", item.hmacSignature)
+                    put("signature_alg", "ECDSA-P256-SHA256")
+                    put("tenant_id", item.tenantId)
+                    put("device_id", item.deviceId)
+                    put("actor_role", item.actorRole)
+                    put("retry_count", item.retryCount)
+                }
+            )
         }
-
         return JSONObject().apply {
             put("sync_envelope_uuid_v7", envelopeUuidV7)
-            put("tenant_id", tenantId)
-            put("device_id", deviceId)
-            put("actor_role", actorRole)
+            put("tenant_id", head.tenantId)
+            put("device_id", head.deviceId)
+            put("actor_role", head.actorRole)
             put("record_count", records.size)
-            put("outbox_items", itemsArray)
+            put("outbox_items", items)
         }.toString()
     }
 
-    /**
-     * Increments retry counters in SQLite Room and schedules WorkManager
-     * exponential backoff ($15\text{s} \times 2^{\text{attempt}}$ up to $300\text{s}$).
-     */
-    private suspend fun handleExponentialBackoff(
-        timestamps: List<String>,
-        reason: String
-    ): Result {
+    private suspend fun handleBackoff(timestamps: List<String>, reason: String): Result {
         outboxDao.incrementRetryCount(timestamps)
         val attempt = runAttemptCount + 1
         if (attempt > MAX_RETRY_ATTEMPTS) {
-            println("❌ [SYNC-ABORT] Exceeded max retry attempts ($MAX_RETRY_ATTEMPTS). Marking batch for manual inspection.")
+            Log.e(TAG, "❌ Exceeded $MAX_RETRY_ATTEMPTS attempts ($reason). Marking ${timestamps.size} rows FAILED.")
             timestamps.forEach { outboxDao.markFailed(it) }
             return Result.failure()
         }
-
-        val backoffSeconds = min(
-            MAX_BACKOFF_SECONDS,
-            (INITIAL_BACKOFF_SECONDS * 2.0.pow(runAttemptCount.toDouble())).toLong()
-        )
-        println("⏳ [EXPONENTIAL-BACKOFF] `/sync` failed ($reason). Attempt #$attempt -> Retrying in ${backoffSeconds}s...")
+        Log.w(TAG, "⏳ Sync failed ($reason). Attempt #$attempt; WorkManager applies exponential backoff.")
         return Result.retry()
     }
 
     companion object {
+        private const val TAG = "SyncWorker"
+
         const val UNIQUE_WORK_NAME = "ban_avatar_pos_outbox_sync_worker"
         const val KEY_GO_API_SYNC_URL = "GO_API_SYNC_URL"
         const val DEFAULT_GO_API_SYNC_URL = "https://api.banfoodintelligence.internal/v1/sync"
 
-        private const val MAX_BATCH_SIZE = 50
+        const val BATCH_SIZE = 50
+        private const val MAX_BATCHES_PER_RUN = 100
         private const val MAX_RETRY_ATTEMPTS = 8
         private const val INITIAL_BACKOFF_SECONDS = 15L
-        private const val MAX_BACKOFF_SECONDS = 300L
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
         /**
-         * Registers a constrained WorkManager job that automatically wakes up
-         * as soon as network connectivity is restored (`NetworkType.CONNECTED`)
-         * with hardware-enforced `BackoffPolicy.EXPONENTIAL`.
+         * Builds a UUIDv7-shaped key that is a pure function of the batch content:
+         * - 48-bit timestamp field = the earliest record's own UUIDv7 millisecond value,
+         * - remaining bits come from SHA-256 over the sorted record identities and
+         *   signatures,
+         * - version = 7, variant = RFC 4122.
+         * Same batch in, same key out, on every retry.
          */
-        fun enqueueWhenNetworkConnected(context: Context) {
-            val networkConstraints = Constraints.Builder()
+        internal fun deterministicBatchUuidV7(records: List<SyncOutboxQueue>): String {
+            val sorted = records.sortedBy { it.timestamp }
+            val digest = MessageDigest.getInstance("SHA-256")
+            for (r in sorted) {
+                val line = "${r.timestamp}|${r.batchId}|" +
+                    "${"%.4f".format(Locale.US, r.predictedYield)}|${r.hmacSignature}\n"
+                digest.update(line.toByteArray(Charsets.UTF_8))
+            }
+            val hash = digest.digest()
+
+            val epochMs = sorted.minOf { uuidV7EpochMillis(it.timestamp) }
+            val bytes = ByteArray(16)
+            for (i in 0 until 6) {
+                bytes[i] = ((epochMs ushr (8 * (5 - i))) and 0xFF).toByte()
+            }
+            for (i in 6 until 16) {
+                bytes[i] = hash[i - 6]
+            }
+            bytes[6] = ((bytes[6].toInt() and 0x0F) or 0x70).toByte()
+            bytes[8] = ((bytes[8].toInt() and 0x3F) or 0x80).toByte()
+
+            val hex = bytes.joinToString("") { "%02x".format(it) }
+            return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-" +
+                "${hex.substring(16, 20)}-${hex.substring(20, 32)}"
+        }
+
+        private fun uuidV7EpochMillis(uuid: String): Long =
+            uuid.replace("-", "").take(12).toLongOrNull(16) ?: 0L
+
+        private fun buildRequest(): OneTimeWorkRequest {
+            val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
-
-            val syncWorkRequest = OneTimeWorkRequestBuilder<SyncWorker>()
-                .setConstraints(networkConstraints)
-                .setBackoffCriteria(
-                    BackoffPolicy.EXPONENTIAL,
-                    INITIAL_BACKOFF_SECONDS,
-                    TimeUnit.SECONDS
-                )
+            return OneTimeWorkRequestBuilder<SyncWorker>()
+                .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, INITIAL_BACKOFF_SECONDS, TimeUnit.SECONDS)
                 .build()
+        }
 
+        /** Schedules a drain when connectivity is available. No-op if one is already queued. */
+        fun enqueueWhenNetworkConnected(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
                 UNIQUE_WORK_NAME,
                 ExistingWorkPolicy.KEEP,
-                syncWorkRequest
+                buildRequest()
             )
-            println("📅 [WORK-MANAGER] Scheduled SyncWorker (Trigger: NetworkType.CONNECTED | Policy: EXPONENTIAL_BACKOFF).")
+            Log.i(TAG, "📅 SyncWorker scheduled (NetworkType.CONNECTED, exponential backoff).")
+        }
+
+        /**
+         * Chains a follow-up run behind the currently running one. `KEEP` would be
+         * ignored here because the current run is still active.
+         */
+        private fun scheduleContinuation(context: Context) {
+            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+                UNIQUE_WORK_NAME,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
+                buildRequest()
+            )
         }
     }
 }

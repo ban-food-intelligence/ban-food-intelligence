@@ -4,48 +4,41 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.ban.foodintelligence.pos.model.OutboxItem
 import com.ban.foodintelligence.pos.model.SyncOutboxQueue
 import kotlinx.coroutines.flow.Flow
 
 /**
  * ============================================================================
- * BAN Food Intelligence - Offline Outbox Room Data Access Object (`OutboxDao`)
- * Author: Nuri (Principal Android Security Engineer & Lead POS Architect)
+ * BAN Food Intelligence - Offline Outbox Room DAO (`OutboxDao`)
+ * Author: Nuri (Principal Android Security Architect)
  * ============================================================================
  *
- * Uses strictly pre-compiled SQLite prepared statements (`:parameter` binding)
- * with Kotlin Coroutines (`suspend`) and cold reactive streams (`Flow`) to
- * guarantee zero SQL Injection (SQLi) surface area and non-blocking UI updates.
+ * "Steel Vest" OOM Fix:
+ * All `SELECT *` queries and reactive `Flow` streams enforce `LIMIT :limit`
+ * (default 50) directly inside SQLite so Room never materializes an unbounded
+ * offline backlog into the JVM heap.
  */
 @Dao
 interface OutboxDao {
 
-    /**
-     * Inserts a cryptographically signed [SyncOutboxQueue] record into the
-     * local SQLite outbox. Aborts on duplicate UUIDv7 `timestamp` to enforce
-     * strict idempotency.
-     */
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun enqueue(item: SyncOutboxQueue): Long
 
     /**
-     * Reactive `Flow` emitting all pending outbox records ordered chronologically
-     * by their monotonic UUIDv7 `timestamp`.
+     * Bounded SQL `Flow` for `pos_outbox` (`LIMIT :limit`, default 50) to prevent OOM.
      */
-    @Query(
-        """
-        SELECT * FROM sync_outbox_queue
-        WHERE status = :status
-        ORDER BY timestamp ASC
-        """
-    )
-    fun observePendingRecords(
-        status: String = SyncOutboxQueue.STATUS_PENDING
-    ): Flow<List<SyncOutboxQueue>>
+    @Query("SELECT * FROM pos_outbox WHERE status = 'PENDING' LIMIT :limit")
+    fun observePendingPosOutbox(limit: Int = 50): Flow<List<OutboxItem>>
 
     /**
-     * Reactive `Flow` emitting the real-time count of unsynchronized records
-     * waiting in the offline outbox queue.
+     * Bounded SQL `Flow` for `sync_outbox_queue` (`LIMIT :limit`, default 50) to prevent OOM.
+     */
+    @Query("SELECT * FROM sync_outbox_queue WHERE status = 'PENDING' ORDER BY timestamp ASC LIMIT :limit")
+    fun observePendingRecords(limit: Int = 50): Flow<List<SyncOutboxQueue>>
+
+    /**
+     * Reactive `Flow` emitting the scalar count of pending outbox records.
      */
     @Query("SELECT COUNT(*) FROM sync_outbox_queue WHERE status = :status")
     fun observePendingCount(
@@ -53,8 +46,16 @@ interface OutboxDao {
     ): Flow<Int>
 
     /**
-     * One-shot coroutine query used by `SyncWorker` to fetch a batch of pending
-     * records when network connectivity (`NetworkType.CONNECTED`) is restored.
+     * One-shot count query used by `SyncWorker` to check if additional batches
+     * of 50 remain in the backlog after a successful flush.
+     */
+    @Query("SELECT COUNT(*) FROM sync_outbox_queue WHERE status = :status")
+    suspend fun countPending(
+        status: String = SyncOutboxQueue.STATUS_PENDING
+    ): Int
+
+    /**
+     * Bounded batch fetch (`LIMIT :limit`, default 50) ordered by monotonic UUIDv7.
      */
     @Query(
         """
@@ -69,10 +70,6 @@ interface OutboxDao {
         status: String = SyncOutboxQueue.STATUS_PENDING
     ): List<SyncOutboxQueue>
 
-    /**
-     * Marks a batch of UUIDv7 `timestamp` keys as `SYNCED` after Berke's Go API
-     * (`/sync`) returns a verified HTTP 200 acknowledgement.
-     */
     @Query(
         """
         UPDATE sync_outbox_queue
@@ -85,11 +82,6 @@ interface OutboxDao {
         newStatus: String = SyncOutboxQueue.STATUS_SYNCED
     )
 
-    /**
-     * Increments `retry_count` when a `/sync` transmission encounters a transient
-     * network or HTTP 5xx failure, preparing the record for WorkManager's
-     * exponential backoff retry.
-     */
     @Query(
         """
         UPDATE sync_outbox_queue
@@ -99,10 +91,6 @@ interface OutboxDao {
     )
     suspend fun incrementRetryCount(timestamps: List<String>)
 
-    /**
-     * Marks a specific UUIDv7 record as permanently `FAILED` if its local HMAC
-     * integrity check fails (indicating local database tampering).
-     */
     @Query(
         """
         UPDATE sync_outbox_queue
@@ -115,9 +103,6 @@ interface OutboxDao {
         failedStatus: String = SyncOutboxQueue.STATUS_FAILED
     )
 
-    /**
-     * Purges already-acknowledged outbox records older than the retention window.
-     */
     @Query("DELETE FROM sync_outbox_queue WHERE status = :syncedStatus")
     suspend fun purgeSyncedRecords(
         syncedStatus: String = SyncOutboxQueue.STATUS_SYNCED

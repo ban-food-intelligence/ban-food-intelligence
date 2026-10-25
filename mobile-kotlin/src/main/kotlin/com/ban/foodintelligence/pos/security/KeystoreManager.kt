@@ -4,129 +4,144 @@ import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
+import android.util.Base64
+import android.util.Log
+import java.security.KeyFactory
+import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.security.PrivateKey
+import java.security.ProviderException
+import java.security.PublicKey
+import java.security.Signature
+import java.security.SignatureException
+import java.security.spec.ECGenParameterSpec
+import java.util.Locale
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
-import javax.crypto.Mac
 import javax.crypto.SecretKey
-import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 
 /**
  * ============================================================================
- * BAN Food Intelligence - AVATAR ERP Military-Grade Hardware Keystore Manager
- * Author: Nuri (Principal Android Security Engineer & Lead POS Architect)
+ * BAN Food Intelligence - AVATAR ERP Hardware Keystore Manager (Asymmetric)
+ * Author: Nuri (Principal Android Security Architect)
  * ============================================================================
  *
- * Enforces hardware-backed cryptographic key generation and signing inside the
- * Android Trusted Execution Environment (TEE) / StrongBox Secure Element.
+ * WHY ASYMMETRIC: the previous symmetric HMAC key was non-exportable, so the
+ * Go backend could never hold the same secret and could never verify a
+ * signature. An ECDSA P-256 key pair fixes that: the PRIVATE key never leaves
+ * the TEE/StrongBox, and the PUBLIC key ([exportPublicKeyBase64]) is registered
+ * with the backend, which verifies signatures with `ecdsa.VerifyASN1`.
  *
- * Security Guarantees:
- * 1. Non-Exportable 256-bit HMAC-SHA256 SecretKey (`AndroidKeyStore` provider).
- * 2. Cryptographic signing of every Edge AI yield prediction and `/sync` batch
- *    to neutralize Man-in-the-Middle (MITM) payload tampering.
- * 3. Canonical BFLA/IDOR identity binding (`tenantId`, `deviceId`, `actorRole`)
- *    baked directly into the signed HMAC digest.
+ * Wire formats (for the Go side):
+ * - Signature : Base64 (no wrap) of an ASN.1 DER `ECDSA-Sig-Value`
+ *               (SHA256withECDSA). Verify with `ecdsa.VerifyASN1(pub, sha256(msg), sig)`.
+ * - Public key: Base64 (no wrap) of X.509 `SubjectPublicKeyInfo` DER.
+ *               Parse with `x509.ParsePKIXPublicKey`.
+ *
+ * What this does NOT solve: a signature proves "this device's key signed these
+ * bytes", not that the sensor data was true. A rooted device can still call the
+ * signing oracle. Key attestation and server-side plausibility checks are
+ * separate controls.
  */
 object KeystoreManager {
 
+    private const val TAG = "KeystoreManager"
     private const val ANDROID_KEYSTORE_PROVIDER = "AndroidKeyStore"
-    private const val HMAC_KEY_ALIAS = "ban_avatar_pos_hmac_sha256_v1"
+
+    private const val EC_KEY_ALIAS = "ban_avatar_pos_ecdsa_p256_v1"
+    private const val EC_CURVE = "secp256r1"
+    private const val SIGNATURE_ALGORITHM = "SHA256withECDSA"
+
+    /** Symmetric HMAC alias from the previous design; zeroized on first run. */
+    private const val LEGACY_HMAC_KEY_ALIAS = "ban_avatar_pos_hmac_sha256_v1"
+
     private const val AES_KEY_ALIAS = "ban_avatar_pos_aes_gcm_256_v1"
-    private const val HMAC_ALGORITHM = "HmacSHA256"
     private const val AES_TRANSFORMATION = "AES/GCM/NoPadding"
     private const val GCM_TAG_BITS = 128
 
+    /**
+     * When true (default), [signPayload] refuses to sign if the key is known to
+     * be software-only. Set false ONLY for emulators / debug builds. If the
+     * hardware level cannot be determined, signing proceeds with a warning.
+     */
     @Volatile
-    private var isInitialized = false
+    var enforceHardwareBacking: Boolean = true
 
-    init {
-        initializeHardwareKeys()
-    }
+    @Volatile
+    private var hardwareResidencyChecked = false
+
+    // ------------------------------------------------------------------
+    // Key provisioning
+    // ------------------------------------------------------------------
+
+    private fun openKeyStore(): KeyStore =
+        KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
 
     /**
-     * Synchronously provisions the 256-bit HMAC-SHA256 and AES-256-GCM keys
-     * inside the Android Hardware-Backed Keystore (TEE / StrongBox).
+     * Idempotently provisions the P-256 key pair inside the Android Keystore.
+     * Lazy (not in an `init` block) so a Keystore failure surfaces as a normal
+     * exception at the call site instead of poisoning the singleton.
      */
     @Synchronized
-    fun initializeHardwareKeys() {
-        if (isInitialized) return
-        ensureHardwareHmacKeyExists()
-        ensureHardwareAesKeyExists()
-        isInitialized = true
-    }
+    fun ensureKeyPairProvisioned() {
+        val keyStore = openKeyStore()
 
-    /**
-     * Generates a 256-bit HMAC-SHA256 key strictly inside the Android
-     * Hardware-Backed Keystore (StrongBox / TEE).
-     */
-    private fun ensureHardwareHmacKeyExists() {
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
-        if (keyStore.containsAlias(HMAC_KEY_ALIAS)) {
-            println("🔒 [KEYSTORE-TEE] Hardware 256-bit HMAC-SHA256 Key verified in Secure Element ($HMAC_KEY_ALIAS).")
-            return
+        if (keyStore.containsAlias(LEGACY_HMAC_KEY_ALIAS)) {
+            keyStore.deleteEntry(LEGACY_HMAC_KEY_ALIAS)
+            Log.w(TAG, "🧹 Zeroized legacy symmetric HMAC key ($LEGACY_HMAC_KEY_ALIAS).")
         }
 
-        println("🔒 Generating Hardware HMAC Key...")
-        val keyGenerator = KeyGenerator.getInstance(
-            KeyProperties.KEY_ALGORITHM_HMAC_SHA256,
-            ANDROID_KEYSTORE_PROVIDER
-        )
+        if (!keyStore.containsAlias(EC_KEY_ALIAS)) {
+            println("🔐 Provisioning ECDSA P-256 Keypair...")
+            Log.i(TAG, "🔐 Provisioning ECDSA P-256 Keypair inside Android Keystore...")
+            generateEcKeyPair()
+        }
+        ensureAesKeyExists(keyStore)
+    }
 
-        val baseSpecBuilder = KeyGenParameterSpec.Builder(
-            HMAC_KEY_ALIAS,
+    private fun buildEcSpec(strongBox: Boolean): KeyGenParameterSpec {
+        val builder = KeyGenParameterSpec.Builder(
+            EC_KEY_ALIAS,
             KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
         )
-            .setKeySize(256)
+            .setAlgorithmParameterSpec(ECGenParameterSpec(EC_CURVE))
             .setDigests(KeyProperties.DIGEST_SHA256)
             .setUserAuthenticationRequired(false)
 
-        // Attempt StrongBox Hardware Security Module first on API 28+, fallback to TEE
-        val secretKey: SecretKey = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            try {
-                baseSpecBuilder.setIsStrongBoxBacked(true)
-                keyGenerator.init(baseSpecBuilder.build())
-                keyGenerator.generateKey()
-            } catch (e: Exception) {
-                println("🛡️ [KEYSTORE-TEE] StrongBox unavailable; provisioning inside Hardware TEE Keymaster...")
-                baseSpecBuilder.setIsStrongBoxBacked(false)
-                keyGenerator.init(baseSpecBuilder.build())
-                keyGenerator.generateKey()
-            }
-        } else {
-            keyGenerator.init(baseSpecBuilder.build())
-            keyGenerator.generateKey()
+        if (strongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            builder.setIsStrongBoxBacked(true)
         }
-
-        verifyHardwareResidency(secretKey)
+        return builder.build()
     }
 
-    /**
-     * Audits that the generated HMAC key resides inside secure hardware (TEE/StrongBox)
-     * and cannot be extracted into user-space memory.
-     */
-    private fun verifyHardwareResidency(secretKey: SecretKey) {
-        runCatching {
-            val factory = SecretKeyFactory.getInstance(secretKey.algorithm, ANDROID_KEYSTORE_PROVIDER)
-            val keyInfo = factory.getKeySpec(secretKey, KeyInfo::class.java) as KeyInfo
-            @Suppress("DEPRECATION")
-            val inHardware = keyInfo.isInsideSecureHardware
-            println("🛡️ [KEYSTORE-AUDIT] 256-bit HMAC Key Hardware-Backed Residency = $inHardware")
+    private fun generateEcKeyPair() {
+        val generator = KeyPairGenerator.getInstance(
+            KeyProperties.KEY_ALGORITHM_EC,
+            ANDROID_KEYSTORE_PROVIDER
+        )
+        try {
+            // StrongBoxUnavailableException extends ProviderException on API 28+.
+            generator.initialize(buildEcSpec(strongBox = true))
+            generator.generateKeyPair()
+            Log.i(TAG, "🛡️ EC P-256 keypair generated (StrongBox requested).")
+        } catch (e: ProviderException) {
+            Log.w(TAG, "⚠️ StrongBox unavailable (${e.javaClass.simpleName}); falling back to TEE Keymaster.")
+            generator.initialize(buildEcSpec(strongBox = false))
+            generator.generateKeyPair()
+            Log.i(TAG, "🛡️ EC P-256 keypair generated (TEE / default Keystore).")
         }
     }
 
-    /**
-     * Provisions a 256-bit AES-GCM hardware key for encrypting local auth tokens.
-     */
-    private fun ensureHardwareAesKeyExists() {
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
-        if (!keyStore.containsAlias(AES_KEY_ALIAS)) {
-            val keyGenerator = KeyGenerator.getInstance(
-                KeyProperties.KEY_ALGORITHM_AES,
-                ANDROID_KEYSTORE_PROVIDER
-            )
-            val spec = KeyGenParameterSpec.Builder(
+    private fun ensureAesKeyExists(keyStore: KeyStore) {
+        if (keyStore.containsAlias(AES_KEY_ALIAS)) return
+        val keyGenerator = KeyGenerator.getInstance(
+            KeyProperties.KEY_ALGORITHM_AES,
+            ANDROID_KEYSTORE_PROVIDER
+        )
+        keyGenerator.init(
+            KeyGenParameterSpec.Builder(
                 AES_KEY_ALIAS,
                 KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
             )
@@ -134,58 +149,131 @@ object KeystoreManager {
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(256)
                 .build()
-            keyGenerator.init(spec)
-            keyGenerator.generateKey()
+        )
+        keyGenerator.generateKey()
+    }
+
+    private fun loadPrivateKey(): PrivateKey {
+        ensureKeyPairProvisioned()
+        return openKeyStore().getKey(EC_KEY_ALIAS, null) as? PrivateKey
+            ?: throw SecurityException("EC private key '$EC_KEY_ALIAS' missing from AndroidKeyStore")
+    }
+
+    private fun loadPublicKey(): PublicKey {
+        ensureKeyPairProvisioned()
+        return openKeyStore().getCertificate(EC_KEY_ALIAS)?.publicKey
+            ?: throw SecurityException("EC certificate '$EC_KEY_ALIAS' missing from AndroidKeyStore")
+    }
+
+    // ------------------------------------------------------------------
+    // Hardware residency
+    // ------------------------------------------------------------------
+
+    /**
+     * @return true if the private key is in TEE/StrongBox, false if software-only,
+     *         null if the platform could not tell us.
+     */
+    fun isHardwareBacked(): Boolean? = runCatching {
+        val privateKey = loadPrivateKey()
+        val info = KeyFactory.getInstance(privateKey.algorithm, ANDROID_KEYSTORE_PROVIDER)
+            .getKeySpec(privateKey, KeyInfo::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            info.securityLevel == KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT ||
+                info.securityLevel == KeyProperties.SECURITY_LEVEL_STRONGBOX
+        } else {
+            @Suppress("DEPRECATION")
+            info.isInsideSecureHardware
+        }
+    }.getOrNull()
+
+    private fun assertHardwareResidency() {
+        if (hardwareResidencyChecked) return
+        when (isHardwareBacked()) {
+            true -> {
+                Log.i(TAG, "🛡️ Key residency audit: PRIVATE KEY IS HARDWARE-BACKED.")
+                hardwareResidencyChecked = true
+            }
+            false -> {
+                if (enforceHardwareBacking) {
+                    Log.e(TAG, "💀 Key is SOFTWARE-ONLY and enforceHardwareBacking=true. Refusing to sign.")
+                    throw SecurityException("EC signing key is not hardware-backed")
+                }
+                Log.w(TAG, "⚠️ Key is software-only; allowed because enforceHardwareBacking=false.")
+                hardwareResidencyChecked = true
+            }
+            null -> Log.w(TAG, "⚠️ Could not determine key residency; proceeding without hardware assurance.")
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Signing / verification / export
+    // ------------------------------------------------------------------
+
+    /**
+     * Signs [payload] (UTF-8) with the Keystore-resident P-256 private key using
+     * SHA256withECDSA.
+     *
+     * @return Base64 (NO_WRAP) of the ASN.1 DER signature.
+     * @throws SecurityException if the key is missing or fails the hardware policy.
+     */
+    fun signPayload(payload: String): String {
+        val privateKey = loadPrivateKey()
+        assertHardwareResidency()
+
+        val signer = Signature.getInstance(SIGNATURE_ALGORITHM)
+        signer.initSign(privateKey)
+        signer.update(payload.toByteArray(Charsets.UTF_8))
+        val signature = Base64.encodeToString(signer.sign(), Base64.NO_WRAP)
+        println("✍️ [ECDSA-P256] Signed payload with TEE Private Key (${signature.take(16)}...).")
+        Log.d(TAG, "✍️ ECDSA-P256 signature produced (${signature.take(16)}...).")
+        return signature
+    }
+
+    /**
+     * Verifies [signatureBase64] over [payload] with this device's public key.
+     * Used for local at-rest integrity checks; the authoritative verifier is the
+     * backend, using the registered public key.
+     */
+    fun verifySignature(payload: String, signatureBase64: String): Boolean {
+        val signatureBytes = try {
+            Base64.decode(signatureBase64, Base64.NO_WRAP)
+        } catch (e: IllegalArgumentException) {
+            return false
+        }
+        return try {
+            val verifier = Signature.getInstance(SIGNATURE_ALGORITHM)
+            verifier.initVerify(loadPublicKey())
+            verifier.update(payload.toByteArray(Charsets.UTF_8))
+            verifier.verify(signatureBytes)
+        } catch (e: SignatureException) {
+            false
         }
     }
 
     /**
-     * Generates a lowercase hexadecimal 256-bit HMAC-SHA256 signature for the
-     * given [payload] using the non-exportable Android Keystore hardware key.
-     *
-     * Every Edge AI yield prediction and offline outbox sync request is signed
-     * by this method to prevent Man-in-the-Middle (MITM) tampering and
-     * unauthorized BFLA/IDOR parameter manipulation.
-     *
-     * @param payload Canonical string or JSON payload to sign.
-     * @return 64-character hex-encoded HMAC-SHA256 signature.
+     * Exports the device public key as Base64 (NO_WRAP) X.509 SubjectPublicKeyInfo
+     * DER, for registration with the Go backend. Registration must happen over an
+     * authenticated channel; a public key the server has not enrolled out-of-band
+     * proves nothing.
      */
-    @Synchronized
-    fun generateHMACSignature(payload: String): String {
-        println("✍️ [KEYSTORE-HMAC] Signing payload via TEE Hardware HMAC-SHA256...")
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
-        val secretKey = keyStore.getKey(HMAC_KEY_ALIAS, null) as? SecretKey
-            ?: throw SecurityException("Hardware HMAC key '$HMAC_KEY_ALIAS' missing from AndroidKeyStore!")
-
-        val mac = Mac.getInstance(HMAC_ALGORITHM)
-        mac.init(secretKey)
-        val rawHmacBytes = mac.doFinal(payload.toByteArray(Charsets.UTF_8))
-        val signatureHex = rawHmacBytes.joinToString(separator = "") { byte -> "%02x".format(byte) }
-        println("✅ [KEYSTORE-HMAC] Signature generated: ${signatureHex.take(16)}... (256-bit)")
-        return signatureHex
+    fun exportPublicKeyBase64(): String {
+        val encoded = loadPublicKey().encoded
+        println("📤 [ECDSA-PUBKEY] Exporting X.509 SPKI Public Key (${encoded.size} bytes DER) for Go Backend verification...")
+        Log.i(TAG, "📤 Exporting device public key (${encoded.size} bytes SPKI DER).")
+        return Base64.encodeToString(encoded, Base64.NO_WRAP)
     }
 
     /**
-     * Alias maintained for backward compatibility across POS modules.
+     * Lowercase hex SHA-256 of the SPKI DER. Sent with each sync so the server
+     * can look up which enrolled key to verify against.
      */
-    fun signPayload(payloadJson: String): String = generateHMACSignature(payloadJson)
+    fun publicKeyFingerprintHex(): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(loadPublicKey().encoded)
+            .joinToString("") { "%02x".format(it) }
 
     /**
-     * Performs constant-time verification of a payload against an expected
-     * hex-encoded HMAC-SHA256 signature to prevent timing side-channel attacks.
-     */
-    fun verifyHMACSignature(payload: String, expectedHexSignature: String): Boolean {
-        val computedHex = generateHMACSignature(payload)
-        return MessageDigest.isEqual(
-            computedHex.toByteArray(Charsets.UTF_8),
-            expectedHexSignature.lowercase().toByteArray(Charsets.UTF_8)
-        )
-    }
-
-    /**
-     * Constructs a canonical, tamper-evident string binding BFLA/IDOR identity
-     * claims (`tenantId`, `deviceId`, `actorRole`) with the yield telemetry
-     * (`batchId`, `predictedYield`, `timestampUuidV7`) prior to HMAC signing.
+     * Canonical string binding identity claims to the yield telemetry before signing.
      */
     fun buildCanonicalYieldPayload(
         tenantId: String,
@@ -195,31 +283,28 @@ object KeystoreManager {
         predictedYield: Float,
         timestampUuidV7: String
     ): String {
-        val formattedYield = "%.4f".format(java.util.Locale.US, predictedYield)
-        return "v1|$tenantId|$deviceId|$actorRole|$batchId|$formattedYield|$timestampUuidV7"
+        val formattedYield = "%.4f".format(Locale.US, predictedYield)
+        return "v2|$tenantId|$deviceId|$actorRole|$batchId|$formattedYield|$timestampUuidV7"
     }
 
-    /**
-     * Encrypts sensitive POS session tokens using hardware-backed AES-256-GCM.
-     */
+    // ------------------------------------------------------------------
+    // AES-256-GCM secret storage (unchanged)
+    // ------------------------------------------------------------------
+
     fun encryptSecret(plainText: String): Pair<ByteArray, ByteArray> {
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
-        val secretKey = keyStore.getKey(AES_KEY_ALIAS, null) as SecretKey
+        ensureKeyPairProvisioned()
+        val secretKey = openKeyStore().getKey(AES_KEY_ALIAS, null) as SecretKey
         val cipher = Cipher.getInstance(AES_TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, secretKey)
         val cipherText = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
         return Pair(cipher.iv, cipherText)
     }
 
-    /**
-     * Decrypts AES-256-GCM ciphertext using the hardware-backed secret key.
-     */
     fun decryptSecret(iv: ByteArray, cipherText: ByteArray): String {
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
-        val secretKey = keyStore.getKey(AES_KEY_ALIAS, null) as SecretKey
+        ensureKeyPairProvisioned()
+        val secretKey = openKeyStore().getKey(AES_KEY_ALIAS, null) as SecretKey
         val cipher = Cipher.getInstance(AES_TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(GCM_TAG_BITS, iv))
-        val plainBytes = cipher.doFinal(cipherText)
-        return String(plainBytes, Charsets.UTF_8)
+        return String(cipher.doFinal(cipherText), Charsets.UTF_8)
     }
 }
