@@ -35,6 +35,12 @@ def load_database():
             subprocess.run(cli, stdin=fh, check=True)
 
 
+def run_sql_file(path):
+    """Bir SQL dosyasını mysql istemcisiyle çalıştırır (demo betikleri için)."""
+    with open(path, "rb") as fh:
+        subprocess.run(_cli_args(), stdin=fh, check=True, stdout=subprocess.DEVNULL)
+
+
 def connect():
     kwargs = dict(user=os.getenv("MYSQL_USER", "root"), password=os.getenv("MYSQL_PASSWORD", ""),
                   database="food_intel", charset="utf8mb4", autocommit=True,

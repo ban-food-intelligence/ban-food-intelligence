@@ -38,3 +38,4 @@ jobs:
         run: |
           python ml-engine/generator_ali.py
           python ml-engine/train_model_ali.py
+          python ml-engine/anomaly_ali.py
