@@ -6,7 +6,7 @@ catboost>=1.2.0
 joblib>=1.3
 pymysql>=1.1
 pytest>=8.0
-# Nuri (nuri_*_pipeline.py)
+# Nuri (nuri_*_pipeline.py / train_model_nuri.py / stacking_meta_learner.py)
 lightgbm>=4.0.0
 xgboost>=2.0.0
 skl2onnx>=1.16.0

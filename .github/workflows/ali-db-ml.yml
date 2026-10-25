@@ -32,10 +32,12 @@ jobs:
       - run: pip install -r ml-engine/requirements.txt
       - name: MySQL şema + seed + iş kuralı testleri
         run: pytest database-mysql/tests -q
-      - name: KI hattı testleri
+      - name: KI hattı testleri (Ali + Nuri + Anomaly + Stacking + ONNX)
         run: pytest ml-engine/tests -q -p no:warnings
-      - name: Veri üret + eğit (metrikler log'a)
+      - name: Veri üret + eğit + Anomali + Level-2 Stacking (metrikler log'a)
         run: |
           python ml-engine/generator_ali.py
           python ml-engine/train_model_ali.py
           python ml-engine/anomaly_ali.py
+          python ml-engine/train_model_nuri.py
+          python ml-engine/stacking_meta_learner.py
