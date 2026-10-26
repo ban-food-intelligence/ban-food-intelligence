@@ -40,4 +40,15 @@
     <string name="sync_status_batch_ack">STAPEL VOM GO-BACKEND BESTÄTIGT (%1$d DATENSÄTZE BEREINIGT)</string>
     <string name="sync_status_network_retry">NETZWERKPARTITION: EXPONENTIELLER BACKOFF GEPLANT</string>
     <string name="sync_status_signature_rejected">SICHERHEITSALARM: ECDSA-SIGNATUR VOM SERVER ABGELEHNT</string>
+
+    <!-- POS Sales & Lot-Tracked Stock Movement Strings (Phase 3) -->
+    <string name="pos_sales_section_title">CHARGENGEFÜHRTER POS-VERKAUF &amp; WARENAUSGANG</string>
+    <string name="pos_select_lot_label">Chargennummer (Lot) für Verkauf wählen:</string>
+    <string name="pos_quantity_hint">Verkaufsmenge</string>
+    <string name="pos_btn_execute_sale">VERKAUF ABSCHLIESSEN &amp; ECDSA-SIGNIEREN</string>
+    <string name="pos_btn_recall_block">RÜCKRUF-CHARGE — VERKAUF BLOCKIEREN &amp; SPERREN</string>
+    <string name="pos_sqlite_ledger_title">LOKALE SQLITE-WAL LAGERBEWEGUNGEN &amp; OUTBOX</string>
+    <string name="pos_sqlite_empty">Noch keine lokalen Verkäufe. Wählen Sie oben eine Charge aus.</string>
+    <string name="pos_sale_recorded_toast">Verkauf in SQLite WAL gespeichert &amp; mit ECDSA P-256 signiert!</string>
+    <string name="pos_recall_blocked_toast">RÜCKRUF-SPERRE: Verkauf der Charge %1$s blockiert!</string>
 </resources>

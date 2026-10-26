@@ -40,4 +40,15 @@
     <string name="sync_status_batch_ack">BATCH ACKNOWLEDGED BY GO BACKEND (%1$d RECORDS PURGED)</string>
     <string name="sync_status_network_retry">TRANSIENT NETWORK PARTITION: EXPONENTIAL BACKOFF SCHEDULED</string>
     <string name="sync_status_signature_rejected">SECURITY ALERT: ECDSA SIGNATURE REJECTED BY SERVER</string>
+
+    <!-- POS Sales & Lot-Tracked Stock Movement Strings (Phase 3) -->
+    <string name="pos_sales_section_title">LOT-TRACKED POS SALES &amp; STOCK DISPATCH</string>
+    <string name="pos_select_lot_label">Select Lot-Tracked Inventory Batch:</string>
+    <string name="pos_quantity_hint">Sale Quantity</string>
+    <string name="pos_btn_execute_sale">COMPLETE SALE &amp; SIGN OUTBOX</string>
+    <string name="pos_btn_recall_block">BLOCKED LOT — TRIGGER RECALL QUARANTINE</string>
+    <string name="pos_sqlite_ledger_title">LOCAL SQLITE WAL STOCK MOVEMENTS &amp; OUTBOX</string>
+    <string name="pos_sqlite_empty">No local sales recorded yet. Select a lot above to execute a sale.</string>
+    <string name="pos_sale_recorded_toast">Sale recorded in SQLite WAL &amp; signed with ECDSA P-256!</string>
+    <string name="pos_recall_blocked_toast">RECALL INTERLOCK: Sale of contaminated lot %1$s blocked!</string>
 </resources>
