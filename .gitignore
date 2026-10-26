@@ -1,4 +1,10 @@
 mobile-kotlin/.gradle/
+mobile-kotlin/build/
+mobile-kotlin/.kotlin/
+mobile-kotlin/.idea/
+mobile-kotlin/local.properties
+web-react/node_modules/
+web-react/dist/
 __pycache__/
 .pytest_cache/
 # Eğitilmiş büyük ikili modeller çalışma anında yeniden üretilir

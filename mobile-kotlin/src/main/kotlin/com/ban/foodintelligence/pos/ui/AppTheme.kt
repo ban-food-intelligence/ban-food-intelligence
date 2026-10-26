@@ -43,6 +43,12 @@ object SoftPosColors {
 
     val EmeraldVerifiedBg = Color(0xFFECFDF5)
     val EmeraldVerifiedText = Color(0xFF047857)
+
+    val PrimaryIndigo = Color(0xFF2563EB)
+    val OutlineSubtle = Color(0xFFE2E8F0)
+    val TextSecondarySlate = TextSecondaryMuted
+    val RecallPastelBackground = PastelRedContainer
+    val RecallSoftBorder = PastelRedBorder
 }
 
 val SoftPosShapes = Shapes(

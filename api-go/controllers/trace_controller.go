@@ -1,80 +1,105 @@
 package controllers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"ban-food-intelligence/api-go/models"
 )
 
-type TraceController struct{}
-
-func NewTraceController() *TraceController {
-	return &TraceController{}
+type TraceController struct {
+	db *sql.DB
 }
 
-// TraceHandler handles GET /trace/{lotNumber}
-// Connects to Ali's MySQL WITH RECURSIVE TraceLotBackward or TraceLotForward
+func NewTraceController(db *sql.DB) *TraceController {
+	return &TraceController{db: db}
+}
+
+// TraceHandler handles GET /trace/{lotNumber}?direction=forward|backward
+// Calls Ali's MySQL `sp_trace_forward` or `sp_trace_backward` (`WITH RECURSIVE`).
 func (c *TraceController) TraceHandler(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(r.URL.Path, "/")
-	lotNumber := "SUC-2026-045"
-	if len(parts) >= 3 && parts[2] != "" {
-		lotNumber = parts[2]
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	lotNumber := "ET-2026-001"
+	if len(parts) >= 2 && parts[len(parts)-1] != "trace" && parts[len(parts)-1] != "" {
+		lotNumber = parts[len(parts)-1]
 	}
 
-	parent1 := "URT-2026-045"
-	parent2 := "CUT-2026-001-TRM"
-	parent3 := "ET-2026-001"
+	direction := strings.ToLower(r.URL.Query().Get("direction"))
+	if direction == "" {
+		if strings.HasPrefix(lotNumber, "ET-") {
+			direction = "forward"
+		} else {
+			direction = "backward"
+		}
+	}
+
+	var procCall string
+	if direction == "forward" {
+		procCall = `CALL sp_trace_forward(?)`
+	} else {
+		direction = "backward"
+		procCall = `CALL sp_trace_backward(?)`
+	}
+
+	rows, err := c.db.QueryContext(r.Context(), procCall, lotNumber)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"trace stored procedure failed for %s: %s"}`, lotNumber, err.Error()), http.StatusNotFound)
+		return
+	}
+	defer rows.Close()
+
+	var nodes []*models.LotTraceNode
+	if direction == "forward" {
+		for rows.Next() {
+			var depth int
+			var lNo, sku, prodName, origin, uom, status, path string
+			var initQty float64
+			var exp sql.NullTime
+			if err := rows.Scan(&depth, &lNo, &sku, &prodName, &origin, &initQty, &uom, &status, &exp, &path); err == nil {
+				nodes = append(nodes, &models.LotTraceNode{
+					Depth:            depth,
+					CurrentLotNumber: lNo,
+					ProductName:      prodName,
+					ProductCategory:  origin,
+					Quantity:         initQty,
+					Status:           status,
+					TracePath:        path,
+				})
+			}
+		}
+	} else {
+		for rows.Next() {
+			var depth int
+			var lNo, sku, prodName, origin, uom, path string
+			var lotDate, exp sql.NullTime
+			var initQty, unitCost float64
+			var supCode, supName, supLot, supContact, supPhone sql.NullString
+			if err := rows.Scan(
+				&depth, &lNo, &sku, &prodName, &origin,
+				&lotDate, &exp, &initQty, &uom, &unitCost,
+				&supCode, &supName, &supLot, &supContact, &supPhone, &path,
+			); err == nil {
+				nodes = append(nodes, &models.LotTraceNode{
+					Depth:            depth,
+					CurrentLotNumber: lNo,
+					ProductName:      prodName,
+					ProductCategory:  origin,
+					Quantity:         initQty,
+					Status:           supName.String,
+					TracePath:        path,
+				})
+			}
+		}
+	}
 
 	resp := models.TraceResponse{
 		RootLotNumber:  lotNumber,
-		Direction:      "backward",
-		TotalAncestors: 3,
-		Nodes: []*models.LotTraceNode{
-			{
-				Depth:            0,
-				CurrentLotNumber: lotNumber,
-				ProductName:      "Traditional Kangal Sucuk 500g",
-				ProductCategory:  "FINISHED_SUCUK",
-				Quantity:         285.0,
-				Status:           "RECALLED",
-				TracePath:        lotNumber,
-			},
-			{
-				Depth:            1,
-				CurrentLotNumber: "URT-2026-045",
-				ProductName:      "Spiced Fermented Sucuk Dough",
-				ProductCategory:  "INTERMEDIATE_WIP",
-				Quantity:         320.0,
-				Status:           "CONSUMED",
-				ParentLotNumber:  &parent1,
-				QuantityConsumed: 320.0,
-				TracePath:        lotNumber + " <- URT-2026-045",
-			},
-			{
-				Depth:            2,
-				CurrentLotNumber: "CUT-2026-001-TRM",
-				ProductName:      "Beef Trimming 80/20",
-				ProductCategory:  "RAW_CUT",
-				Quantity:         310.0,
-				Status:           "CONSUMED",
-				ParentLotNumber:  &parent2,
-				QuantityConsumed: 300.0,
-				TracePath:        lotNumber + " <- URT-2026-045 <- CUT-2026-001-TRM",
-			},
-			{
-				Depth:            3,
-				CurrentLotNumber: "ET-2026-001",
-				ProductName:      "Whole Beef Carcass (Quartered)",
-				ProductCategory:  "CARCASS",
-				Quantity:         450.0,
-				Status:           "CONSUMED",
-				ParentLotNumber:  &parent3,
-				QuantityConsumed: 450.0,
-				TracePath:        lotNumber + " <- URT-2026-045 <- CUT-2026-001-TRM <- ET-2026-001",
-			},
-		},
+		Direction:      direction,
+		Nodes:          nodes,
+		TotalAncestors: len(nodes),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
