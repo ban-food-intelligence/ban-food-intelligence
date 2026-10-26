@@ -158,6 +158,21 @@ abstract class AppDatabase : RoomDatabase() {
         )
     }
 
+    /**
+     * Task 5: records an inbound `RECEIPT` stock movement (positive quantity), e.g. a line
+     * confirmed by the operator from an OCR-scanned supplier invoice. Requires the SQLite engine.
+     */
+    open suspend fun recordStockReceipt(
+        lotNo: String,
+        productName: String,
+        qty: Double,
+        uom: String,
+        unitCostEur: Double,
+        tenantId: String = "MARKET-TIER-A-IST-01",
+        deviceId: String = "POS-TERM-NURI-001"
+    ): StockMovementRecord =
+        throw UnsupportedOperationException("Stock receipts require the SQLite WAL engine")
+
     open suspend fun getRecentStockMovements(limit: Int = 25): List<StockMovementRecord> =
         emptyList()
 
@@ -287,6 +302,52 @@ internal class SqliteBackedAppDatabase(
         unitPriceEur: Double,
         tenantId: String,
         deviceId: String
+    ): StockMovementRecord = insertSignedMovement(
+        movementType = "SALE",
+        qtyDelta = -qty,
+        lotNo = lotNo,
+        productName = productName,
+        qty = qty,
+        uom = uom,
+        unitPriceEur = unitPriceEur,
+        tenantId = tenantId,
+        deviceId = deviceId
+    )
+
+    override suspend fun recordStockReceipt(
+        lotNo: String,
+        productName: String,
+        qty: Double,
+        uom: String,
+        unitCostEur: Double,
+        tenantId: String,
+        deviceId: String
+    ): StockMovementRecord = insertSignedMovement(
+        movementType = "RECEIPT",
+        qtyDelta = qty,
+        lotNo = lotNo,
+        productName = productName,
+        qty = qty,
+        uom = uom,
+        unitPriceEur = unitCostEur,
+        tenantId = tenantId,
+        deviceId = deviceId
+    )
+
+    /**
+     * Atomically writes one ECDSA-signed stock movement to `local_stock_movements`,
+     * `pos_outbox` and `sync_outbox_queue` in a single WAL transaction.
+     */
+    private suspend fun insertSignedMovement(
+        movementType: String,
+        qtyDelta: Double,
+        lotNo: String,
+        productName: String,
+        qty: Double,
+        uom: String,
+        unitPriceEur: Double,
+        tenantId: String,
+        deviceId: String
     ): StockMovementRecord = withContext(Dispatchers.IO) {
         val uuidV7 = SyncOutboxQueue.generateUuidV7()
         val nowMs = System.currentTimeMillis()
@@ -303,7 +364,7 @@ internal class SqliteBackedAppDatabase(
         )
         val ecdsaSignature = KeystoreManager.signPayload(canonicalPayload)
 
-        val payloadJson = """{"movement_id":"$movementId","lot_no":"$lotNo","product_name":"$productName","action":"SALE","qty_delta":${-qty},"uom":"$uom","unit_price_eur":$unitPriceEur,"total_eur":$totalEur,"uuid_v7":"$uuidV7"}"""
+        val payloadJson = """{"movement_id":"$movementId","lot_no":"$lotNo","product_name":"$productName","action":"$movementType","qty_delta":$qtyDelta,"uom":"$uom","unit_price_eur":$unitPriceEur,"total_eur":$totalEur,"uuid_v7":"$uuidV7"}"""
 
         val db = sqliteHelper.writableDatabase
         db.beginTransactionNonExclusive()
@@ -313,8 +374,8 @@ internal class SqliteBackedAppDatabase(
                 put("movement_id", movementId)
                 put("lot_no", lotNo)
                 put("product_name", productName)
-                put("movement_type", "SALE")
-                put("qty_delta", -qty)
+                put("movement_type", movementType)
+                put("qty_delta", qtyDelta)
                 put("uom", uom)
                 put("unit_price_eur", unitPriceEur)
                 put("total_eur", totalEur)
@@ -329,7 +390,7 @@ internal class SqliteBackedAppDatabase(
             val posOutboxValues = ContentValues().apply {
                 put("outbox_id", uuidV7)
                 put("device_id", deviceId)
-                put("action_type", "SALE")
+                put("action_type", movementType)
                 put("payload_json", payloadJson)
                 put("timestamp", nowMs)
                 put("signature_ecdsa", ecdsaSignature)
@@ -359,14 +420,14 @@ internal class SqliteBackedAppDatabase(
 
         daoImpl.refreshFlows()
 
-        println("📱 [SQLITE-WAL-SALE] Recorded SALE -> Lot=$lotNo Qty=-$qty $uom Total=${"%.2f".format(Locale.US, totalEur)} EUR UUIDv7=$uuidV7")
+        println("📱 [SQLITE-WAL-SALE] Recorded $movementType -> Lot=$lotNo Qty=$qtyDelta $uom Total=${"%.2f".format(Locale.US, totalEur)} EUR UUIDv7=$uuidV7")
 
         StockMovementRecord(
             movementId = movementId,
             lotNo = lotNo,
             productName = productName,
-            movementType = "SALE",
-            qtyDelta = -qty,
+            movementType = movementType,
+            qtyDelta = qtyDelta,
             uom = uom,
             unitPriceEur = unitPriceEur,
             totalEur = totalEur,

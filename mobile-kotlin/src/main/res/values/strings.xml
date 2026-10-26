@@ -51,4 +51,26 @@
     <string name="pos_sqlite_empty">No local sales recorded yet. Select a lot above to execute a sale.</string>
     <string name="pos_sale_recorded_toast">Sale recorded in SQLite WAL &amp; signed with ECDSA P-256!</string>
     <string name="pos_recall_blocked_toast">RECALL INTERLOCK: Sale of contaminated lot %1$s blocked!</string>
+
+    <!-- Task 5: Invoice OCR (NVIDIA NIM Vision-Language) -->
+    <string name="ocr_open_scanner">Scan Supplier Invoice (OCR)</string>
+    <string name="ocr_screen_title">Invoice OCR</string>
+    <string name="ocr_screen_subtitle">Capture a supplier invoice and let the vision model propose stock entries.</string>
+    <string name="ocr_btn_capture">Capture Invoice</string>
+    <string name="ocr_btn_recapture">Capture Again</string>
+    <string name="ocr_btn_extract">Extract with NVIDIA Nemotron VL</string>
+    <string name="ocr_loading">Reading invoice with %1$s…</string>
+    <string name="ocr_suggestions_title">Suggestions</string>
+    <string name="ocr_suggestions_hint">Review each line before saving. Values are model suggestions, not verified data.</string>
+    <string name="ocr_btn_confirm_save">Confirm &amp; Save to Stock</string>
+    <string name="ocr_btn_discard">Discard</string>
+    <string name="ocr_btn_use_demo">Use Sample Response (Demo)</string>
+    <string name="ocr_demo_badge">DEMO RESPONSE — NOT FROM LIVE MODEL</string>
+    <string name="ocr_error_title">Extraction failed</string>
+    <string name="ocr_error_no_key">NVIDIA API key is not configured. Set NV_API_KEY or route the request through the backend.</string>
+    <string name="ocr_saved_success">%1$d stock receipts saved and queued for sync.</string>
+    <string name="ocr_missing_lot">No lot number on invoice — will be rejected</string>
+    <string name="ocr_raw_json">Raw JSON</string>
+    <string name="ocr_meta">Supplier: %1$s · Invoice: %2$s</string>
+    <string name="ocr_back">Back</string>
 </resources>
