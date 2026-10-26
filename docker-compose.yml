@@ -1,9 +1,21 @@
-# Merkezi MySQL 8 — schema.sql ve seed.sql ilk açılışta otomatik yüklenir.
-#   docker compose up -d mysql
+# ============================================================================
+# BAN Food Intelligence - AVATAR ERP - One-Click Stack
+# ----------------------------------------------------------------------------
+#   docker compose up -d --build
+#   React Dashboard : http://localhost:5173
+#   Go REST API     : http://localhost:8080/health
+#   MySQL 8.0       : localhost:3306 (root / ban, db: food_intel)
+#
 #   docker compose exec mysql mysql -uroot -pban food_intel -e "CALL sp_trace_forward('ET-2026-001')"
+# ============================================================================
+name: ban-food-intelligence
+
 services:
+  # --- Ali: central MySQL 8.0 (schema.sql + seed.sql auto-loaded on first boot)
   mysql:
     image: mysql:8.0
+    container_name: ban-mysql
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ban
       TZ: UTC
@@ -13,7 +25,43 @@ services:
     volumes:
       - ./database-mysql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./database-mysql/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-pban"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pban"]
       interval: 5s
-      retries: 20
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  # --- Berke: Go REST API (stored procedures + ECDSA P-256 outbox sync)
+  api-go:
+    build:
+      context: ./api-go
+    container_name: ban-api-go
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      MYSQL_DSN: "root:ban@tcp(mysql:3306)/food_intel?parseTime=true&multiStatements=true&charset=utf8mb4"
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # --- Berke: React admin dashboard (browser calls the API on localhost:8080)
+  web-react:
+    build:
+      context: ./web-react
+    container_name: ban-web-react
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+      - "3000:5173"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      api-go:
+        condition: service_started
+
+volumes:
+  mysql_data:
