@@ -51,4 +51,26 @@
     <string name="pos_sqlite_empty">Noch keine lokalen Verkäufe. Wählen Sie oben eine Charge aus.</string>
     <string name="pos_sale_recorded_toast">Verkauf in SQLite WAL gespeichert &amp; mit ECDSA P-256 signiert!</string>
     <string name="pos_recall_blocked_toast">RÜCKRUF-SPERRE: Verkauf der Charge %1$s blockiert!</string>
+
+    <!-- Task 5: Invoice OCR (NVIDIA NIM Vision-Language) -->
+    <string name="ocr_open_scanner">Lieferantenrechnung scannen (OCR)</string>
+    <string name="ocr_screen_title">Rechnungs-OCR</string>
+    <string name="ocr_screen_subtitle">Lieferantenrechnung erfassen und Lagerbuchungen vom Vision-Modell vorschlagen lassen.</string>
+    <string name="ocr_btn_capture">Rechnung erfassen</string>
+    <string name="ocr_btn_recapture">Erneut erfassen</string>
+    <string name="ocr_btn_extract">Mit NVIDIA Nemotron VL auslesen</string>
+    <string name="ocr_loading">Rechnung wird mit %1$s gelesen…</string>
+    <string name="ocr_suggestions_title">Vorschläge</string>
+    <string name="ocr_suggestions_hint">Bitte jede Zeile vor dem Speichern prüfen. Die Werte sind Modellvorschläge, keine geprüften Daten.</string>
+    <string name="ocr_btn_confirm_save">Bestätigen &amp; ins Lager buchen</string>
+    <string name="ocr_btn_discard">Verwerfen</string>
+    <string name="ocr_btn_use_demo">Beispielantwort verwenden (Demo)</string>
+    <string name="ocr_demo_badge">DEMO-ANTWORT — NICHT VOM LIVE-MODELL</string>
+    <string name="ocr_error_title">Auslesen fehlgeschlagen</string>
+    <string name="ocr_error_no_key">NVIDIA-API-Schlüssel ist nicht konfiguriert. NV_API_KEY setzen oder Anfrage über das Backend leiten.</string>
+    <string name="ocr_saved_success">%1$d Wareneingänge gespeichert und zur Synchronisierung eingereiht.</string>
+    <string name="ocr_missing_lot">Keine Chargennummer auf der Rechnung — wird abgelehnt</string>
+    <string name="ocr_raw_json">Roh-JSON</string>
+    <string name="ocr_meta">Lieferant: %1$s · Rechnung: %2$s</string>
+    <string name="ocr_back">Zurück</string>
 </resources>

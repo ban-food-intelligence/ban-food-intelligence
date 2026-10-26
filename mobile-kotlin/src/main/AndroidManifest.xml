@@ -30,6 +30,10 @@
             android:launchMode="singleTask"
             android:lockTaskMode="if_whitelisted" />
 
+        <activity
+            android:name=".ui.InvoiceOcrActivity"
+            android:exported="false" />
+
         <receiver
             android:name=".admin.PosDeviceAdminReceiver"
             android:permission="android.permission.BIND_DEVICE_ADMIN"
