@@ -1,54 +1,96 @@
 package com.ban.foodintelligence.pos.ui
 
-import android.app.Activity
-import android.app.AlertDialog
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
-import android.text.InputFilter
-import android.text.InputType
 import android.util.Log
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ban.foodintelligence.pos.R
 import com.ban.foodintelligence.pos.security.KioskController
 import com.ban.foodintelligence.pos.security.LockIncident
 import com.ban.foodintelligence.pos.security.SupervisorAuth
 import com.ban.foodintelligence.pos.security.TerminalLockStore
+import java.util.Locale
 
 /**
  * ============================================================================
- * BAN Food Intelligence - True Kiosk Mode Emergency Red Recall Lock Activity
- * Author: Nuri (Principal Android Security Architect)
+ * BAN Food Intelligence - Soft Minimalist Material 3 Recall Kiosk Lock Screen
+ * Author: Nuri (Lead UI/UX Engineer, Localization & Security Architect)
  * ============================================================================
  *
- * "Steel Vest" Remediation Upgrades:
- * 1. True Kiosk Mode (`startLockTask()`):
- *    Engages Android Lock Task Mode in [onCreate] and [onResume]. When the POS
- *    app is provisioned as Device Owner (`PosDeviceAdminReceiver`), Home,
- *    Recents, notifications, and keyguard are completely disabled at the OS level.
- * 2. Persistent Lock Flag (`IS_TERMINAL_LOCKED = true`):
- *    Synchronously commits `IS_TERMINAL_LOCKED = true` to `SharedPreferences`
- *    via [TerminalLockStore.lock]. `PosApplication` and `MainActivity` inspect
- *    this flag on every cold start, process revival, or reboot and immediately
- *    redirect back to [RedRecallLockActivity].
- * 3. Hidden Supervisor PIN Override (`stopLockTask()`):
- *    Tapping the top hazard header 5 times within 3 seconds reveals the
- *    Supervisor HSM Override PIN prompt. Entering the authorized supervisor PIN
- *    (`590314`) verifies against PBKDF2-HMAC-SHA256 ([SupervisorAuth]), calls
- *    `stopLockTask()`, and clears `IS_TERMINAL_LOCKED`.
+ * Designed with a Stripe / Apple POS aesthetic:
+ * 1. Airy Off-White canvas (`#F8F9FA`) with floating, soft-shadowed [ElevatedCard]
+ *    surfaces (`RoundedCornerShape(24.dp)`, `elevation = 8.dp`).
+ * 2. Friendly Pastel Red accents (`#FCE8E8` background, `#D32F2F` text/accents)
+ *    instead of harsh black/neon red.
+ * 3. Readable Sans-Serif typography (`FontFamily.SansSerif`) for all worker-facing
+ *    copy, with `FontFamily.Monospace` reserved only for compact lot/metric chips.
+ * 4. Smooth rounded `OutlinedTextField` (`RoundedCornerShape(16.dp)`) and pill-shaped
+ *    primary `UNLOCK` button (`CircleShape` / `RoundedCornerShape(50)`).
+ * 5. Preserves True Kiosk Mode (`startLockTask()`), persistent `IS_TERMINAL_LOCKED`,
+ *    trilingual EN/DE/TR localization, and the hidden 5-tap Supervisor reveal.
  */
-class RedRecallLockActivity : Activity() {
+class RedRecallLockActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "RedRecallLockActivity"
@@ -66,31 +108,18 @@ class RedRecallLockActivity : Activity() {
         private const val SECRET_TAP_COUNT_REQUIRED = 5
         private const val SECRET_TAP_WINDOW_MS = 3_000L
 
-        // Hardcoded Supervisor Emergency PIN (also verified via PBKDF2 hash in SupervisorAuth)
+        // Master Supervisor PIN (also verified via salted PBKDF2-HMAC-SHA256 in SupervisorAuth)
         private const val SUPERVISOR_MASTER_PIN = "590314"
-
-        // Brutalist Crimson Palette
-        private val COLOR_DEEP_CRIMSON_BG = Color.parseColor("#7F0000")
-        private val COLOR_PANEL_DARK_RED = Color.parseColor("#4A0000")
-        private val COLOR_BORDER_NEON_RED = Color.parseColor("#FF1744")
-        private val COLOR_BADGE_BLACK = Color.parseColor("#120000")
-        private val COLOR_TEXT_WHITE = Color.parseColor("#FFFFFF")
-        private val COLOR_TEXT_AMBER = Color.parseColor("#FFD600")
     }
-
-    private var secretTapCounter = 0
-    private var firstSecretTapElapsedMs = 0L
-    private lateinit var supervisorUnlockPanel: LinearLayout
-    private lateinit var pinInputField: EditText
-    private lateinit var statusFeedbackText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Engage Military-Grade Window Flags
-        engageHardwareWindowLockFlags()
+        println("🎨 Applying Soft Minimalist Material 3...")
+        println("✨ Smoothing edges and removing brutalist artifacts...")
+        println("🌍 Provisioning DE/EN/TR i18n...")
 
-        // 2. Resolve Incident Details (from Intent or persisted SharedPreferences)
+        // 1. Resolve Incident Details (from Intent or persisted SharedPreferences)
         val fallbackIncident = TerminalLockStore.readIncident(this)
         val recallCode = intent?.getStringExtra(EXTRA_RECALL_CODE) ?: fallbackIncident.recallCode
         val affectedLot = intent?.getStringExtra(EXTRA_AFFECTED_LOT) ?: fallbackIncident.affectedLot
@@ -99,10 +128,10 @@ class RedRecallLockActivity : Activity() {
         val oodValue = if (intent?.hasExtra(EXTRA_OOD_VALUE) == true) {
             intent.getFloatExtra(EXTRA_OOD_VALUE, 125.0f)
         } else {
-            fallbackIncident.oodValue
+            if (fallbackIncident.oodValue.isNaN()) 125.0f else fallbackIncident.oodValue
         }
 
-        // 3. Synchronously Persist `IS_TERMINAL_LOCKED = true` to survive reboot / process kill
+        // 2. Synchronously Persist `IS_TERMINAL_LOCKED = true` to survive reboot / process kill
         val incident = LockIncident(
             recallCode = recallCode,
             affectedLot = affectedLot,
@@ -114,16 +143,24 @@ class RedRecallLockActivity : Activity() {
         TerminalLockStore.lock(this, incident)
         println("🔒 [PERSISTENT-LOCK] Set SharedPreferences IS_TERMINAL_LOCKED = true (Code: $recallCode)")
 
-        // 4. Render Brutalist Full-Screen Red Lockdown View Hierarchy with Hidden Supervisor Unlock
-        setContentView(
-            buildBrutalistRedLockdownUi(
-                recallCode = recallCode,
-                affectedLot = affectedLot,
-                rootLot = rootLot,
-                oodMetric = oodMetric,
-                oodValue = oodValue
-            )
-        )
+        // 3. Mount Soft Minimalist Material 3 Jetpack Compose UI
+        setContent {
+            AppTheme {
+                SoftRecallLockScreen(
+                    recallCode = recallCode,
+                    affectedLot = affectedLot,
+                    rootLot = rootLot,
+                    oodMetric = oodMetric,
+                    oodValue = oodValue,
+                    onVerifyPin = { enteredPin ->
+                        attemptSupervisorEmergencyUnlockWithMessage(enteredPin)
+                    }
+                )
+            }
+        }
+
+        // 4. Engage Hardware Window Flags safely after DecorView initialization
+        engageHardwareWindowLockFlags()
 
         // 5. Engage True Android Kiosk Mode (`startLockTask()`)
         engageKioskLockTaskMode()
@@ -134,15 +171,11 @@ class RedRecallLockActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        // Re-assert Kiosk Mode if user or system attempted to leave LockTask state
         if (TerminalLockStore.isLocked(this)) {
             engageKioskLockTaskMode()
         }
     }
 
-    /**
-     * Engages Android Kiosk Mode (`startLockTask()`).
-     */
     private fun engageKioskLockTaskMode() {
         println("🧱 Engaging Kiosk Mode (startLockTask)...")
         runCatching {
@@ -153,245 +186,46 @@ class RedRecallLockActivity : Activity() {
         }
     }
 
-    /**
-     * Configures window flags so the lockdown screen stays awake over the lockscreen,
-     * blocks screenshots (`FLAG_SECURE`), and hides system navigation bars.
-     */
     private fun engageHardwareWindowLockFlags() {
-        @Suppress("DEPRECATION")
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_SECURE
-        )
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                controller.systemBarsBehavior =
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        } else {
+        runCatching {
             @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                )
-        }
-    }
-
-    /**
-     * Builds the brutalist full-screen red emergency lockdown interface in Kotlin,
-     * including the hidden 5-tap Supervisor PIN unlock trigger.
-     */
-    private fun buildBrutalistRedLockdownUi(
-        recallCode: String,
-        affectedLot: String,
-        rootLot: String,
-        oodMetric: String,
-        oodValue: Float
-    ): View {
-        val density = resources.displayMetrics.density
-        fun dp(value: Int): Int = (value * density).toInt()
-
-        val rootContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(COLOR_DEEP_CRIMSON_BG)
-            setPadding(dp(24), dp(28), dp(24), dp(28))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_SECURE
             )
-        }
 
-        // Top Hazard Banner (Doubles as the Hidden 5-Tap Supervisor Trigger!)
-        val hazardHeader = TextView(this).apply {
-            text = "/// CLASS-I BIOHAZARD & EDGE AI OOD INTERLOCK ENGAGED ///"
-            setTextColor(COLOR_TEXT_AMBER)
-            textSize = 13f
-            typeface = Typeface.MONOSPACE
-            gravity = Gravity.CENTER
-            setBackgroundColor(COLOR_BADGE_BLACK)
-            setPadding(dp(14), dp(10), dp(14), dp(10))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = dp(20)
+            window.decorView.post {
+                runCatching {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        window.insetsController?.let { controller ->
+                            controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                            controller.systemBarsBehavior =
+                                WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        }
+                    } else {
+                        @Suppress("DEPRECATION")
+                        window.decorView.systemUiVisibility = (
+                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            )
+                    }
+                }
             }
-            setOnClickListener { onHiddenSupervisorHeaderTapped() }
-        }
-        rootContainer.addView(hazardHeader)
-
-        // Central Brutalist Alert Card
-        val alertCardDrawable = GradientDrawable().apply {
-            setColor(COLOR_PANEL_DARK_RED)
-            setStroke(dp(4), COLOR_BORDER_NEON_RED)
-            cornerRadius = dp(6).toFloat()
-        }
-
-        val alertCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            background = alertCardDrawable
-            setPadding(dp(22), dp(28), dp(22), dp(28))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = dp(20)
-            }
-        }
-
-        val skullBanner = TextView(this).apply {
-            text = "🚨 QUARANTINE KIOSK LOCKDOWN 🚨"
-            setTextColor(COLOR_TEXT_AMBER)
-            textSize = 20f
-            setTypeface(Typeface.DEFAULT_BOLD)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = dp(14)
-            }
-        }
-        alertCard.addView(skullBanner)
-
-        // Mandatory Exact Lockdown Message
-        val criticalMessageText = TextView(this).apply {
-            text = CRITICAL_LOCKDOWN_MESSAGE
-            setTextColor(COLOR_TEXT_WHITE)
-            textSize = 18f
-            setTypeface(Typeface.MONOSPACE, Typeface.BOLD)
-            gravity = Gravity.CENTER
-            setLineSpacing(dp(4).toFloat(), 1.15f)
-        }
-        alertCard.addView(criticalMessageText)
-        rootContainer.addView(alertCard)
-
-        // Telemetry & Forensics Readout Box
-        val telemetryBoxDrawable = GradientDrawable().apply {
-            setColor(COLOR_BADGE_BLACK)
-            setStroke(dp(2), COLOR_TEXT_AMBER)
-            cornerRadius = dp(4).toFloat()
-        }
-
-        val telemetryBox = TextView(this).apply {
-            background = telemetryBoxDrawable
-            setTextColor(COLOR_TEXT_WHITE)
-            textSize = 12f
-            typeface = Typeface.MONOSPACE
-            setPadding(dp(16), dp(14), dp(16), dp(14))
-            text = buildString {
-                appendLine("INCIDENT CODE   : $recallCode")
-                appendLine("QUARANTINED LOT : $affectedLot (ROOT: $rootLot)")
-                appendLine("OOD TELEMETRY   : $oodMetric = $oodValue")
-                appendLine("KIOSK LOCK MODE : [ACTIVE / startLockTask() ENGAGED]")
-                appendLine("PERSISTENT FLAG : [IS_TERMINAL_LOCKED = true]")
-                append("SUPERVISOR EXIT : [HIDDEN 5-TAP HEADER -> PIN OVERRIDE]")
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = dp(16)
-            }
-        }
-        rootContainer.addView(telemetryBox)
-
-        // Hidden Supervisor Emergency Unlock Panel (Initially GONE until 5-tap gesture)
-        supervisorUnlockPanel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            visibility = View.GONE
-            setBackgroundColor(COLOR_BADGE_BLACK)
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        statusFeedbackText = TextView(this).apply {
-            text = "🔐 ENTER SUPERVISOR HSM PIN TO RELEASE KIOSK LOCK:"
-            setTextColor(COLOR_TEXT_AMBER)
-            textSize = 12f
-            typeface = Typeface.MONOSPACE
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = dp(8)
-            }
-        }
-        supervisorUnlockPanel.addView(statusFeedbackText)
-
-        pinInputField = EditText(this).apply {
-            hint = "Supervisor 6-Digit PIN"
-            setHintTextColor(Color.GRAY)
-            setTextColor(COLOR_TEXT_WHITE)
-            setBackgroundColor(Color.parseColor("#260000"))
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            filters = arrayOf(InputFilter.LengthFilter(12))
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = dp(10)
-            }
-        }
-        supervisorUnlockPanel.addView(pinInputField)
-
-        val verifyPinButton = Button(this).apply {
-            text = "VERIFY SUPERVISOR PIN & UNLOCK TERMINAL"
-            setBackgroundColor(COLOR_BORDER_NEON_RED)
-            setTextColor(COLOR_TEXT_WHITE)
-            typeface = Typeface.MONOSPACE
-            setOnClickListener {
-                val enteredPin = pinInputField.text?.toString()?.trim().orEmpty()
-                attemptSupervisorEmergencyUnlock(enteredPin)
-            }
-        }
-        supervisorUnlockPanel.addView(verifyPinButton)
-
-        rootContainer.addView(supervisorUnlockPanel)
-        return rootContainer
-    }
-
-    /**
-     * Detects 5 rapid taps within 3 seconds on the top hazard banner to reveal
-     * the hidden Supervisor PIN unlock controls.
-     */
-    private fun onHiddenSupervisorHeaderTapped() {
-        val now = SystemClock.elapsedRealtime()
-        if (secretTapCounter == 0 || (now - firstSecretTapElapsedMs) > SECRET_TAP_WINDOW_MS) {
-            secretTapCounter = 1
-            firstSecretTapElapsedMs = now
-        } else {
-            secretTapCounter++
-        }
-
-        if (secretTapCounter >= SECRET_TAP_COUNT_REQUIRED) {
-            secretTapCounter = 0
-            println("🕵️ [SUPERVISOR-OVERRIDE] Hidden 5-tap gesture detected! Revealing Supervisor PIN console...")
-            supervisorUnlockPanel.visibility = View.VISIBLE
-            pinInputField.requestFocus()
         }
     }
 
-    /**
-     * Validates the supervisor PIN and, if authorized, calls `stopLockTask()`,
-     * clears `IS_TERMINAL_LOCKED` in `SharedPreferences`, and releases the terminal.
-     */
     fun attemptSupervisorEmergencyUnlock(enteredPin: String): Boolean {
+        val (unlocked, _) = attemptSupervisorEmergencyUnlockWithMessage(enteredPin)
+        return unlocked
+    }
+
+    private fun attemptSupervisorEmergencyUnlockWithMessage(enteredPin: String): Pair<Boolean, String> {
         val authResult = SupervisorAuth.verifyPin(this, enteredPin)
         val isAuthorized = authResult is SupervisorAuth.Result.Success || enteredPin == SUPERVISOR_MASTER_PIN
 
@@ -402,27 +236,28 @@ class RedRecallLockActivity : Activity() {
                 KioskController.release(this)
                 stopLockTask()
             }
-            statusFeedbackText.text = "✅ KIOSK LOCK RELEASED BY SUPERVISOR."
+            val msg = getString(R.string.auth_status_unlocked)
+            val mainIntent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            startActivity(mainIntent)
             finish()
-            return true
+            return true to msg
         }
 
-        when (authResult) {
+        val errorFeedback = when (authResult) {
             is SupervisorAuth.Result.LockedOut -> {
-                val secs = authResult.remainingMs / 1000
-                statusFeedbackText.text = "⛔ BRUTE-FORCE LOCKOUT: Retry in ${secs}s."
+                val secs = (authResult.remainingMs / 1000L).toInt()
                 println("⛔ [SUPERVISOR-LOCKOUT] Too many failed PIN attempts. Locked out for ${secs}s.")
+                getString(R.string.error_lockout_throttled, secs)
             }
             is SupervisorAuth.Result.WrongPin -> {
-                statusFeedbackText.text = "❌ INVALID SUPERVISOR PIN (${authResult.freeAttemptsLeft} attempts remaining)."
                 println("❌ [SUPERVISOR-DENIED] Invalid PIN entered. Terminal remains locked.")
+                getString(R.string.error_invalid_pin, authResult.freeAttemptsLeft)
             }
-            else -> {
-                statusFeedbackText.text = "❌ INVALID SUPERVISOR PIN."
-            }
+            else -> getString(R.string.error_invalid_pin_generic)
         }
-        pinInputField.setText("")
-        return false
+        return false to errorFeedback
     }
 
     private fun enforceTerminalLockdown(
@@ -433,7 +268,7 @@ class RedRecallLockActivity : Activity() {
         oodValue: Float
     ) {
         println("🚨 ========================================================================= 🚨")
-        println("🚨 [RED-RECALL-LOCKDOWN] $CRITICAL_LOCKDOWN_MESSAGE")
+        println("🚨 [RED-RECALL-LOCKDOWN] ${getString(R.string.lockdown_body)}")
         println("🧱 [KIOSK-LOCK-TASK]     Android Kiosk Mode (startLockTask) ENGAGED.")
         println("🔒 [PERSISTENT-STATE]    SharedPreferences IS_TERMINAL_LOCKED = true")
         println("🚨 [INCIDENT-DETAILS]    Code: $recallCode | Lot: $affectedLot | Root: $rootLot")
@@ -450,5 +285,411 @@ class RedRecallLockActivity : Activity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         println("⛔ [KIOSK-BLOCK] Hardware KeyEvent ($keyCode) blocked during Kiosk Lockdown.")
         return true
+    }
+
+    @Composable
+    private fun SoftRecallLockScreen(
+        recallCode: String,
+        affectedLot: String,
+        rootLot: String,
+        oodMetric: String,
+        oodValue: Float,
+        onVerifyPin: (String) -> Pair<Boolean, String>
+    ) {
+        var secretTapCounter by remember { mutableIntStateOf(0) }
+        var firstSecretTapElapsedMs by remember { mutableLongStateOf(0L) }
+        var isSupervisorConsoleVisible by remember { mutableStateOf(false) }
+        var pinInput by remember { mutableStateOf("") }
+        var authFeedbackMessage by remember { mutableStateOf<String?>(null) }
+
+        val activeLocaleTag = Locale.getDefault().language.uppercase(Locale.ROOT)
+
+        val onSecretHeaderTap = {
+            val now = SystemClock.elapsedRealtime()
+            if (secretTapCounter == 0 || (now - firstSecretTapElapsedMs) > SECRET_TAP_WINDOW_MS) {
+                secretTapCounter = 1
+                firstSecretTapElapsedMs = now
+            } else {
+                secretTapCounter++
+            }
+            if (secretTapCounter >= SECRET_TAP_COUNT_REQUIRED) {
+                secretTapCounter = 0
+                println("🕵️ [SUPERVISOR-OVERRIDE] Hidden 5-tap gesture detected! Revealing Supervisor PIN console...")
+                isSupervisorConsoleVisible = true
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SoftPosColors.BackgroundOffWhite),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Top Subtle Pill Bar (Hidden 5-Tap Supervisor Trigger)
+                Surface(
+                    shape = CircleShape,
+                    color = SoftPosColors.PastelRedContainer,
+                    shadowElevation = 2.dp,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onSecretHeaderTap
+                        )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(SoftPosColors.RecallCrimsonAccent)
+                        )
+                        Text(
+                            text = stringResource(R.string.lockdown_subtitle),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = SoftPosColors.RecallCrimsonAccent,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = SoftPosColors.SurfacePureWhite
+                        ) {
+                            Text(
+                                text = activeLocaleTag,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = SoftPosColors.RecallCrimsonAccent,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Central Elevated Recall Card (Stripe / Apple POS style)
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = SoftPosColors.SurfacePureWhite
+                    ),
+                    elevation = CardDefaults.elevatedCardElevation(
+                        defaultElevation = 8.dp
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Soft Pastel Red Floating Lock Icon (Also supports 5-tap reveal)
+                        Surface(
+                            shape = CircleShape,
+                            color = SoftPosColors.PastelRedContainer,
+                            modifier = Modifier
+                                .size(68.dp)
+                                .clip(CircleShape)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = onSecretHeaderTap
+                                )
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "🔒",
+                                    fontSize = 28.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Title ("Critical Recall" / "Kritik İade" / "Kritischer Rückruf")
+                        Text(
+                            text = stringResource(R.string.lockdown_title),
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                color = SoftPosColors.RecallCrimsonAccent,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Friendly, Soft Pastel Red Warning Callout Container
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = SoftPosColors.PastelRedContainer
+                        ) {
+                            Text(
+                                text = stringResource(R.string.lockdown_body),
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    color = SoftPosColors.RecallCrimsonDark,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(22.dp))
+
+                        HorizontalDivider(
+                            color = SoftPosColors.SurfaceSubtleGray,
+                            thickness = 1.dp
+                        )
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Clean Section Title for Telemetry
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.telemetry_header),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    color = SoftPosColors.TextPrimarySlate,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            )
+                            MonospacePillChip(
+                                text = "KIOSK ACTIVE",
+                                backgroundColor = SoftPosColors.PastelRedContainer,
+                                textColor = SoftPosColors.RecallCrimsonAccent
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Subtle Telemetry Chips (Monospace used ONLY for technical IDs)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            SoftTelemetryRow(
+                                label = "Incident Code",
+                                technicalId = recallCode
+                            )
+                            SoftTelemetryRow(
+                                label = "Quarantined Lot",
+                                technicalId = "$affectedLot → $rootLot"
+                            )
+                            SoftTelemetryRow(
+                                label = "Sensor / ML Gate",
+                                technicalId = "$oodMetric = ${"%.4f".format(Locale.US, oodValue)}"
+                            )
+                        }
+                    }
+                }
+
+                // Smoothly Revealed Supervisor PIN Unlock Card (After 5-Tap Gesture)
+                AnimatedVisibility(
+                    visible = isSupervisorConsoleVisible,
+                    enter = fadeIn() + expandVertically()
+                ) {
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = SoftPosColors.SurfacePureWhite
+                        ),
+                        elevation = CardDefaults.elevatedCardElevation(
+                            defaultElevation = 6.dp
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = SoftPosColors.PastelRedContainer,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(text = "🔑", fontSize = 16.sp)
+                                    }
+                                }
+                                Column {
+                                    Text(
+                                        text = stringResource(R.string.supervisor_console_header),
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            color = SoftPosColors.TextPrimarySlate,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    )
+                                    Text(
+                                        text = authFeedbackMessage ?: stringResource(R.string.supervisor_pin_prompt),
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            color = if (authFeedbackMessage != null) {
+                                                SoftPosColors.RecallCrimsonAccent
+                                            } else {
+                                                SoftPosColors.TextSecondaryMuted
+                                            }
+                                        )
+                                    )
+                                }
+                            }
+
+                            // Smooth, Rounded OutlinedTextField (RoundedCornerShape(16.dp))
+                            OutlinedTextField(
+                                value = pinInput,
+                                onValueChange = { candidate ->
+                                    if (candidate.length <= 12 && candidate.all { it.isDigit() }) {
+                                        pinInput = candidate
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.titleLarge.copy(
+                                    color = SoftPosColors.TextPrimarySlate,
+                                    fontFamily = FontFamily.SansSerif,
+                                    letterSpacing = 3.sp
+                                ),
+                                placeholder = {
+                                    Text(
+                                        text = stringResource(R.string.supervisor_pin_hint),
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            color = SoftPosColors.TextTertiarySubtle
+                                        )
+                                    )
+                                },
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.NumberPassword,
+                                    imeAction = ImeAction.Done
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onDone = {
+                                        val (_, msg) = onVerifyPin(pinInput.trim())
+                                        authFeedbackMessage = msg
+                                        pinInput = ""
+                                    }
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = SoftPosColors.BackgroundOffWhite,
+                                    unfocusedContainerColor = SoftPosColors.BackgroundOffWhite,
+                                    focusedBorderColor = SoftPosColors.RecallCrimsonAccent,
+                                    unfocusedBorderColor = SoftPosColors.PastelRedBorder,
+                                    cursorColor = SoftPosColors.RecallCrimsonAccent,
+                                    focusedTextColor = SoftPosColors.TextPrimarySlate,
+                                    unfocusedTextColor = SoftPosColors.TextPrimarySlate
+                                )
+                            )
+
+                            // Pill-Shaped Primary Button (RoundedCornerShape(50))
+                            Button(
+                                onClick = {
+                                    val (_, msg) = onVerifyPin(pinInput.trim())
+                                    authFeedbackMessage = msg
+                                    pinInput = ""
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(54.dp),
+                                shape = RoundedCornerShape(50),
+                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SoftPosColors.RecallCrimsonAccent,
+                                    contentColor = SoftPosColors.SurfacePureWhite
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(
+                                    defaultElevation = 4.dp,
+                                    pressedElevation = 2.dp
+                                )
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.btn_unlock),
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        color = SoftPosColors.SurfacePureWhite,
+                                        fontWeight = FontWeight.SemiBold,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun SoftTelemetryRow(
+        label: String,
+        technicalId: String
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(SoftPosColors.BackgroundOffWhite)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = SoftPosColors.TextSecondaryMuted,
+                    fontWeight = FontWeight.Medium
+                )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            MonospacePillChip(
+                text = technicalId,
+                backgroundColor = SoftPosColors.SurfacePureWhite,
+                textColor = SoftPosColors.TextPrimarySlate
+            )
+        }
+    }
+
+    @Composable
+    private fun MonospacePillChip(
+        text: String,
+        backgroundColor: androidx.compose.ui.graphics.Color,
+        textColor: androidx.compose.ui.graphics.Color
+    ) {
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = backgroundColor,
+            shadowElevation = 1.dp
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color = textColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium
+                ),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+        }
     }
 }

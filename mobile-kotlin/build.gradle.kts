@@ -1,9 +1,10 @@
 plugins {
-    alias(libs.plugins.android.application) apply false
-    alias(libs.plugins.kotlin.android) apply false
+    id("com.android.application") version "8.8.0"
+    id("org.jetbrains.kotlin.android") version "2.0.21"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.0.21"
 }
 
-// Android Module Configuration for Nuri's Offline-First POS & Sync Outbox
+// Android Module Configuration for Nuri's Offline-First POS & 21st.dev Brutalist Compose UI
 android {
     namespace = "com.ban.foodintelligence.pos"
     compileSdk = 34
@@ -16,6 +17,11 @@ android {
         versionName = "1.0.0-avatar"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        resourceConfigurations += listOf("en", "tr", "de")
+    }
+
+    buildFeatures {
+        compose = true
     }
 
     buildTypes {
@@ -40,6 +46,13 @@ android {
 dependencies {
     // Kotlin Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+
+    // Jetpack Compose (21st.dev Brutalist Terminal UI)
+    implementation(platform("androidx.compose:compose-bom:2024.04.01"))
+    implementation("androidx.activity:activity-compose:1.9.0")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
 
     // Room SQLite Database for Offline Outbox
     implementation("androidx.room:room-runtime:2.6.1")
