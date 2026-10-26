@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Application Identity -->
+    <string name="app_name">BAN FOOD POS // EDGE-TERMINAL</string>
+
+    <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
+    <string name="lockdown_hazard_banner">/// KLASSE-I BIOGEFAHR &amp; EDGE-KI OOD-SPERRE AKTIVIERT ///</string>
+    <string name="lockdown_title">KRITISCHER RÜCKRUF</string>
+    <string name="lockdown_subtitle">QUARANTÄNE-KIOSK-SPERRE // HARDWARE VERSIEGELT</string>
+    <string name="lockdown_body">KRITISCHER ALARM: Biologisch unmögliche Sensordaten oder kontaminierte Charge erkannt. Terminal gesperrt.</string>
+
+    <!-- Telemetry & Forensics Readout Labels -->
+    <string name="telemetry_header">TELEMETRIE- &amp; FORENSIK-PROTOKOLL</string>
+    <string name="telemetry_incident_code">VORFALLSCODE    : %1$s</string>
+    <string name="telemetry_quarantined_lot">QUARANTÄNE-LOS  : %1$s (URSPRUNG: %2$s)</string>
+    <string name="telemetry_ood_metric">OOD-TELEMETRIE  : %1$s = %2$.4f</string>
+    <string name="telemetry_kiosk_mode">KIOSK-SPERRMODUS: [AKTIV / startLockTask() EINGEFROREN]</string>
+    <string name="telemetry_persistent_flag">PERSISTENZ-FLAG : [IS_TERMINAL_LOCKED = true]</string>
+    <string name="telemetry_supervisor_hint">SUPERVISOR-EXIT : [5-TAP WARNLEISTE -&gt; HSM-PIN]</string>
+
+    <!-- Supervisor Auth & PIN Override Console -->
+    <string name="supervisor_console_header">SUPERVISOR-HSM-NOTFALLKONSOLE</string>
+    <string name="supervisor_pin_prompt">SUPERVISOR-HSM-PIN EINGEBEN, UM KIOSK-SPERRE AUFZUHEBEN:</string>
+    <string name="supervisor_pin_hint">6-STELLIGE SUPERVISOR-PIN</string>
+    <string name="btn_unlock">ENTSPERREN</string>
+    <string name="auth_status_unlocked">KIOSK-SPERRE DURCH SUPERVISOR AUFGEHOBEN.</string>
+    <string name="error_invalid_pin">UNGÜLTIGE SUPERVISOR-PIN (%1$d VERSUCHE VERBLEIBEND).</string>
+    <string name="error_invalid_pin_generic">UNGÜLTIGE SUPERVISOR-PIN. ZUGRIFF VERWEIGERT.</string>
+    <string name="error_lockout_throttled">BRUTE-FORCE-SPERRE: ERNEUTER VERSUCH IN %1$d SEKUNDEN.</string>
+
+    <!-- Main POS Checkout & Hardware Attestation Strings -->
+    <string name="pos_terminal_header">BAN FOOD INTELLIGENCE // INDUSTRIE-POS</string>
+    <string name="pos_keystore_status_ready">HARDWARE STRONGBOX/TEE ECDSA P-256: VERIFIZIERT</string>
+    <string name="pos_kiosk_guard_redirect">TERMINAL GESPERRT — WEITERLEITUNG ZUR RÜCKRUF-SPERRE</string>
+
+    <!-- Offline Outbox & SyncWorker Status Strings -->
+    <string name="sync_status_syncing">OUTBOX-SYNC AKTIV: STAPEL WIRD GELEERT (%1$d AUSSTEHEND)...</string>
+    <string name="sync_status_idle">OUTBOX-SYNC LEERLAUF: ALLE DATENSÄTZE SYNCHRONISIERT</string>
+    <string name="sync_status_throttling">THERMISCHE &amp; WAL-DROSSELUNG: 500MS PAUSE ZWISCHEN STAPELN</string>
+    <string name="sync_status_batch_ack">STAPEL VOM GO-BACKEND BESTÄTIGT (%1$d DATENSÄTZE BEREINIGT)</string>
+    <string name="sync_status_network_retry">NETZWERKPARTITION: EXPONENTIELLER BACKOFF GEPLANT</string>
+    <string name="sync_status_signature_rejected">SICHERHEITSALARM: ECDSA-SIGNATUR VOM SERVER ABGELEHNT</string>
+</resources>

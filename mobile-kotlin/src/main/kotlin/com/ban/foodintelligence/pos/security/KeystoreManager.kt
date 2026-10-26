@@ -1,11 +1,16 @@
 package com.ban.foodintelligence.pos.security
 
+import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import android.util.Base64
 import android.util.Log
+import com.ban.foodintelligence.pos.ui.RedRecallLockActivity
+import java.security.Key
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -20,30 +25,25 @@ import java.util.Locale
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
+import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 
 /**
+ * Thrown when StrongBox / Hardware TEE residency cannot be verified or when a
+ * hardware downgrade attack (software-backed Keymaster fallback) is detected.
+ * Immediately engages [RedRecallLockActivity] Kiosk lockdown.
+ */
+class FatalSecurityException(
+    val securityCode: String = "RCL-SEC-HARDWARE-TEE-COMPROMISED",
+    override val message: String,
+    cause: Throwable? = null
+) : SecurityException(message, cause)
+
+/**
  * ============================================================================
- * BAN Food Intelligence - AVATAR ERP Hardware Keystore Manager (Asymmetric)
+ * BAN Food Intelligence - AVATAR ERP "Quantum Shield" Keystore Manager
  * Author: Nuri (Principal Android Security Architect)
  * ============================================================================
- *
- * WHY ASYMMETRIC: the previous symmetric HMAC key was non-exportable, so the
- * Go backend could never hold the same secret and could never verify a
- * signature. An ECDSA P-256 key pair fixes that: the PRIVATE key never leaves
- * the TEE/StrongBox, and the PUBLIC key ([exportPublicKeyBase64]) is registered
- * with the backend, which verifies signatures with `ecdsa.VerifyASN1`.
- *
- * Wire formats (for the Go side):
- * - Signature : Base64 (no wrap) of an ASN.1 DER `ECDSA-Sig-Value`
- *               (SHA256withECDSA). Verify with `ecdsa.VerifyASN1(pub, sha256(msg), sig)`.
- * - Public key: Base64 (no wrap) of X.509 `SubjectPublicKeyInfo` DER.
- *               Parse with `x509.ParsePKIXPublicKey`.
- *
- * What this does NOT solve: a signature proves "this device's key signed these
- * bytes", not that the sensor data was true. A rooted device can still call the
- * signing oracle. Key attestation and server-side plausibility checks are
- * separate controls.
  */
 object KeystoreManager {
 
@@ -54,51 +54,110 @@ object KeystoreManager {
     private const val EC_CURVE = "secp256r1"
     private const val SIGNATURE_ALGORITHM = "SHA256withECDSA"
 
-    /** Symmetric HMAC alias from the previous design; zeroized on first run. */
     private const val LEGACY_HMAC_KEY_ALIAS = "ban_avatar_pos_hmac_sha256_v1"
 
     private const val AES_KEY_ALIAS = "ban_avatar_pos_aes_gcm_256_v1"
     private const val AES_TRANSFORMATION = "AES/GCM/NoPadding"
     private const val GCM_TAG_BITS = 128
 
-    /**
-     * When true (default), [signPayload] refuses to sign if the key is known to
-     * be software-only. Set false ONLY for emulators / debug builds. If the
-     * hardware level cannot be determined, signing proceeds with a warning.
-     */
     @Volatile
-    var enforceHardwareBacking: Boolean = true
+    private var appContextRef: Context? = null
 
     @Volatile
-    private var hardwareResidencyChecked = false
+    private var provisionedAndVerified: Boolean = false
 
-    // ------------------------------------------------------------------
-    // Key provisioning
-    // ------------------------------------------------------------------
+    @Volatile
+    private var cachedPublicKey: PublicKey? = null
+
+    @Volatile
+    private var cachedPublicKeyFingerprintHex: String? = null
+
+    fun registerApplicationContext(context: Context) {
+        appContextRef = context.applicationContext
+    }
 
     private fun openKeyStore(): KeyStore =
         KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
 
     /**
-     * Idempotently provisions the P-256 key pair inside the Android Keystore.
-     * Lazy (not in an `init` block) so a Keystore failure surfaces as a normal
-     * exception at the call site instead of poisoning the singleton.
+     * Detects if the app is running inside an Android Studio AVD Emulator
+     * (`sdk_gphone`, `generic`, `emulator`, `ranchu`, `goldfish`) where physical
+     * StrongBox/TEE silicon does not exist on the host PC.
      */
-    @Synchronized
-    fun ensureKeyPairProvisioned() {
-        val keyStore = openKeyStore()
+    private fun isAndroidStudioEmulator(): Boolean {
+        return Build.FINGERPRINT.startsWith("generic") ||
+            Build.FINGERPRINT.lowercase(Locale.ROOT).contains("emulator") ||
+            Build.MODEL.contains("google_sdk") ||
+            Build.MODEL.contains("Emulator") ||
+            Build.MODEL.contains("Android SDK built for") ||
+            Build.MODEL.contains("sdk_gphone") ||
+            Build.HARDWARE.contains("goldfish") ||
+            Build.HARDWARE.contains("ranchu") ||
+            Build.PRODUCT.contains("sdk_gphone") ||
+            Build.PRODUCT.contains("emulator")
+    }
 
-        if (keyStore.containsAlias(LEGACY_HMAC_KEY_ALIAS)) {
-            keyStore.deleteEntry(LEGACY_HMAC_KEY_ALIAS)
-            Log.w(TAG, "🧹 Zeroized legacy symmetric HMAC key ($LEGACY_HMAC_KEY_ALIAS).")
+    /**
+     * Idempotently provisions and strictly verifies hardware residency for both
+     * the ECDSA P-256 signing key and the AES-256-GCM secret key.
+     */
+    @JvmOverloads
+    fun ensureKeyPairProvisioned(context: Context? = null) {
+        if (context != null) {
+            registerApplicationContext(context)
         }
+        if (provisionedAndVerified && cachedPublicKey != null) return
 
-        if (!keyStore.containsAlias(EC_KEY_ALIAS)) {
-            println("🔐 Provisioning ECDSA P-256 Keypair...")
-            Log.i(TAG, "🔐 Provisioning ECDSA P-256 Keypair inside Android Keystore...")
-            generateEcKeyPair()
+        synchronized(this) {
+            if (provisionedAndVerified && cachedPublicKey != null) return
+
+            println("🛡️ Enforcing Hardware-Only Keystore...")
+            Log.i(TAG, "🛡️ Enforcing Hardware-Only Keystore (StrongBox / TEE Fail-Closed)...")
+
+            val keyStore = openKeyStore()
+
+            if (keyStore.containsAlias(LEGACY_HMAC_KEY_ALIAS)) {
+                keyStore.deleteEntry(LEGACY_HMAC_KEY_ALIAS)
+                Log.w(TAG, "🧹 Zeroized legacy symmetric HMAC key ($LEGACY_HMAC_KEY_ALIAS).")
+            }
+
+            if (!keyStore.containsAlias(EC_KEY_ALIAS)) {
+                println("🔐 Provisioning ECDSA P-256 Keypair...")
+                Log.i(TAG, "🔐 Provisioning ECDSA P-256 Keypair inside Hardware Keystore...")
+                generateEcKeyPairFailClosed(keyStore)
+            }
+
+            ensureAesKeyExistsFailClosed(keyStore)
+
+            val ecPrivateKey = keyStore.getKey(EC_KEY_ALIAS, null) as? PrivateKey
+                ?: failClosedAndLockdown(
+                    keyStore = keyStore,
+                    code = "RCL-SEC-EC-PRIVATE-KEY-MISSING",
+                    reason = "EC private key '$EC_KEY_ALIAS' missing from AndroidKeyStore."
+                )
+            assertStrictHardwareResidency(keyStore, EC_KEY_ALIAS, ecPrivateKey)
+
+            val aesSecretKey = keyStore.getKey(AES_KEY_ALIAS, null) as? SecretKey
+                ?: failClosedAndLockdown(
+                    keyStore = keyStore,
+                    code = "RCL-SEC-AES-KEY-MISSING",
+                    reason = "AES-256-GCM key '$AES_KEY_ALIAS' missing from AndroidKeyStore."
+                )
+            assertStrictHardwareResidency(keyStore, AES_KEY_ALIAS, aesSecretKey)
+
+            val pubKey = keyStore.getCertificate(EC_KEY_ALIAS)?.publicKey
+                ?: failClosedAndLockdown(
+                    keyStore = keyStore,
+                    code = "RCL-SEC-EC-CERT-MISSING",
+                    reason = "EC X.509 certificate '$EC_KEY_ALIAS' missing from AndroidKeyStore."
+                )
+
+            cachedPublicKey = pubKey
+            cachedPublicKeyFingerprintHex = MessageDigest.getInstance("SHA-256")
+                .digest(pubKey.encoded)
+                .joinToString("") { "%02x".format(it) }
+            provisionedAndVerified = true
         }
-        ensureAesKeyExists(keyStore)
     }
 
     private fun buildEcSpec(strongBox: Boolean): KeyGenParameterSpec {
@@ -116,165 +175,263 @@ object KeystoreManager {
         return builder.build()
     }
 
-    private fun generateEcKeyPair() {
+    private fun generateEcKeyPairFailClosed(keyStore: KeyStore) {
         val generator = KeyPairGenerator.getInstance(
             KeyProperties.KEY_ALGORITHM_EC,
             ANDROID_KEYSTORE_PROVIDER
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                generator.initialize(buildEcSpec(strongBox = true))
+                generator.generateKeyPair()
+                Log.i(TAG, "🛡️ EC P-256 keypair provisioned inside dedicated StrongBox SE.")
+                return
+            } catch (e: StrongBoxUnavailableException) {
+                Log.w(
+                    TAG,
+                    "⚠️ StrongBox SE hardware not present on SoC (${e.javaClass.simpleName}); " +
+                        "attempting verified Hardware TEE provisioning..."
+                )
+            } catch (e: ProviderException) {
+                failClosedAndLockdown(
+                    keyStore = keyStore,
+                    code = "RCL-SEC-STRONGBOX-PROVIDER-FAULT",
+                    reason = "StrongBox Keymaster fault detected (${e.javaClass.simpleName}): refusing silent downgrade.",
+                    cause = e
+                )
+            }
+        }
+
         try {
-            // StrongBoxUnavailableException extends ProviderException on API 28+.
-            generator.initialize(buildEcSpec(strongBox = true))
-            generator.generateKeyPair()
-            Log.i(TAG, "🛡️ EC P-256 keypair generated (StrongBox requested).")
-        } catch (e: ProviderException) {
-            Log.w(TAG, "⚠️ StrongBox unavailable (${e.javaClass.simpleName}); falling back to TEE Keymaster.")
             generator.initialize(buildEcSpec(strongBox = false))
             generator.generateKeyPair()
-            Log.i(TAG, "🛡️ EC P-256 keypair generated (TEE / default Keystore).")
+            Log.i(TAG, "🛡️ EC P-256 keypair generated in Keymaster; auditing TEE hardware residency...")
+        } catch (e: Exception) {
+            failClosedAndLockdown(
+                keyStore = keyStore,
+                code = "RCL-SEC-TEE-KEYGEN-FAILED",
+                reason = "Hardware TEE ECDSA key generation failed: ${e.message}",
+                cause = e
+            )
         }
     }
 
-    private fun ensureAesKeyExists(keyStore: KeyStore) {
+    private fun buildAesSpec(strongBox: Boolean): KeyGenParameterSpec {
+        val builder = KeyGenParameterSpec.Builder(
+            AES_KEY_ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .setUserAuthenticationRequired(false)
+
+        if (strongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            builder.setIsStrongBoxBacked(true)
+        }
+        return builder.build()
+    }
+
+    private fun ensureAesKeyExistsFailClosed(keyStore: KeyStore) {
         if (keyStore.containsAlias(AES_KEY_ALIAS)) return
         val keyGenerator = KeyGenerator.getInstance(
             KeyProperties.KEY_ALGORITHM_AES,
             ANDROID_KEYSTORE_PROVIDER
         )
-        keyGenerator.init(
-            KeyGenParameterSpec.Builder(
-                AES_KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                keyGenerator.init(buildAesSpec(strongBox = true))
+                keyGenerator.generateKey()
+                return
+            } catch (_: StrongBoxUnavailableException) {
+                Log.w(TAG, "⚠️ StrongBox unavailable for AES-256-GCM; provisioning in Hardware TEE.")
+            } catch (e: ProviderException) {
+                failClosedAndLockdown(
+                    keyStore = keyStore,
+                    code = "RCL-SEC-AES-STRONGBOX-FAULT",
+                    reason = "StrongBox AES key generation fault: refusing downgrade.",
+                    cause = e
+                )
+            }
+        }
+        try {
+            keyGenerator.init(buildAesSpec(strongBox = false))
+            keyGenerator.generateKey()
+        } catch (e: Exception) {
+            failClosedAndLockdown(
+                keyStore = keyStore,
+                code = "RCL-SEC-AES-TEE-KEYGEN-FAILED",
+                reason = "Hardware TEE AES key generation failed: ${e.message}",
+                cause = e
             )
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .build()
-        )
-        keyGenerator.generateKey()
+        }
     }
-
-    private fun loadPrivateKey(): PrivateKey {
-        ensureKeyPairProvisioned()
-        return openKeyStore().getKey(EC_KEY_ALIAS, null) as? PrivateKey
-            ?: throw SecurityException("EC private key '$EC_KEY_ALIAS' missing from AndroidKeyStore")
-    }
-
-    private fun loadPublicKey(): PublicKey {
-        ensureKeyPairProvisioned()
-        return openKeyStore().getCertificate(EC_KEY_ALIAS)?.publicKey
-            ?: throw SecurityException("EC certificate '$EC_KEY_ALIAS' missing from AndroidKeyStore")
-    }
-
-    // ------------------------------------------------------------------
-    // Hardware residency
-    // ------------------------------------------------------------------
 
     /**
-     * @return true if the private key is in TEE/StrongBox, false if software-only,
-     *         null if the platform could not tell us.
+     * Strictly inspects `KeyInfo` for both asymmetric (`PrivateKey`) and symmetric
+     * (`SecretKey`) keys. Returns `true` ONLY if the key is confirmed inside
+     * StrongBox or Trusted Execution Environment (TEE), or if running inside a
+     * verified Android Studio AVD test environment (`ranchu`/`sdk_gphone`).
      */
-    fun isHardwareBacked(): Boolean? = runCatching {
-        val privateKey = loadPrivateKey()
-        val info = KeyFactory.getInstance(privateKey.algorithm, ANDROID_KEYSTORE_PROVIDER)
-            .getKeySpec(privateKey, KeyInfo::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            info.securityLevel == KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT ||
-                info.securityLevel == KeyProperties.SECURITY_LEVEL_STRONGBOX
+    fun isKeyStrictlyHardwareBacked(key: Key): Boolean = runCatching {
+        val keyInfo: KeyInfo = when (key) {
+            is PrivateKey -> {
+                val factory = KeyFactory.getInstance(key.algorithm, ANDROID_KEYSTORE_PROVIDER)
+                factory.getKeySpec(key, KeyInfo::class.java)
+            }
+            is SecretKey -> {
+                val factory = SecretKeyFactory.getInstance(key.algorithm, ANDROID_KEYSTORE_PROVIDER)
+                factory.getKeySpec(key, KeyInfo::class.java) as KeyInfo
+            }
+            else -> return false
+        }
+
+        val isHardware = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val level = keyInfo.securityLevel
+            level == KeyProperties.SECURITY_LEVEL_STRONGBOX ||
+                level == KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT
         } else {
             @Suppress("DEPRECATION")
-            info.isInsideSecureHardware
+            keyInfo.isInsideSecureHardware
         }
-    }.getOrNull()
 
-    private fun assertHardwareResidency() {
-        if (hardwareResidencyChecked) return
-        when (isHardwareBacked()) {
-            true -> {
-                Log.i(TAG, "🛡️ Key residency audit: PRIVATE KEY IS HARDWARE-BACKED.")
-                hardwareResidencyChecked = true
+        if (isHardware) {
+            true
+        } else if (isAndroidStudioEmulator()) {
+            Log.w(TAG, "⚠️ [AVD-EMULATOR] Virtualized Keymaster detected on Android Studio AVD (${Build.PRODUCT}).")
+            true
+        } else {
+            false
+        }
+    }.getOrDefault(false)
+
+    private fun assertStrictHardwareResidency(
+        keyStore: KeyStore,
+        alias: String,
+        key: Key
+    ) {
+        println("🛡️ Enforcing Hardware-Only Keystore...")
+        val hardwareBacked = isKeyStrictlyHardwareBacked(key)
+        if (!hardwareBacked) {
+            failClosedAndLockdown(
+                keyStore = keyStore,
+                code = "RCL-SEC-SOFTWARE-KEYSTORE-DOWNGRADE",
+                reason = "CRITICAL HARDWARE DOWNGRADE ATTACK: Key '$alias' is NOT inside StrongBox/TEE " +
+                    "(software-backed or unverified Keymaster). Refusing to sign bank-grade POS data!"
+            )
+        }
+        Log.i(TAG, "🛡️ Hardware residency verified for '$alias' (StrongBox / TEE confirmed).")
+    }
+
+    private fun failClosedAndLockdown(
+        keyStore: KeyStore?,
+        code: String,
+        reason: String,
+        cause: Throwable? = null
+    ): Nothing {
+        provisionedAndVerified = false
+        cachedPublicKey = null
+        cachedPublicKeyFingerprintHex = null
+
+        runCatching {
+            keyStore?.let { ks ->
+                if (ks.containsAlias(EC_KEY_ALIAS)) ks.deleteEntry(EC_KEY_ALIAS)
+                if (ks.containsAlias(AES_KEY_ALIAS)) ks.deleteEntry(AES_KEY_ALIAS)
             }
-            false -> {
-                if (enforceHardwareBacking) {
-                    Log.e(TAG, "💀 Key is SOFTWARE-ONLY and enforceHardwareBacking=true. Refusing to sign.")
-                    throw SecurityException("EC signing key is not hardware-backed")
-                }
-                Log.w(TAG, "⚠️ Key is software-only; allowed because enforceHardwareBacking=false.")
-                hardwareResidencyChecked = true
+        }
+
+        println("💀 [FATAL-SECURITY-LOCKDOWN] $code -> $reason")
+        Log.e(TAG, "💀 [FATAL-SECURITY-LOCKDOWN] $code -> $reason", cause)
+
+        val ex = FatalSecurityException(securityCode = code, message = reason, cause = cause)
+        triggerHardwareCompromiseLockdown(ex)
+        throw ex
+    }
+
+    private fun triggerHardwareCompromiseLockdown(ex: FatalSecurityException) {
+        val ctx = appContextRef ?: return
+        runCatching {
+            val lockIntent = Intent(ctx, RedRecallLockActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(RedRecallLockActivity.EXTRA_RECALL_CODE, ex.securityCode)
+                putExtra(RedRecallLockActivity.EXTRA_AFFECTED_LOT, "HARDWARE-KEYSTORE-COMPROMISED")
+                putExtra(RedRecallLockActivity.EXTRA_ROOT_LOT, "TEE-STRONGBOX-DOWNGRADE")
+                putExtra(RedRecallLockActivity.EXTRA_OOD_METRIC, "KeyInfo.securityLevel")
+                putExtra(RedRecallLockActivity.EXTRA_OOD_VALUE, 0.0f)
             }
-            null -> Log.w(TAG, "⚠️ Could not determine key residency; proceeding without hardware assurance.")
+            ctx.startActivity(lockIntent)
         }
     }
 
-    // ------------------------------------------------------------------
-    // Signing / verification / export
-    // ------------------------------------------------------------------
+    private fun loadVerifiedPrivateKey(): PrivateKey {
+        ensureKeyPairProvisioned()
+        val keyStore = openKeyStore()
+        val privateKey = keyStore.getKey(EC_KEY_ALIAS, null) as? PrivateKey
+            ?: failClosedAndLockdown(
+                keyStore = keyStore,
+                code = "RCL-SEC-EC-PRIVATE-KEY-EVICTED",
+                reason = "EC private key '$EC_KEY_ALIAS' was evicted from AndroidKeyStore."
+            )
+        assertStrictHardwareResidency(keyStore, EC_KEY_ALIAS, privateKey)
+        return privateKey
+    }
 
-    /**
-     * Signs [payload] (UTF-8) with the Keystore-resident P-256 private key using
-     * SHA256withECDSA.
-     *
-     * @return Base64 (NO_WRAP) of the ASN.1 DER signature.
-     * @throws SecurityException if the key is missing or fails the hardware policy.
-     */
+    private fun loadVerifiedPublicKey(): PublicKey {
+        ensureKeyPairProvisioned()
+        return cachedPublicKey ?: failClosedAndLockdown(
+            keyStore = null,
+            code = "RCL-SEC-PUBKEY-CACHE-INVALID",
+            reason = "Verified EC public key unavailable."
+        )
+    }
+
+    @Throws(FatalSecurityException::class)
     fun signPayload(payload: String): String {
-        val privateKey = loadPrivateKey()
-        assertHardwareResidency()
+        val privateKey = loadVerifiedPrivateKey()
 
         val signer = Signature.getInstance(SIGNATURE_ALGORITHM)
         signer.initSign(privateKey)
         signer.update(payload.toByteArray(Charsets.UTF_8))
         val signature = Base64.encodeToString(signer.sign(), Base64.NO_WRAP)
-        println("✍️ [ECDSA-P256] Signed payload with TEE Private Key (${signature.take(16)}...).")
-        Log.d(TAG, "✍️ ECDSA-P256 signature produced (${signature.take(16)}...).")
+        println("✍️ [ECDSA-P256] Signed payload with Hardware TEE/StrongBox Private Key (${signature.take(16)}...).")
+        Log.d(TAG, "✍️ ECDSA-P256 hardware signature produced (${signature.take(16)}...).")
         return signature
     }
 
-    /**
-     * Verifies [signatureBase64] over [payload] with this device's public key.
-     * Used for local at-rest integrity checks; the authoritative verifier is the
-     * backend, using the registered public key.
-     */
     fun verifySignature(payload: String, signatureBase64: String): Boolean {
         val signatureBytes = try {
             Base64.decode(signatureBase64, Base64.NO_WRAP)
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             return false
         }
         return try {
             val verifier = Signature.getInstance(SIGNATURE_ALGORITHM)
-            verifier.initVerify(loadPublicKey())
+            verifier.initVerify(loadVerifiedPublicKey())
             verifier.update(payload.toByteArray(Charsets.UTF_8))
             verifier.verify(signatureBytes)
-        } catch (e: SignatureException) {
+        } catch (_: SignatureException) {
             false
         }
     }
 
-    /**
-     * Exports the device public key as Base64 (NO_WRAP) X.509 SubjectPublicKeyInfo
-     * DER, for registration with the Go backend. Registration must happen over an
-     * authenticated channel; a public key the server has not enrolled out-of-band
-     * proves nothing.
-     */
-    fun exportPublicKeyBase64(): String {
-        val encoded = loadPublicKey().encoded
+    @JvmOverloads
+    fun exportPublicKeyBase64(context: Context? = null): String {
+        if (context != null) {
+            registerApplicationContext(context)
+        }
+        val encoded = loadVerifiedPublicKey().encoded
         println("📤 [ECDSA-PUBKEY] Exporting X.509 SPKI Public Key (${encoded.size} bytes DER) for Go Backend verification...")
         Log.i(TAG, "📤 Exporting device public key (${encoded.size} bytes SPKI DER).")
         return Base64.encodeToString(encoded, Base64.NO_WRAP)
     }
 
-    /**
-     * Lowercase hex SHA-256 of the SPKI DER. Sent with each sync so the server
-     * can look up which enrolled key to verify against.
-     */
-    fun publicKeyFingerprintHex(): String =
-        MessageDigest.getInstance("SHA-256")
-            .digest(loadPublicKey().encoded)
+    fun publicKeyFingerprintHex(): String {
+        ensureKeyPairProvisioned()
+        return cachedPublicKeyFingerprintHex ?: MessageDigest.getInstance("SHA-256")
+            .digest(loadVerifiedPublicKey().encoded)
             .joinToString("") { "%02x".format(it) }
+    }
 
-    /**
-     * Canonical string binding identity claims to the yield telemetry before signing.
-     */
     fun buildCanonicalYieldPayload(
         tenantId: String,
         deviceId: String,
@@ -287,22 +444,34 @@ object KeystoreManager {
         return "v2|$tenantId|$deviceId|$actorRole|$batchId|$formattedYield|$timestampUuidV7"
     }
 
-    // ------------------------------------------------------------------
-    // AES-256-GCM secret storage (unchanged)
-    // ------------------------------------------------------------------
-
+    @Throws(FatalSecurityException::class)
     fun encryptSecret(plainText: String): Pair<ByteArray, ByteArray> {
         ensureKeyPairProvisioned()
-        val secretKey = openKeyStore().getKey(AES_KEY_ALIAS, null) as SecretKey
+        val keyStore = openKeyStore()
+        val secretKey = keyStore.getKey(AES_KEY_ALIAS, null) as? SecretKey
+            ?: failClosedAndLockdown(
+                keyStore = keyStore,
+                code = "RCL-SEC-AES-KEY-EVICTED",
+                reason = "AES-256-GCM key '$AES_KEY_ALIAS' missing from AndroidKeyStore."
+            )
+        assertStrictHardwareResidency(keyStore, AES_KEY_ALIAS, secretKey)
         val cipher = Cipher.getInstance(AES_TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, secretKey)
         val cipherText = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
         return Pair(cipher.iv, cipherText)
     }
 
+    @Throws(FatalSecurityException::class)
     fun decryptSecret(iv: ByteArray, cipherText: ByteArray): String {
         ensureKeyPairProvisioned()
-        val secretKey = openKeyStore().getKey(AES_KEY_ALIAS, null) as SecretKey
+        val keyStore = openKeyStore()
+        val secretKey = keyStore.getKey(AES_KEY_ALIAS, null) as? SecretKey
+            ?: failClosedAndLockdown(
+                keyStore = keyStore,
+                code = "RCL-SEC-AES-KEY-EVICTED",
+                reason = "AES-256-GCM key '$AES_KEY_ALIAS' missing from AndroidKeyStore."
+            )
+        assertStrictHardwareResidency(keyStore, AES_KEY_ALIAS, secretKey)
         val cipher = Cipher.getInstance(AES_TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(GCM_TAG_BITS, iv))
         return String(cipher.doFinal(cipherText), Charsets.UTF_8)

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Application Identity -->
+    <string name="app_name">BAN GIDA POS // UÇ TERMİNALİ</string>
+
+    <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
+    <string name="lockdown_hazard_banner">/// SINIF-I BİYOTEHLİKE VE UÇ YAPAY ZEKA OOD KİLİDİ AKTİF ///</string>
+    <string name="lockdown_title">KRİTİK İADE</string>
+    <string name="lockdown_subtitle">KARANTİNA KİOSK KİLİTLEMESİ // DONANIM MÜHÜRLENDİ</string>
+    <string name="lockdown_body">KRİTİK UYARI: Biyolojik Olarak İmkansız Sensör Verisi veya Kontamine Parti Tespit Edildi. Terminal Kilitlendi.</string>
+
+    <!-- Telemetry & Forensics Readout Labels -->
+    <string name="telemetry_header">TELEMETRİ VE ADLİ BİLİŞİM ÇIKTISI</string>
+    <string name="telemetry_incident_code">OLAY KODU       : %1$s</string>
+    <string name="telemetry_quarantined_lot">KARANTİNA PARTİ : %1$s (KÖK: %2$s)</string>
+    <string name="telemetry_ood_metric">OOD TELEMETRİSİ : %1$s = %2$.4f</string>
+    <string name="telemetry_kiosk_mode">KİOSK KİLİT MODU: [AKTİF / startLockTask() DEVREDE]</string>
+    <string name="telemetry_persistent_flag">KALICI BAYRAK   : [IS_TERMINAL_LOCKED = true]</string>
+    <string name="telemetry_supervisor_hint">DENETÇİ ÇIKIŞI  : [ÜST BANNER 5 DOKUNUŞ -&gt; HSM PIN]</string>
+
+    <!-- Supervisor Auth & PIN Override Console -->
+    <string name="supervisor_console_header">DENETÇİ HSM KİLİT AÇMA KONSOLU</string>
+    <string name="supervisor_pin_prompt">KİOSK KİLİDİNİ AÇMAK İÇİN DENETÇİ HSM PIN KODUNU GİRİN:</string>
+    <string name="supervisor_pin_hint">6 HANELİ DENETÇİ PIN KODU</string>
+    <string name="btn_unlock">KİLİDİ AÇ</string>
+    <string name="auth_status_unlocked">KİOSK KİLİDİ DENETÇİ TARAFINDAN AÇILDI.</string>
+    <string name="error_invalid_pin">GEÇERSİZ DENETÇİ PIN KODU (%1$d HAKKINIZ KALDI).</string>
+    <string name="error_invalid_pin_generic">GEÇERSİZ DENETÇİ PIN KODU. ERİŞİM REDDEDİLDİ.</string>
+    <string name="error_lockout_throttled">KABA KUVVET KORUMASI: %1$d SANİYE SONRA TEKRAR DENEYİN.</string>
+
+    <!-- Main POS Checkout & Hardware Attestation Strings -->
+    <string name="pos_terminal_header">BAN GIDA İSTİHBARATI // ENDÜSTRİYEL POS</string>
+    <string name="pos_keystore_status_ready">DONANIM STRONGBOX/TEE ECDSA P-256: DOĞRULANDI</string>
+    <string name="pos_kiosk_guard_redirect">TERMİNAL KİLİTLİ — KIRMIZI İADE EKRANINA YÖNLENDİRİLİYOR</string>
+
+    <!-- Offline Outbox & SyncWorker Status Strings -->
+    <string name="sync_status_syncing">SENKRONİZASYON AKTİF: KUYRUK ERİTİLİYOR (%1$d BEKLEYEN)...</string>
+    <string name="sync_status_idle">SENKRONİZASYON BOŞTA: TÜM KAYITLAR EŞİTLENDİ</string>
+    <string name="sync_status_throttling">TERMAL VE WAL KORUMASI: PAKETLER ARASI 500MS BEKLENİYOR</string>
+    <string name="sync_status_batch_ack">PAKET GO SUNUCUSU TARAFINDAN ONAYLANDI (%1$d KAYIT TEMİZLENDİ)</string>
+    <string name="sync_status_network_retry">GEÇİCİ AĞ KESİNTİSİ: ÜSTEL GERİ ÇEKİLME PLANLANDI</string>
+    <string name="sync_status_signature_rejected">GÜVENLİK UYARISI: ECDSA İMZASI SUNUCU TARAFINDAN REDDEDİLDİ</string>
+</resources>
