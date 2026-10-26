@@ -14,10 +14,13 @@ import kotlinx.coroutines.flow.Flow
  * Author: Nuri (Principal Android Security Architect)
  * ============================================================================
  *
- * "Steel Vest" OOM Fix:
- * All `SELECT *` queries and reactive `Flow` streams enforce `LIMIT :limit`
- * (default 50) directly inside SQLite so Room never materializes an unbounded
- * offline backlog into the JVM heap.
+ * "Steel Vest" & "Quantum Shield" Remediation:
+ * 1. Bounded SQL `LIMIT :limit` (default 50) directly inside SQLite so Room never
+ *    materializes an unbounded offline backlog into the JVM heap.
+ * 2. Batched `markBatchFailed(timestamps)` in a single SQLite WAL transaction to
+ *    eliminate 50-row unbatched `fsync` amplification during HTTP 4xx rejection.
+ * 3. `purgeSyncedRecords()` to reclaim SQLite pages after server acknowledgement
+ *    and prevent `SYNCED` tombstone accumulation during a 20,000-record drain.
  */
 @Dao
 interface OutboxDao {
@@ -100,6 +103,22 @@ interface OutboxDao {
     )
     suspend fun markFailed(
         timestamp: String,
+        failedStatus: String = SyncOutboxQueue.STATUS_FAILED
+    )
+
+    /**
+     * Quantum Shield Fix: Batched `WHERE timestamp IN (:timestamps)` update so
+     * permanent HTTP 4xx failures execute in 1 SQLite WAL transaction instead of 50.
+     */
+    @Query(
+        """
+        UPDATE sync_outbox_queue
+        SET status = :failedStatus, retry_count = retry_count + 1
+        WHERE timestamp IN (:timestamps)
+        """
+    )
+    suspend fun markBatchFailed(
+        timestamps: List<String>,
         failedStatus: String = SyncOutboxQueue.STATUS_FAILED
     )
 
