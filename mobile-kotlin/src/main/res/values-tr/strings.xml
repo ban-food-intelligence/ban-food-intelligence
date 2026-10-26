@@ -51,4 +51,26 @@
     <string name="pos_sqlite_empty">Henüz yerel satış kaydı yok. Yukarıdan bir parti seçip satış yapın.</string>
     <string name="pos_sale_recorded_toast">Satış SQLite WAL veritabanına kaydedildi ve ECDSA P-256 ile imzalandı!</string>
     <string name="pos_recall_blocked_toast">İADE KİLİDİ: Kontamine %1$s partisinin satışı engellendi!</string>
+
+    <!-- Task 5: Invoice OCR (NVIDIA NIM Vision-Language) -->
+    <string name="ocr_open_scanner">Tedarikçi Faturası Tara (OCR)</string>
+    <string name="ocr_screen_title">Fatura OCR</string>
+    <string name="ocr_screen_subtitle">Tedarikçi faturasını çekin; görsel model stok girişlerini önersin.</string>
+    <string name="ocr_btn_capture">Faturayı Çek</string>
+    <string name="ocr_btn_recapture">Yeniden Çek</string>
+    <string name="ocr_btn_extract">NVIDIA Nemotron VL ile Oku</string>
+    <string name="ocr_loading">Fatura %1$s ile okunuyor…</string>
+    <string name="ocr_suggestions_title">Öneriler</string>
+    <string name="ocr_suggestions_hint">Kaydetmeden önce her satırı kontrol edin. Değerler model önerisidir, doğrulanmış veri değildir.</string>
+    <string name="ocr_btn_confirm_save">Onayla ve Stoğa Kaydet</string>
+    <string name="ocr_btn_discard">Vazgeç</string>
+    <string name="ocr_btn_use_demo">Örnek Yanıtı Kullan (Demo)</string>
+    <string name="ocr_demo_badge">DEMO YANITI — CANLI MODELDEN DEĞİL</string>
+    <string name="ocr_error_title">Okuma başarısız</string>
+    <string name="ocr_error_no_key">NVIDIA API anahtarı tanımlı değil. NV_API_KEY değerini girin veya isteği sunucu üzerinden yönlendirin.</string>
+    <string name="ocr_saved_success">%1$d stok girişi kaydedildi ve senkronizasyon kuyruğuna alındı.</string>
+    <string name="ocr_missing_lot">Faturada parti numarası yok — reddedilecek</string>
+    <string name="ocr_raw_json">Ham JSON</string>
+    <string name="ocr_meta">Tedarikçi: %1$s · Fatura: %2$s</string>
+    <string name="ocr_back">Geri</string>
 </resources>

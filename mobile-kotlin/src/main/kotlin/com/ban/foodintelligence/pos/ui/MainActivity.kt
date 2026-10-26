@@ -317,6 +317,31 @@ private fun PosSalesCheckoutScreen(
                             }
                         }
                     }
+
+                    // Task 5: Launch Invoice OCR Scanner (NVIDIA Nemotron-3.5-VL)
+                    Button(
+                        onClick = {
+                            context.startActivity(Intent(context, InvoiceOcrActivity::class.java))
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(50),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SoftPosColors.PrimaryIndigo,
+                            contentColor = SoftPosColors.SurfacePureWhite
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 3.dp,
+                            pressedElevation = 1.dp
+                        )
+                    ) {
+                        Text(
+                            text = stringResource(R.string.ocr_open_scanner),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                 }
             }
 
