@@ -40,4 +40,15 @@
     <string name="sync_status_batch_ack">PAKET GO SUNUCUSU TARAFINDAN ONAYLANDI (%1$d KAYIT TEMİZLENDİ)</string>
     <string name="sync_status_network_retry">GEÇİCİ AĞ KESİNTİSİ: ÜSTEL GERİ ÇEKİLME PLANLANDI</string>
     <string name="sync_status_signature_rejected">GÜVENLİK UYARISI: ECDSA İMZASI SUNUCU TARAFINDAN REDDEDİLDİ</string>
+
+    <!-- POS Sales & Lot-Tracked Stock Movement Strings (Phase 3) -->
+    <string name="pos_sales_section_title">PARTİ TAKİPLİ POS SATIŞ VE STOK ÇIKIŞI</string>
+    <string name="pos_select_lot_label">Satış Yapılacak Parti (Lot) Seçin:</string>
+    <string name="pos_quantity_hint">Satış Miktarı</string>
+    <string name="pos_btn_execute_sale">SATIŞI TAMAMLA VE ECDSA İLE İMZALA</string>
+    <string name="pos_btn_recall_block">KARANTİNA PARTİSİ — SATIŞI ENGELLE VE KİLİTLE</string>
+    <string name="pos_sqlite_ledger_title">YEREL SQLITE WAL STOK HAREKETLERİ VE KUYRUK</string>
+    <string name="pos_sqlite_empty">Henüz yerel satış kaydı yok. Yukarıdan bir parti seçip satış yapın.</string>
+    <string name="pos_sale_recorded_toast">Satış SQLite WAL veritabanına kaydedildi ve ECDSA P-256 ile imzalandı!</string>
+    <string name="pos_recall_blocked_toast">İADE KİLİDİ: Kontamine %1$s partisinin satışı engellendi!</string>
 </resources>

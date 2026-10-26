@@ -2,24 +2,40 @@ import React, { useState } from 'react';
 import RecallWarRoom from './components/RecallWarRoom';
 import LotGenealogy from './components/LotGenealogy';
 import ButcheryCostTable from './components/ButcheryCostTable';
+import MLPredictionsTable from './components/MLPredictionsTable';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('recall');
+  const [activeTab, setActiveTab] = useState('butchery');
 
   return (
     <div className="dashboard-container">
       <header className="header-banner">
         <div className="title-tagline">
           <h1>BAN Food Intelligence &bull; AVATAR ERP</h1>
-          <p>Real-Time Costing, Recursive Batch Traceability, and Emergency Recall Management</p>
+          <p>Üretim (EKP = 18,16 €), 25 KG Kuzu Parçalama Mutabakatı, Lot İzlenebilirliği (ET-2026-001) ve Yapay Zeka Tahmin Sistemi</p>
         </div>
         <div className="badge-team">
-          Ali (DB/Model) &bull; Berke (Go/React/Model) &bull; Nuri (Kotlin/Sync/Security)
+          Ali (MySQL/ML) &bull; Berke (Go/React) &bull; Nuri (Kotlin POS/ECDSA/Stacking)
         </div>
       </header>
 
       {/* Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid #232d42', paddingBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid #232d42', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setActiveTab('butchery')}
+          style={{
+            background: activeTab === 'butchery' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+            color: activeTab === 'butchery' ? '#34d399' : '#94a3b8',
+            border: activeTab === 'butchery' ? '1px solid #10b981' : '1px solid transparent',
+            borderRadius: '6px',
+            padding: '0.6rem 1.2rem',
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+          }}
+        >
+          🥩 Görev 1 & 2: Üretim (18,16 € EKP) & 25 KG Kuzu Parçalama
+        </button>
         <button
           onClick={() => setActiveTab('recall')}
           style={{
@@ -30,10 +46,10 @@ export default function App() {
             padding: '0.6rem 1.2rem',
             cursor: 'pointer',
             fontWeight: 600,
-            fontSize: '0.9rem'
+            fontSize: '0.9rem',
           }}
         >
-          🚨 Recall War Room
+          🚨 Görev 3: Geri Çağırma (ET-2026-001 → 30/25/30 Paket)
         </button>
         <button
           onClick={() => setActiveTab('genealogy')}
@@ -45,32 +61,33 @@ export default function App() {
             padding: '0.6rem 1.2rem',
             cursor: 'pointer',
             fontWeight: 600,
-            fontSize: '0.9rem'
+            fontSize: '0.9rem',
           }}
         >
-          🌿 Lot Genealogy Tree
+          🌿 Görev 3: İleri & Geri Lot İzlenebilirliği
         </button>
         <button
-          onClick={() => setActiveTab('butchery')}
+          onClick={() => setActiveTab('ml')}
           style={{
-            background: activeTab === 'butchery' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
-            color: activeTab === 'butchery' ? '#34d399' : '#94a3b8',
-            border: activeTab === 'butchery' ? '1px solid #10b981' : '1px solid transparent',
+            background: activeTab === 'ml' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
+            color: activeTab === 'ml' ? '#c4b5fd' : '#94a3b8',
+            border: activeTab === 'ml' ? '1px solid #8b5cf6' : '1px solid transparent',
             borderRadius: '6px',
             padding: '0.6rem 1.2rem',
             cursor: 'pointer',
             fontWeight: 600,
-            fontSize: '0.9rem'
+            fontSize: '0.9rem',
           }}
         >
-          🥩 Task 2 Butchery Cost Tables
+          🧠 Görev 4A & 4B: Yapay Zeka Tahmin & Sapma Raporu
         </button>
       </div>
 
       <main>
+        {activeTab === 'butchery' && <ButcheryCostTable />}
         {activeTab === 'recall' && <RecallWarRoom />}
         {activeTab === 'genealogy' && <LotGenealogy />}
-        {activeTab === 'butchery' && <ButcheryCostTable />}
+        {activeTab === 'ml' && <MLPredictionsTable />}
       </main>
     </div>
   );

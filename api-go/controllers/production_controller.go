@@ -1,56 +1,227 @@
 package controllers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"time"
 )
 
+type CostBreakdownLineDto struct {
+	OrderNo     string  `json:"order_no"`
+	LotNo       string  `json:"lot_no"`
+	CostElement string  `json:"cost_element"`
+	Qty         float64 `json:"qty"`
+	UomCode     string  `json:"uom_code"`
+	UnitCost    float64 `json:"unit_cost"`
+	Amount      float64 `json:"amount"`
+}
+
 type ProductionOrderDto struct {
-	OrderID         string    `json:"order_id"`
-	OrderNumber     string    `json:"order_number"`
-	TargetProductSKU string   `json:"target_product_sku"`
-	PlannedQtyKg    float64   `json:"planned_qty_kg"`
-	ActualQtyKg     float64   `json:"actual_qty_kg"`
-	YieldPct        float64   `json:"yield_pct"`
-	OutputLotNumber string    `json:"output_lot_number"`
-	Status          string    `json:"status"`
-	CreatedAt       time.Time `json:"created_at"`
+	OrderNo             string                 `json:"order_no"`
+	ProductSKU          string                 `json:"product_sku"`
+	ProductName         string                 `json:"product_name"`
+	Status              string                 `json:"status"`
+	PlannedQty          float64                `json:"planned_qty"`
+	ActualQty           float64                `json:"actual_qty"`
+	QtyVariance         float64                `json:"qty_variance"`
+	FulfilmentPct       float64                `json:"fulfilment_pct"`
+	InputKg             float64                `json:"input_kg"`
+	YieldPctOfMeat      float64                `json:"yield_pct_of_meat"`
+	MaterialCost        float64                `json:"material_cost"`
+	ServiceCost         float64                `json:"service_cost"`
+	TotalCost           float64                `json:"total_cost"`
+	EKP                 float64                `json:"ekp"`
+	EKPDisplay          float64                `json:"ekp_display"`
+	VKP                 float64                `json:"vkp"`
+	GrossProfitPerUnit  float64                `json:"gross_profit_per_unit"`
+	RevenueAtVKP        float64                `json:"revenue_at_vkp"`
+	GrossProfitTotal    float64                `json:"gross_profit_total"`
+	MarginPct           float64                `json:"margin_pct"`
+	OutputLotNumber     string                 `json:"output_lot_number,omitempty"`
+	Breakdown           []CostBreakdownLineDto `json:"breakdown,omitempty"`
 }
 
-type ProductionController struct{}
-
-func NewProductionController() *ProductionController {
-	return &ProductionController{}
+type CompleteProductionRequest struct {
+	OrderNo      string  `json:"order_no"`       // e.g. "URT-2026-045"
+	ActualQty    float64 `json:"actual_qty"`     // e.g. 85
+	OutputLotNo  string  `json:"output_lot_no"`  // e.g. "SUC-2026-045"
+	LotDate      string  `json:"lot_date"`       // e.g. "2026-10-15"
+	ExpiryDate   string  `json:"expiry_date"`    // e.g. "2026-12-15"
+	SubWarehouse string  `json:"sub_warehouse"`  // e.g. "WH-FASON"
+	TargetWh     string  `json:"target_wh"`      // e.g. "WH-MAMUL"
+	InvoiceNo    string  `json:"invoice_no"`     // e.g. "FTR-FASON-2026-045"
 }
 
-// ListOrders handles GET /production
+type ProductionController struct {
+	db *sql.DB
+}
+
+func NewProductionController(db *sql.DB) *ProductionController {
+	return &ProductionController{db: db}
+}
+
+// ListOrders handles GET /production and POST /production
+// Queries Ali's MySQL `sp_calculate_production_cost` / `v_production_cost` & `v_production_cost_breakdown`.
 func (c *ProductionController) ListOrders(w http.ResponseWriter, r *http.Request) {
-	orders := []ProductionOrderDto{
-		{
-			OrderID:         "po-stage-wip45",
-			OrderNumber:     "PO-2026-SUCUK-WIP-45",
-			TargetProductSKU: "WIP-SUCUK-DOUGH",
-			PlannedQtyKg:    320.0,
-			ActualQtyKg:     320.0,
-			YieldPct:        100.0,
-			OutputLotNumber: "URT-2026-045",
-			Status:          "COMPLETED",
-			CreatedAt:       time.Now().Add(-72 * time.Hour),
-		},
-		{
-			OrderID:         "po-stage-suc45",
-			OrderNumber:     "PO-2026-SUCUK-DRY-45",
-			TargetProductSKU: "FG-KANGAL-SUCUK",
-			PlannedQtyKg:    285.0,
-			ActualQtyKg:     285.0,
-			YieldPct:        89.06,
-			OutputLotNumber: "SUC-2026-045",
-			Status:          "COMPLETED",
-			CreatedAt:       time.Now().Add(-24 * time.Hour),
-		},
+	if r.Method == http.MethodPost {
+		c.CalculateOrCompleteProduction(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	orderFilter := r.URL.Query().Get("order_no")
+
+	query := `
+		SELECT vc.order_no, vc.sku, vc.product_name, vc.status,
+		       vc.planned_qty, vc.actual_qty, vc.qty_variance, vc.fulfilment_pct,
+		       vc.input_kg, COALESCE(vc.yield_pct_of_meat, 0),
+		       vc.material_cost, vc.service_cost, vc.total_cost,
+		       vc.ekp, vc.ekp_display, COALESCE(vc.vkp, 0),
+		       COALESCE(vc.gross_profit_per_unit, 0), COALESCE(vc.revenue_at_vkp, 0),
+		       COALESCE(vc.gross_profit_total, 0), COALESCE(vc.margin_pct, 0),
+		       COALESCE((SELECT l.lot_no FROM production_output pout
+		                 JOIN production_order po ON po.id = pout.production_order_id
+		                 JOIN lot l ON l.id = pout.lot_id
+		                 WHERE po.order_no = vc.order_no LIMIT 1), '') AS output_lot_no
+		FROM v_production_cost vc
+	`
+	var args []interface{}
+	if orderFilter != "" {
+		query += " WHERE vc.order_no = ?"
+		args = append(args, orderFilter)
+	}
+	query += " ORDER BY vc.order_no ASC"
+
+	rows, err := c.db.QueryContext(r.Context(), query, args...)
+	if err != nil {
+		log.Printf("❌ [MYSQL-PRODUCTION] Query error: %v", err)
+		http.Error(w, fmt.Sprintf(`{"error":"database query failed: %s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var orders []ProductionOrderDto
+	for rows.Next() {
+		var o ProductionOrderDto
+		if err := rows.Scan(
+			&o.OrderNo, &o.ProductSKU, &o.ProductName, &o.Status,
+			&o.PlannedQty, &o.ActualQty, &o.QtyVariance, &o.FulfilmentPct,
+			&o.InputKg, &o.YieldPctOfMeat,
+			&o.MaterialCost, &o.ServiceCost, &o.TotalCost,
+			&o.EKP, &o.EKPDisplay, &o.VKP,
+			&o.GrossProfitPerUnit, &o.RevenueAtVKP,
+			&o.GrossProfitTotal, &o.MarginPct,
+			&o.OutputLotNumber,
+		); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"row scan failed: %s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+		o.Breakdown = c.fetchCostBreakdown(r, o.OrderNo)
+		orders = append(orders, o)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(orders)
+}
+
+// CalculateOrCompleteProduction handles POST /production
+// Invokes Ali's MySQL stored procedure `CALL sp_calculate_production_cost(...)`
+// (which wraps `sp_production_complete` when completing an order and returns the EKP breakdown).
+func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWriter, r *http.Request) {
+	var req CompleteProductionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON request body"}`, http.StatusBadRequest)
+		return
+	}
+	if req.OrderNo == "" {
+		req.OrderNo = "URT-2026-045"
+	}
+
+	// If an unreceived order is being completed, invoke sp_production_complete first
+	if req.ActualQty > 0 && req.OutputLotNo != "" {
+		if req.LotDate == "" {
+			req.LotDate = time.Now().Format("2006-01-02")
+		}
+		if req.ExpiryDate == "" {
+			req.ExpiryDate = time.Now().AddDate(0, 6, 0).Format("2006-01-02")
+		}
+		if req.SubWarehouse == "" {
+			req.SubWarehouse = "WH-FASON"
+		}
+		if req.TargetWh == "" {
+			req.TargetWh = "WH-ANA"
+		}
+		_, err := c.db.ExecContext(
+			r.Context(),
+			`CALL sp_production_complete(?, ?, ?, ?, ?, ?, ?, ?)`,
+			req.OrderNo, req.ActualQty, req.OutputLotNo, req.LotDate, req.ExpiryDate,
+			req.SubWarehouse, req.TargetWh, req.InvoiceNo,
+		)
+		if err != nil {
+			log.Printf("ℹ️ [MYSQL-SP] sp_production_complete note for %s: %v", req.OrderNo, err)
+		}
+	}
+
+	// Execute stored procedure `CALL sp_calculate_production_cost(?)`
+	rows, err := c.db.QueryContext(r.Context(), `CALL sp_calculate_production_cost(?)`, req.OrderNo)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"sp_calculate_production_cost failed: %s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var result ProductionOrderDto
+	if rows.Next() {
+		if err := rows.Scan(
+			&result.OrderNo, &result.ProductSKU, &result.ProductName, &result.Status,
+			&result.PlannedQty, &result.ActualQty, &result.QtyVariance, &result.FulfilmentPct,
+			&result.InputKg, &result.YieldPctOfMeat,
+			&result.MaterialCost, &result.ServiceCost, &result.TotalCost,
+			&result.EKP, &result.EKPDisplay, &result.VKP,
+			&result.GrossProfitPerUnit, &result.RevenueAtVKP,
+			&result.GrossProfitTotal, &result.MarginPct,
+		); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"scan sp_calculate_production_cost failed: %s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+	}
+	rows.Close()
+
+	result.Breakdown = c.fetchCostBreakdown(r, req.OrderNo)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func (c *ProductionController) fetchCostBreakdown(r *http.Request, orderNo string) []CostBreakdownLineDto {
+	bRows, err := c.db.QueryContext(
+		r.Context(),
+		`SELECT order_no, COALESCE(lot_no, ''), cost_element, qty, uom_code, unit_cost, amount
+		 FROM v_production_cost_breakdown
+		 WHERE order_no = ?
+		 ORDER BY sort_key ASC, lot_no ASC`,
+		orderNo,
+	)
+	if err != nil {
+		return nil
+	}
+	defer bRows.Close()
+
+	var lines []CostBreakdownLineDto
+	for bRows.Next() {
+		var line CostBreakdownLineDto
+		if err := bRows.Scan(
+			&line.OrderNo, &line.LotNo, &line.CostElement,
+			&line.Qty, &line.UomCode, &line.UnitCost, &line.Amount,
+		); err == nil {
+			lines = append(lines, line)
+		}
+	}
+	return lines
 }

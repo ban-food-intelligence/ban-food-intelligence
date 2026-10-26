@@ -1,73 +1,67 @@
 package controllers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"strings"
-
-	"ban-food-intelligence/api-go/models"
 )
 
-// LotController handles lot traceability and inventory inquiries
-type LotController struct{}
-
-func NewLotController() *LotController {
-	return &LotController{}
+type LotController struct {
+	db    *sql.DB
+	trace *TraceController
 }
 
-// TraceLot handles GET /api/v1/lots/trace/{lotNumber}
-// Invokes Ali's MySQL WITH RECURSIVE TraceLotBackward or returns structured tree
+func NewLotController(db *sql.DB) *LotController {
+	return &LotController{
+		db:    db,
+		trace: NewTraceController(db),
+	}
+}
+
+// TraceLot delegates to TraceController backed by MySQL `sp_trace_forward` / `sp_trace_backward`.
 func (c *LotController) TraceLot(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 5 || parts[4] == "" {
-		http.Error(w, `{"error":"lot number is required"}`, http.StatusBadRequest)
+	c.trace.TraceHandler(w, r)
+}
+
+// ListStockByLot handles GET /lots
+// Queries Ali's MySQL `v_stock_by_lot` view.
+func (c *LotController) ListStockByLot(w http.ResponseWriter, r *http.Request) {
+	rows, err := c.db.QueryContext(
+		r.Context(),
+		`SELECT lot_no, sku, product_name, warehouse_code, qty, uom_code, unit_cost, stock_value, status
+		 FROM v_stock_by_lot
+		 ORDER BY lot_no ASC, warehouse_code ASC`,
+	)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"failed to query v_stock_by_lot: %s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
-	lotNumber := parts[4]
+	defer rows.Close()
 
-	// Simulated recursive lot trace matching ET-2026-001 scenario
-	parent1 := "WIP-2026-042"
-	parent2 := "RM-2026-010"
+	type StockLotDto struct {
+		LotNo         string  `json:"lot_no"`
+		SKU           string  `json:"sku"`
+		ProductName   string  `json:"product_name"`
+		WarehouseCode string  `json:"warehouse_code"`
+		Qty           float64 `json:"qty"`
+		UomCode       string  `json:"uom_code"`
+		UnitCost      float64 `json:"unit_cost"`
+		StockValue    float64 `json:"stock_value"`
+		Status        string  `json:"status"`
+	}
 
-	resp := models.TraceResponse{
-		RootLotNumber:  lotNumber,
-		Direction:      "backward",
-		TotalAncestors: 3,
-		Nodes: []*models.LotTraceNode{
-			{
-				Depth:            0,
-				CurrentLotNumber: lotNumber,
-				ProductName:      "Premium Smoked Beef Biltong 500g",
-				ProductCategory:  "FINISHED_GOOD",
-				Quantity:         250.0,
-				Status:           "RELEASED",
-				TracePath:        lotNumber,
-			},
-			{
-				Depth:            1,
-				CurrentLotNumber: "WIP-2026-042",
-				ProductName:      "Marinated Flank Strips",
-				ProductCategory:  "INTERMEDIATE",
-				Quantity:         370.0,
-				Status:           "CONSUMED",
-				ParentLotNumber:  &parent1,
-				QuantityConsumed: 370.0,
-				TracePath:        lotNumber + " <- WIP-2026-042",
-			},
-			{
-				Depth:            2,
-				CurrentLotNumber: "RM-2026-010",
-				ProductName:      "Grade A Raw Beef Flank",
-				ProductCategory:  "RAW_MATERIAL",
-				Quantity:         500.0,
-				Status:           "RELEASED",
-				ParentLotNumber:  &parent2,
-				QuantityConsumed: 350.0,
-				TracePath:        lotNumber + " <- WIP-2026-042 <- RM-2026-010",
-			},
-		},
+	var list []StockLotDto
+	for rows.Next() {
+		var s StockLotDto
+		if err := rows.Scan(
+			&s.LotNo, &s.SKU, &s.ProductName, &s.WarehouseCode,
+			&s.Qty, &s.UomCode, &s.UnitCost, &s.StockValue, &s.Status,
+		); err == nil {
+			list = append(list, s)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(list)
 }

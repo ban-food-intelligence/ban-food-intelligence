@@ -1,5 +1,5 @@
 {
-  "version": "nuri-2.0.0",
+  "version": "nuri-2.1.0-quantum-shield",
   "production": {
     "n_train": 1198,
     "n_test": 302,
@@ -166,7 +166,8 @@
     "interval90_yield_pct": {
       "half_width": 1.7539278840258674,
       "test_coverage": 0.9105960264900662,
-      "mean_epistemic_variance": 0.05914963378228142
+      "mean_epistemic_variance": 0.05914963378228142,
+      "min_variance_floor": 0.0005
     },
     "improvement_vs_hist_mean_pct": 52.218067254257264
   },
