@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.PointOfSale
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material3.Button
@@ -164,6 +165,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun PosSalesCheckoutScreen(
     pubKeyFingerprint: String,
@@ -192,6 +194,7 @@ private fun PosSalesCheckoutScreen(
     var pendingOutboxCount by remember { mutableStateOf(0) }
     var lastActionBanner by remember { mutableStateOf<String?>(null) }
     var isQuickGuideOpen by remember { mutableStateOf(false) }
+    var isSettingsOpen by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
 
     val saleRecordedToastMsg = stringResource(R.string.pos_sale_recorded_toast)
@@ -285,7 +288,16 @@ private fun PosSalesCheckoutScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         LanguageToggle()
-                        QuickGuideHelpButton(onClick = { isQuickGuideOpen = true })
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            QuickGuideHelpButton(onClick = { isQuickGuideOpen = true })
+                            androidx.compose.material3.IconButton(onClick = { isSettingsOpen = true }) {
+                                Icon(
+                                    Icons.Rounded.Settings,
+                                    contentDescription = stringResource(R.string.settings_title),
+                                    tint = SoftPosColors.PrimaryIndigo
+                                )
+                            }
+                        }
                     }
 
                     Surface(
@@ -403,7 +415,7 @@ private fun PosSalesCheckoutScreen(
                                             java.text.DateFormat.SHORT, java.text.DateFormat.SHORT
                                         ).format(java.util.Date(currentCatalog.fetchedAtMs))
                                     )
-                                else -> stringResource(R.string.pos_catalog_none, currentCatalog.error.orEmpty())
+                                else -> stringResource(R.string.error_server_unreachable) + "\n" + currentCatalog.error.orEmpty()
                             },
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = if (currentCatalog?.source == CatalogSource.LIVE) {
@@ -766,6 +778,17 @@ private fun PosSalesCheckoutScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        if (isSettingsOpen) {
+            androidx.compose.material3.ModalBottomSheet(onDismissRequest = { isSettingsOpen = false }) {
+                com.ban.foodintelligence.pos.ui.design.PosTheme {
+                    SettingsScreen(
+                        keyFingerprint = pubKeyFingerprint,
+                        onServerChanged = { scope.launch { refreshLocal(); refreshCatalog() } }
+                    )
                 }
             }
         }
