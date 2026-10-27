@@ -61,6 +61,8 @@ type ButcheryOperationSummaryDto struct {
 	DeclaredCostOk    bool                         `json:"declared_cost_ok"`
 	AllocationOk      bool                         `json:"allocation_ok"`
 	Cuts              []ButcheryCutAllocatedOutput `json:"allocated_cuts"`
+	WeightCheck       WeightCheckDto               `json:"weight_check"`
+	Findings          []ButcheryFindingDto         `json:"findings"`
 }
 
 type ButcheryController struct {
@@ -144,6 +146,7 @@ func (c *ButcheryController) ReconcileButchery(w http.ResponseWriter, r *http.Re
 	rows.Close()
 
 	summary.Cuts = c.fetchCutAllocations(r, summary.OpNo)
+	analyseButchery(r, &summary)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(summary)
@@ -194,6 +197,7 @@ func (c *ButcheryController) ListButcheryOperations(w http.ResponseWriter, r *ht
 			}
 		}
 		s.Cuts = c.fetchCutAllocations(r, s.OpNo)
+		analyseButchery(r, &s)
 		ops = append(ops, s)
 	}
 
