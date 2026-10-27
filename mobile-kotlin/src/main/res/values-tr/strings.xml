@@ -3,111 +3,62 @@
     <!-- Application Identity -->
     <string name="app_name">BAN Mağaza</string>
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
-    <string name="lockdown_hazard_banner">/// SINIF-I BİYOTEHLİKE VE UÇ YAPAY ZEKA OOD KİLİDİ AKTİF ///</string>
     <string name="lockdown_title">Satış durduruldu</string>
     <string name="lockdown_subtitle">Ürün geri çağırma</string>
     <string name="lockdown_body">Bu mağazadaki ürünleri etkileyen bir geri çağırma var. Aşağıdaki lotları raftan kaldırın. Satışa devam etmek için bir yetkilinin onay vermesi gerekir.</string>
-    <!-- Telemetry & Forensics Readout Labels -->
-    <string name="telemetry_header">TELEMETRİ VE ADLİ BİLİŞİM ÇIKTISI</string>
-    <string name="telemetry_incident_code">OLAY KODU       : %1$s</string>
-    <string name="telemetry_quarantined_lot">KARANTİNA PARTİ : %1$s (KÖK: %2$s)</string>
-    <string name="telemetry_ood_metric">OOD TELEMETRİSİ : %1$s = %2$.4f</string>
-    <string name="telemetry_kiosk_mode">KİOSK KİLİT MODU: [AKTİF / startLockTask() DEVREDE]</string>
-    <string name="telemetry_persistent_flag">KALICI BAYRAK   : [IS_TERMINAL_LOCKED = true]</string>
-    <string name="telemetry_supervisor_hint">DENETÇİ ÇIKIŞI  : [ÜST BANNER 5 DOKUNUŞ -&gt; HSM PIN]</string>
 
-    <!-- Supervisor Auth & PIN Override Console -->
-    <string name="supervisor_console_header">DENETÇİ HSM KİLİT AÇMA KONSOLU</string>
-    <string name="supervisor_pin_prompt">KİOSK KİLİDİNİ AÇMAK İÇİN DENETÇİ HSM PIN KODUNU GİRİN:</string>
-    <string name="supervisor_pin_hint">6 HANELİ DENETÇİ PIN KODU</string>
-    <string name="btn_unlock">KİLİDİ AÇ</string>
-    <string name="auth_status_unlocked">KİOSK KİLİDİ DENETÇİ TARAFINDAN AÇILDI.</string>
-    <string name="error_invalid_pin">GEÇERSİZ DENETÇİ PIN KODU (%1$d HAKKINIZ KALDI).</string>
-    <string name="error_invalid_pin_generic">GEÇERSİZ DENETÇİ PIN KODU. ERİŞİM REDDEDİLDİ.</string>
-    <string name="error_lockout_throttled">KABA KUVVET KORUMASI: %1$d SANİYE SONRA TEKRAR DENEYİN.</string>
 
-    <!-- Main POS Checkout & Hardware Attestation Strings -->
-    <string name="pos_terminal_header">BAN GIDA İSTİHBARATI // ENDÜSTRİYEL POS</string>
-    <string name="pos_keystore_status_ready">DONANIM STRONGBOX/TEE ECDSA P-256: DOĞRULANDI</string>
-    <string name="pos_kiosk_guard_redirect">TERMİNAL KİLİTLİ — KIRMIZI İADE EKRANINA YÖNLENDİRİLİYOR</string>
 
     <!-- Offline Outbox & SyncWorker Status Strings -->
-    <string name="sync_status_syncing">SENKRONİZASYON AKTİF: KUYRUK ERİTİLİYOR (%1$d BEKLEYEN)...</string>
-    <string name="sync_status_idle">SENKRONİZASYON BOŞTA: TÜM KAYITLAR EŞİTLENDİ</string>
-    <string name="sync_status_throttling">TERMAL VE WAL KORUMASI: PAKETLER ARASI 500MS BEKLENİYOR</string>
-    <string name="sync_status_batch_ack">PAKET GO SUNUCUSU TARAFINDAN ONAYLANDI (%1$d KAYIT TEMİZLENDİ)</string>
-    <string name="sync_status_network_retry">GEÇİCİ AĞ KESİNTİSİ: ÜSTEL GERİ ÇEKİLME PLANLANDI</string>
-    <string name="sync_status_signature_rejected">GÜVENLİK UYARISI: ECDSA İMZASI SUNUCU TARAFINDAN REDDEDİLDİ</string>
-
-    <!-- POS Sales & Lot-Tracked Stock Movement Strings (Phase 3) -->
-    <string name="pos_sales_section_title">PARTİ TAKİPLİ POS SATIŞ VE STOK ÇIKIŞI</string>
-    <string name="pos_select_lot_label">Satış Yapılacak Parti (Lot) Seçin:</string>
-    <string name="pos_quantity_hint">Satış Miktarı</string>
-    <string name="pos_btn_execute_sale">SATIŞI TAMAMLA VE ECDSA İLE İMZALA</string>
-    <string name="pos_btn_recall_block">KARANTİNA PARTİSİ — SATIŞI ENGELLE VE KİLİTLE</string>
-    <string name="pos_sqlite_ledger_title">YEREL SQLITE WAL STOK HAREKETLERİ VE KUYRUK</string>
-    <string name="pos_sqlite_empty">Henüz yerel satış kaydı yok. Yukarıdan bir parti seçip satış yapın.</string>
-    <string name="pos_sale_recorded_toast">Satış SQLite WAL veritabanına kaydedildi ve ECDSA P-256 ile imzalandı!</string>
-    <string name="pos_recall_blocked_toast">İADE KİLİDİ: Kontamine %1$s partisinin satışı engellendi!</string>
+    <string name="sync_status_syncing">%1$d satış gönderiliyor</string>
+    <string name="sync_status_idle">Tüm satışlar gönderildi</string>
+    <string name="sync_status_throttling">Gruplar arasında kısa bekleme</string>
+    <string name="sync_status_batch_ack">Sunucu %1$d satışı onayladı</string>
+    <string name="sync_status_network_retry">Bağlantı yok. Birazdan tekrar denenecek.</string>
+    <string name="sync_status_signature_rejected">Sunucu bu cihazın imzasını reddetti.</string>
 
     <!-- Task 5: Invoice OCR (NVIDIA NIM Vision-Language) -->
-    <string name="ocr_open_scanner">Tedarikçi Faturası Tara (OCR)</string>
-    <string name="ocr_screen_title">Fatura OCR</string>
-    <string name="ocr_screen_subtitle">Tedarikçi faturasını çekin; görsel model stok girişlerini önersin.</string>
-    <string name="ocr_btn_capture">Faturayı Çek</string>
-    <string name="ocr_btn_recapture">Yeniden Çek</string>
-    <string name="ocr_btn_extract">NVIDIA Nemotron VL ile Oku</string>
+    <string name="ocr_screen_title">Faturadan mal kabulü</string>
+    <string name="ocr_screen_subtitle">Tedarikçi faturasının fotoğrafını çekin. Uygulama satırları önerir; kaydetmeden önce siz kontrol edersiniz.</string>
+    <string name="ocr_btn_recapture">Yeni fotoğraf çek</string>
+    <string name="ocr_btn_extract">Faturayı tekrar oku</string>
     <string name="ocr_loading">Fatura %1$s ile okunuyor…</string>
-    <string name="ocr_suggestions_title">Öneriler</string>
-    <string name="ocr_suggestions_hint">Kaydetmeden önce her satırı kontrol edin. Değerler model önerisidir, doğrulanmış veri değildir.</string>
-    <string name="ocr_btn_confirm_save">Onayla ve Stoğa Kaydet</string>
+    <string name="ocr_suggestions_title">Önerilen satırlar</string>
+    <string name="ocr_suggestions_hint">Kaydetmeden önce her satırı kontrol edin. Bunlar öneridir, doğrulanmış veri değildir.</string>
+    <string name="ocr_btn_confirm_save">Onayla ve stoğa ekle</string>
     <string name="ocr_btn_discard">Vazgeç</string>
-    <string name="ocr_btn_use_demo">Örnek Yanıtı Kullan (Demo)</string>
-    <string name="ocr_demo_badge">DEMO YANITI — CANLI MODELDEN DEĞİL</string>
-    <string name="ocr_error_title">Okuma başarısız</string>
-    <string name="ocr_error_no_key">NVIDIA API anahtarı tanımlı değil. local.properties içine NVIDIA_API_KEY girin veya isteği sunucu üzerinden yönlendirin.</string>
-    <string name="ocr_saved_success">%1$d stok girişi kaydedildi ve senkronizasyon kuyruğuna alındı.</string>
-    <string name="ocr_missing_lot">Faturada parti numarası yok — reddedilecek</string>
-    <string name="ocr_raw_json">Ham JSON</string>
+    <string name="ocr_error_title">Fatura okunamadı</string>
+    <string name="ocr_error_no_key">Bu cihazda fatura okuma ayarlı değil (API anahtarı eksik). Satırları elle girin.</string>
+    <string name="ocr_saved_success">%1$d mal kabulü kaydedildi. Sunucuya otomatik olarak gönderilecek.</string>
+    <string name="ocr_missing_lot">Faturada lot numarası yok. Bu satır kaydedilemez.</string>
+    <string name="ocr_raw_json">Model çıktısı</string>
     <string name="ocr_meta">Tedarikçi: %1$s · Fatura: %2$s</string>
     <string name="ocr_back">Geri</string>
-
     <!-- Quick Guide / How to Use BottomSheet (TR) -->
-    <string name="quick_guide_button_label">Nasıl Kullanılır?</string>
-    <string name="quick_guide_title">Hızlı Kullanım Kılavuzu</string>
-    <string name="quick_guide_subtitle">Depo ve satış terminali personeli için 3 adımlı net talimatlar</string>
-    <string name="quick_guide_step1_title">Satış Yapmak İçin</string>
-    <string name="quick_guide_step1_desc">Lot seçin, miktar girin ve Satış Yap butonuna basın.</string>
-    <string name="quick_guide_step2_title">Kilit Durumu</string>
-    <string name="quick_guide_step2_desc">Geri çağrılan (recalled) riskli lotlar sistem tarafından otomatik bloke edilir.</string>
-    <string name="quick_guide_step3_title">Yönetici Kilidi</string>
-    <string name="quick_guide_step3_desc">Kilitli ekrandan çıkmak için üst başlığa 5 kez hızlıca dokunup yönetici PIN\'ini girin.</string>
-    <string name="quick_guide_btn_close">Anladım, Kapat</string>
-
+    <string name="quick_guide_button_label">Nasıl çalışır</string>
+    <string name="quick_guide_title">Uygulama nasıl çalışır</string>
+    <string name="quick_guide_subtitle">Her kasiyerin bilmesi gereken üç şey</string>
+    <string name="quick_guide_step1_title">Satış</string>
+    <string name="quick_guide_step1_desc">Satış sekmesinde bir lota dokunun, miktarı girin ve Satışı onayla\'ya basın. Ağırlıkta ondalık girilebilir; paketler tam sayıdır.</string>
+    <string name="quick_guide_step2_title">Geri çağırma</string>
+    <string name="quick_guide_step2_desc">Geri çağrılan lotlar kırmızıyla işaretlenir ve çevrimdışıyken bile satılamaz. Bu mağazayı etkileyen yeni bir geri çağırma gelince, lotlar raftan kaldırılana kadar satış durur.</string>
+    <string name="quick_guide_step3_title">Yetkili kilidi açar</string>
+    <string name="quick_guide_step3_desc">Bir yetkili, durdurulan ekranda Yetkili kilidi açsın\'a dokunur ve PIN\'ini girer. Her kilit açma kaydedilir.</string>
+    <string name="quick_guide_btn_close">Anladım</string>
     <!-- POS catalog and sale validation -->
     <string name="pos_qty_error_empty">Bir miktar girin.</string>
-    <string name="pos_qty_error_not_number">Miktar bir sayı olmalıdır.</string>
-    <string name="pos_qty_error_not_positive">Miktar 0\'dan büyük olmalıdır.</string>
-    <string name="pos_qty_error_kg_precision">KG en fazla 3 ondalık basamağa izin verir.</string>
-    <string name="pos_qty_error_whole_number">%1$s tam sayı olmalıdır.</string>
+    <string name="pos_qty_error_not_number">Bir sayı girin, örneğin 1,5.</string>
+    <string name="pos_qty_error_not_positive">Miktar 0\'dan büyük olmalı.</string>
+    <string name="pos_qty_error_kg_precision">Ağırlık en fazla 3 ondalık basamak içerebilir.</string>
+    <string name="pos_qty_error_whole_number">Tam sayı girin.</string>
     <string name="pos_qty_error_exceeds_stock">Stokta yalnızca %1$s var.</string>
-    <string name="pos_total_label">TOPLAM</string>
-    <string name="pos_available_label">Mevcut: %1$s</string>
-    <string name="pos_rows_count">%1$d satır</string>
-    <string name="pos_recall_tag">Geri çağırma %1$s (kök %2$s)</string>
-    <string name="pos_catalog_live">Go API\'den canlı stok</string>
-    <string name="pos_catalog_cached">Çevrimdışı: %1$s tarihli son lot ve geri çağırma listesi</string>
-    <string name="pos_catalog_none">Lot verisi yok. Go API\'ye ulaşılamıyor: %1$s</string>
-    <string name="pos_catalog_empty">%1$s deposunda stokta lot yok.</string>
-    <string name="pos_catalog_loading">Lotlar Go API\'den yükleniyor...</string>
-    <string name="pos_btn_refresh">Yenile</string>
 
     <!-- OCR camera capture -->
     <string name="ocr_btn_take_photo">Faturanın fotoğrafını çek</string>
-    <string name="ocr_btn_sample">Örnek fatura</string>
-    <string name="ocr_processing_title">İşleniyor...</string>
-    <string name="ocr_processing_body">Fatura %1$s ile okunuyor. Bu işlem bir dakikaya kadar sürebilir.</string>
-    <string name="ocr_camera_unavailable">Kamera uygulaması bulunamadı. Örnek fatura kullanılıyor.</string>
+    <string name="ocr_btn_sample">Örnek faturayı kullan</string>
+    <string name="ocr_processing_title">Fatura okunuyor…</string>
+    <string name="ocr_processing_body">%1$s kullanılıyor. Bu işlem bir dakikaya kadar sürebilir.</string>
+    <string name="ocr_camera_unavailable">Kamera uygulaması bulunamadı. Bunun yerine örnek fatura kullanılıyor.</string>
     <string name="ocr_capture_failed">Fotoğraf okunamadı. Lütfen tekrar deneyin.</string>
     <string name="settings_title">Ayarlar</string>
     <string name="settings_server_header">Sunucu</string>
@@ -135,7 +86,6 @@
     <string name="settings_version">Sürüm</string>
     <string name="error_server_unreachable">Sunucuya bağlanılamadı. Ayarlar\'dan bağlantıyı kontrol edin.</string>
     <string name="error_details">Teknik ayrıntılar</string>
-    <string name="action_open_settings">Ayarları aç</string>
     <string name="action_retry">Tekrar dene</string>
     <string name="action_done">Tamam</string>
     <string name="lock_recall">Geri çağırma</string>
@@ -196,7 +146,6 @@
     <string name="lots_forecasts_sub">Yapay zekâ tahmini ve gerçekleşen sonuç</string>
     <string name="trace_backward">Nereden geldi</string>
     <string name="trace_forward">Nereye gitti</string>
-    <string name="trace_loading">İzleme yükleniyor…</string>
     <string name="trace_empty">Bu lot için kayıtlı bir ilişki yok.</string>
     <string name="trace_doc_production">Üretim emri %1$s</string>
     <string name="trace_doc_butchery">Parçalama %1$s</string>
@@ -248,4 +197,5 @@
         <item quantity="one">Bu mağazada %d geri çağrılan lot var. Raftan kaldırın.</item>
         <item quantity="other">Bu mağazada %d geri çağrılan lot var. Raftan kaldırın.</item>
     </plurals>
+    <string name="ocr_unavailable">Fatura okuma şu anda kullanılamıyor. Satırları elle girin.</string>
 </resources>

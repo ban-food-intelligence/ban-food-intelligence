@@ -118,6 +118,10 @@ class RedRecallLockActivity : ComponentActivity() {
         TerminalLockStore.lock(this, incident)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Back is blocked while the terminal is locked.
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = Unit
+        })
         runCatching {
             KioskController.engage(this)
             startLockTask()
@@ -147,11 +151,6 @@ class RedRecallLockActivity : ComponentActivity() {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
         startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
         finish()
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        // Blocked while the terminal is locked.
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean =

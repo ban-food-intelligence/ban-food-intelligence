@@ -3,111 +3,62 @@
     <!-- Application Identity -->
     <string name="app_name">BAN Laden</string>
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
-    <string name="lockdown_hazard_banner">/// KLASSE-I BIOGEFAHR &amp; EDGE-KI OOD-SPERRE AKTIVIERT ///</string>
     <string name="lockdown_title">Verkauf angehalten</string>
     <string name="lockdown_subtitle">Produktrückruf</string>
     <string name="lockdown_body">Ein Rückruf betrifft Produkte in diesem Geschäft. Nehmen Sie die unten genannten Chargen aus dem Regal. Erst nach Bestätigung durch eine Aufsichtsperson kann weiter verkauft werden.</string>
-    <!-- Telemetry & Forensics Readout Labels -->
-    <string name="telemetry_header">TELEMETRIE- &amp; FORENSIK-PROTOKOLL</string>
-    <string name="telemetry_incident_code">VORFALLSCODE    : %1$s</string>
-    <string name="telemetry_quarantined_lot">QUARANTÄNE-LOS  : %1$s (URSPRUNG: %2$s)</string>
-    <string name="telemetry_ood_metric">OOD-TELEMETRIE  : %1$s = %2$.4f</string>
-    <string name="telemetry_kiosk_mode">KIOSK-SPERRMODUS: [AKTIV / startLockTask() EINGEFROREN]</string>
-    <string name="telemetry_persistent_flag">PERSISTENZ-FLAG : [IS_TERMINAL_LOCKED = true]</string>
-    <string name="telemetry_supervisor_hint">SUPERVISOR-EXIT : [5-TAP WARNLEISTE -&gt; HSM-PIN]</string>
 
-    <!-- Supervisor Auth & PIN Override Console -->
-    <string name="supervisor_console_header">SUPERVISOR-HSM-NOTFALLKONSOLE</string>
-    <string name="supervisor_pin_prompt">SUPERVISOR-HSM-PIN EINGEBEN, UM KIOSK-SPERRE AUFZUHEBEN:</string>
-    <string name="supervisor_pin_hint">6-STELLIGE SUPERVISOR-PIN</string>
-    <string name="btn_unlock">ENTSPERREN</string>
-    <string name="auth_status_unlocked">KIOSK-SPERRE DURCH SUPERVISOR AUFGEHOBEN.</string>
-    <string name="error_invalid_pin">UNGÜLTIGE SUPERVISOR-PIN (%1$d VERSUCHE VERBLEIBEND).</string>
-    <string name="error_invalid_pin_generic">UNGÜLTIGE SUPERVISOR-PIN. ZUGRIFF VERWEIGERT.</string>
-    <string name="error_lockout_throttled">BRUTE-FORCE-SPERRE: ERNEUTER VERSUCH IN %1$d SEKUNDEN.</string>
 
-    <!-- Main POS Checkout & Hardware Attestation Strings -->
-    <string name="pos_terminal_header">BAN FOOD INTELLIGENCE // INDUSTRIE-POS</string>
-    <string name="pos_keystore_status_ready">HARDWARE STRONGBOX/TEE ECDSA P-256: VERIFIZIERT</string>
-    <string name="pos_kiosk_guard_redirect">TERMINAL GESPERRT — WEITERLEITUNG ZUR RÜCKRUF-SPERRE</string>
 
     <!-- Offline Outbox & SyncWorker Status Strings -->
-    <string name="sync_status_syncing">OUTBOX-SYNC AKTIV: STAPEL WIRD GELEERT (%1$d AUSSTEHEND)...</string>
-    <string name="sync_status_idle">OUTBOX-SYNC LEERLAUF: ALLE DATENSÄTZE SYNCHRONISIERT</string>
-    <string name="sync_status_throttling">THERMISCHE &amp; WAL-DROSSELUNG: 500MS PAUSE ZWISCHEN STAPELN</string>
-    <string name="sync_status_batch_ack">STAPEL VOM GO-BACKEND BESTÄTIGT (%1$d DATENSÄTZE BEREINIGT)</string>
-    <string name="sync_status_network_retry">NETZWERKPARTITION: EXPONENTIELLER BACKOFF GEPLANT</string>
-    <string name="sync_status_signature_rejected">SICHERHEITSALARM: ECDSA-SIGNATUR VOM SERVER ABGELEHNT</string>
-
-    <!-- POS Sales & Lot-Tracked Stock Movement Strings (Phase 3) -->
-    <string name="pos_sales_section_title">CHARGENGEFÜHRTER POS-VERKAUF &amp; WARENAUSGANG</string>
-    <string name="pos_select_lot_label">Chargennummer (Lot) für Verkauf wählen:</string>
-    <string name="pos_quantity_hint">Verkaufsmenge</string>
-    <string name="pos_btn_execute_sale">VERKAUF ABSCHLIESSEN &amp; ECDSA-SIGNIEREN</string>
-    <string name="pos_btn_recall_block">RÜCKRUF-CHARGE — VERKAUF BLOCKIEREN &amp; SPERREN</string>
-    <string name="pos_sqlite_ledger_title">LOKALE SQLITE-WAL LAGERBEWEGUNGEN &amp; OUTBOX</string>
-    <string name="pos_sqlite_empty">Noch keine lokalen Verkäufe. Wählen Sie oben eine Charge aus.</string>
-    <string name="pos_sale_recorded_toast">Verkauf in SQLite WAL gespeichert &amp; mit ECDSA P-256 signiert!</string>
-    <string name="pos_recall_blocked_toast">RÜCKRUF-SPERRE: Verkauf der Charge %1$s blockiert!</string>
+    <string name="sync_status_syncing">%1$d Verkäufe werden gesendet</string>
+    <string name="sync_status_idle">Alle Verkäufe gesendet</string>
+    <string name="sync_status_throttling">Kurze Pause zwischen Stapeln</string>
+    <string name="sync_status_batch_ack">Server hat %1$d Verkäufe bestätigt</string>
+    <string name="sync_status_network_retry">Keine Verbindung. Neuer Versuch in Kürze.</string>
+    <string name="sync_status_signature_rejected">Der Server hat die Signatur dieses Geräts abgelehnt.</string>
 
     <!-- Task 5: Invoice OCR (NVIDIA NIM Vision-Language) -->
-    <string name="ocr_open_scanner">Lieferantenrechnung scannen (OCR)</string>
-    <string name="ocr_screen_title">Rechnungs-OCR</string>
-    <string name="ocr_screen_subtitle">Lieferantenrechnung erfassen und Lagerbuchungen vom Vision-Modell vorschlagen lassen.</string>
-    <string name="ocr_btn_capture">Rechnung erfassen</string>
-    <string name="ocr_btn_recapture">Erneut erfassen</string>
-    <string name="ocr_btn_extract">Mit NVIDIA Nemotron VL auslesen</string>
-    <string name="ocr_loading">Rechnung wird mit %1$s gelesen…</string>
-    <string name="ocr_suggestions_title">Vorschläge</string>
-    <string name="ocr_suggestions_hint">Bitte jede Zeile vor dem Speichern prüfen. Die Werte sind Modellvorschläge, keine geprüften Daten.</string>
-    <string name="ocr_btn_confirm_save">Bestätigen &amp; ins Lager buchen</string>
+    <string name="ocr_screen_title">Wareneingang per Rechnung</string>
+    <string name="ocr_screen_subtitle">Fotografieren Sie die Lieferantenrechnung. Die App schlägt die Positionen vor; Sie prüfen sie, bevor etwas gespeichert wird.</string>
+    <string name="ocr_btn_recapture">Neues Foto aufnehmen</string>
+    <string name="ocr_btn_extract">Rechnung erneut lesen</string>
+    <string name="ocr_loading">Rechnung wird mit %1$s gelesen …</string>
+    <string name="ocr_suggestions_title">Vorgeschlagene Positionen</string>
+    <string name="ocr_suggestions_hint">Prüfen Sie jede Position vor dem Speichern. Es sind Vorschläge, keine geprüften Daten.</string>
+    <string name="ocr_btn_confirm_save">Bestätigen und einbuchen</string>
     <string name="ocr_btn_discard">Verwerfen</string>
-    <string name="ocr_btn_use_demo">Beispielantwort verwenden (Demo)</string>
-    <string name="ocr_demo_badge">DEMO-ANTWORT — NICHT VOM LIVE-MODELL</string>
-    <string name="ocr_error_title">Auslesen fehlgeschlagen</string>
-    <string name="ocr_error_no_key">NVIDIA-API-Schlüssel ist nicht konfiguriert. NVIDIA_API_KEY in local.properties setzen oder Anfrage über das Backend leiten.</string>
-    <string name="ocr_saved_success">%1$d Wareneingänge gespeichert und zur Synchronisierung eingereiht.</string>
-    <string name="ocr_missing_lot">Keine Chargennummer auf der Rechnung — wird abgelehnt</string>
-    <string name="ocr_raw_json">Roh-JSON</string>
+    <string name="ocr_error_title">Die Rechnung konnte nicht gelesen werden</string>
+    <string name="ocr_error_no_key">Rechnungserkennung ist auf diesem Gerät nicht eingerichtet (API-Schlüssel fehlt). Bitte Positionen manuell erfassen.</string>
+    <string name="ocr_saved_success">%1$d Wareneingänge gespeichert. Sie werden automatisch an den Server gesendet.</string>
+    <string name="ocr_missing_lot">Keine Chargennummer auf der Rechnung. Diese Position kann nicht gespeichert werden.</string>
+    <string name="ocr_raw_json">Modellausgabe</string>
     <string name="ocr_meta">Lieferant: %1$s · Rechnung: %2$s</string>
     <string name="ocr_back">Zurück</string>
-
     <!-- Quick Guide / How to Use BottomSheet (DE) -->
-    <string name="quick_guide_button_label">Kurzanleitung</string>
-    <string name="quick_guide_title">Kurzanleitung — Bedienung</string>
-    <string name="quick_guide_subtitle">Klare 3-Schritte-Anleitung für Lager- und Kassenpersonal</string>
-    <string name="quick_guide_step1_title">Verkauf durchführen</string>
-    <string name="quick_guide_step1_desc">Charge (Lot) auswählen, Menge eingeben und auf Verkauf abschließen tippen.</string>
-    <string name="quick_guide_step2_title">Sperrstatus</string>
-    <string name="quick_guide_step2_desc">Zurückgerufene (recalled) Risikochargen werden vom System automatisch blockiert.</string>
-    <string name="quick_guide_step3_title">Supervisor-Entsperrung</string>
-    <string name="quick_guide_step3_desc">Zum Verlassen des Sperrbildschirms 5-mal schnell auf die obere Kopfzeile tippen und die Supervisor-PIN eingeben.</string>
-    <string name="quick_guide_btn_close">Verstanden, Schließen</string>
-
+    <string name="quick_guide_button_label">So funktioniert es</string>
+    <string name="quick_guide_title">So funktioniert die App</string>
+    <string name="quick_guide_subtitle">Drei Dinge, die jede Kassenkraft wissen sollte</string>
+    <string name="quick_guide_step1_title">Verkaufen</string>
+    <string name="quick_guide_step1_desc">Tippen Sie im Tab Verkauf auf eine Charge, geben Sie die Menge ein und tippen Sie auf Verkauf bestätigen. Gewichte dürfen Nachkommastellen haben, Packungen nur ganze Zahlen.</string>
+    <string name="quick_guide_step2_title">Rückruf</string>
+    <string name="quick_guide_step2_desc">Zurückgerufene Chargen sind rot markiert und können nicht verkauft werden, auch offline. Erreicht ein neuer Rückruf dieses Geschäft, ist der Verkauf angehalten, bis die Chargen aus dem Regal genommen sind.</string>
+    <string name="quick_guide_step3_title">Entsperren durch Aufsicht</string>
+    <string name="quick_guide_step3_desc">Eine Aufsichtsperson tippt im angehaltenen Bildschirm auf Entsperren durch Aufsicht und gibt ihre PIN ein. Jede Entsperrung wird protokolliert.</string>
+    <string name="quick_guide_btn_close">Verstanden</string>
     <!-- POS catalog and sale validation -->
     <string name="pos_qty_error_empty">Bitte eine Menge eingeben.</string>
-    <string name="pos_qty_error_not_number">Die Menge muss eine Zahl sein.</string>
+    <string name="pos_qty_error_not_number">Bitte eine Zahl eingeben, z. B. 1,5.</string>
     <string name="pos_qty_error_not_positive">Die Menge muss größer als 0 sein.</string>
-    <string name="pos_qty_error_kg_precision">KG erlaubt höchstens 3 Nachkommastellen.</string>
-    <string name="pos_qty_error_whole_number">%1$s muss eine ganze Zahl sein.</string>
+    <string name="pos_qty_error_kg_precision">Gewichte höchstens mit 3 Nachkommastellen eingeben.</string>
+    <string name="pos_qty_error_whole_number">Bitte eine ganze Zahl eingeben.</string>
     <string name="pos_qty_error_exceeds_stock">Nur %1$s auf Lager.</string>
-    <string name="pos_total_label">GESAMT</string>
-    <string name="pos_available_label">Verfügbar: %1$s</string>
-    <string name="pos_rows_count">%1$d Zeilen</string>
-    <string name="pos_recall_tag">Rückruf %1$s (Ursprung %2$s)</string>
-    <string name="pos_catalog_live">Live-Bestand aus der Go-API</string>
-    <string name="pos_catalog_cached">Offline: letzte Chargen- und Rückrufliste von %1$s</string>
-    <string name="pos_catalog_none">Keine Chargendaten. Go-API nicht erreichbar: %1$s</string>
-    <string name="pos_catalog_empty">Keine Chargen auf Lager in %1$s.</string>
-    <string name="pos_catalog_loading">Chargen werden aus der Go-API geladen...</string>
-    <string name="pos_btn_refresh">Aktualisieren</string>
 
     <!-- OCR camera capture -->
     <string name="ocr_btn_take_photo">Rechnung fotografieren</string>
-    <string name="ocr_btn_sample">Beispielrechnung</string>
-    <string name="ocr_processing_title">Wird verarbeitet...</string>
-    <string name="ocr_processing_body">Rechnung wird mit %1$s gelesen. Das kann bis zu einer Minute dauern.</string>
-    <string name="ocr_camera_unavailable">Keine Kamera-App gefunden. Es wird die Beispielrechnung verwendet.</string>
+    <string name="ocr_btn_sample">Beispielrechnung verwenden</string>
+    <string name="ocr_processing_title">Rechnung wird gelesen …</string>
+    <string name="ocr_processing_body">Mit %1$s. Das kann bis zu einer Minute dauern.</string>
+    <string name="ocr_camera_unavailable">Keine Kamera-App gefunden. Stattdessen wird die Beispielrechnung verwendet.</string>
     <string name="ocr_capture_failed">Das Foto konnte nicht gelesen werden. Bitte erneut versuchen.</string>
     <string name="settings_title">Einstellungen</string>
     <string name="settings_server_header">Server</string>
@@ -135,7 +86,6 @@
     <string name="settings_version">Version</string>
     <string name="error_server_unreachable">Server nicht erreichbar. Prüfen Sie die Verbindung in den Einstellungen.</string>
     <string name="error_details">Technische Details</string>
-    <string name="action_open_settings">Einstellungen öffnen</string>
     <string name="action_retry">Erneut versuchen</string>
     <string name="action_done">Fertig</string>
     <string name="lock_recall">Rückruf</string>
@@ -196,7 +146,6 @@
     <string name="lots_forecasts_sub">KI-Prognose im Vergleich zum Ist-Ergebnis</string>
     <string name="trace_backward">Herkunft</string>
     <string name="trace_forward">Verbleib</string>
-    <string name="trace_loading">Rückverfolgung wird geladen …</string>
     <string name="trace_empty">Für diese Charge sind keine Beziehungen erfasst.</string>
     <string name="trace_doc_production">Fertigungsauftrag %1$s</string>
     <string name="trace_doc_butchery">Zerlegung %1$s</string>
@@ -248,4 +197,5 @@
         <item quantity="one">1 zurückgerufene Charge ist in diesem Geschäft. Nehmen Sie sie aus dem Regal.</item>
         <item quantity="other">%d zurückgerufene Chargen sind in diesem Geschäft. Nehmen Sie sie aus dem Regal.</item>
     </plurals>
+    <string name="ocr_unavailable">Rechnungserkennung ist gerade nicht verfügbar. Bitte Positionen manuell erfassen.</string>
 </resources>

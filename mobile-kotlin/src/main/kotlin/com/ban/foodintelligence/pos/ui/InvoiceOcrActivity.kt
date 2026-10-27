@@ -50,7 +50,6 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.DocumentScanner
 import androidx.compose.material.icons.rounded.Inventory
-import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -105,7 +104,7 @@ private sealed interface OcrUiState {
     data object Idle : OcrUiState
     data object Loading : OcrUiState
     data class Suggestions(val extraction: InvoiceExtraction) : OcrUiState
-    data class Error(val message: String, val offerDemo: Boolean) : OcrUiState
+    data class Error(val message: String) : OcrUiState
     data class Saved(val count: Int) : OcrUiState
 }
 
@@ -124,11 +123,6 @@ class InvoiceOcrActivity : ComponentActivity() {
 
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(AppLocale.wrap(newBase))
-    }
-
-    companion object {
-        const val OCR_UNAVAILABLE_SNACKBAR_MESSAGE =
-            "OCR service unavailable. Please enter details manually."
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -178,6 +172,7 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
     var isSaving by remember { mutableStateOf(false) }
 
     val noKeyMessage = stringResource(R.string.ocr_error_no_key)
+    val unavailableMsg = stringResource(R.string.ocr_unavailable)
 
     fun runExtraction(bitmap: Bitmap) {
         state = OcrUiState.Loading
@@ -193,12 +188,11 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                     message = if (keyMissing) {
                         noKeyMessage
                     } else {
-                        InvoiceOcrActivity.OCR_UNAVAILABLE_SNACKBAR_MESSAGE
-                    },
-                    offerDemo = true
+                        unavailableMsg
+                    }
                 )
                 snackbarHostState.showSnackbar(
-                    message = InvoiceOcrActivity.OCR_UNAVAILABLE_SNACKBAR_MESSAGE,
+                    message = unavailableMsg,
                     duration = SnackbarDuration.Short
                 )
             }
@@ -353,29 +347,7 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                             text = stringResource(R.string.ocr_error_title),
                             style = MaterialTheme.typography.titleLarge.copy(color = SoftPosColors.RecallCrimsonDark)
                         )
-                        Text(
-                            text = InvoiceOcrActivity.OCR_UNAVAILABLE_SNACKBAR_MESSAGE,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                        )
-                        if (s.message != InvoiceOcrActivity.OCR_UNAVAILABLE_SNACKBAR_MESSAGE) {
-                            Text(text = s.message, style = MaterialTheme.typography.bodyMedium)
-                        }
-                        if (s.offerDemo) {
-                            PosSecondaryButton(
-                                text = stringResource(R.string.ocr_btn_use_demo),
-                                icon = Icons.Rounded.Science,
-                                onClick = {
-                                    state = OcrUiState.Suggestions(
-                                        NvidiaVisionOcrClient.parseModelContent(
-                                            NvidiaVisionOcrClient.DEMO_MODEL_RESPONSE,
-                                            latencyMs = 0,
-                                            isDemo = true
-                                        )
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+                        Text(text = s.message, style = MaterialTheme.typography.bodyMedium)
                     }
 
                     is OcrUiState.Suggestions -> SuggestionsCard(
@@ -577,17 +549,11 @@ private fun SuggestionsCard(
                 style = MaterialTheme.typography.titleLarge
             )
             Chip(
-                text = if (extraction.isDemoResponse) "DEMO" else "${extraction.latencyMs} ms",
-                container = if (extraction.isDemoResponse) SoftPosColors.PastelRedContainer else SoftPosColors.SurfaceSubtleGray
+                text = "${extraction.latencyMs} ms",
+                container = SoftPosColors.SurfaceSubtleGray
             )
         }
 
-        if (extraction.isDemoResponse) {
-            Text(
-                text = stringResource(R.string.ocr_demo_badge),
-                style = MaterialTheme.typography.labelSmall.copy(color = SoftPosColors.RecallCrimsonAccent)
-            )
-        }
 
         Text(
             text = stringResource(

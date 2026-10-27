@@ -211,10 +211,29 @@ object Fmt {
             maximumFractionDigits = decimals
         }.format(value)
 
-    /** "25,00 kg" / "25.00 kg"; whole units for PAKET/ADET. */
+    /** "25,00 kg" / "25.00 kg"; whole units for packs and pieces. */
     fun qty(value: Double, uom: String, locale: Locale = Locale.getDefault()): String =
         if (uom.equals("KG", ignoreCase = true)) "${number(value, 2, locale)} kg"
-        else "${number(value, 0, locale)} ${uom.lowercase(Locale.ROOT)}"
+        else "${number(value, 0, locale)} ${unit(uom, value, locale)}"
+
+    /** Unit name for a DB unit code: KG -> kg, PAKET -> pack(s) / paket / Packung(en), ADET -> pcs / adet / Stück. */
+    fun unit(uom: String, qty: Double = 1.0, locale: Locale = Locale.getDefault()): String {
+        val one = qty == 1.0
+        return when (uom.uppercase(Locale.ROOT)) {
+            "KG" -> "kg"
+            "PAKET" -> when (locale.language) {
+                "tr" -> "paket"
+                "de" -> if (one) "Packung" else "Packungen"
+                else -> if (one) "pack" else "packs"
+            }
+            "ADET" -> when (locale.language) {
+                "tr" -> "adet"
+                "de" -> "Stück"
+                else -> if (one) "pc" else "pcs"
+            }
+            else -> uom.lowercase(locale)
+        }
+    }
 
     fun date(epochMs: Long, locale: Locale = Locale.getDefault()): String {
         val pattern = if (locale.language == "en") "d MMM yyyy" else "dd.MM.yyyy"

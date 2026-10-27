@@ -269,21 +269,4 @@ object NvidiaVisionOcrClient {
             .toDoubleOrNull() ?: 0.0
         else -> 0.0
     }
-
-    /**
-     * Canned model output matching the simulated invoice. Used ONLY when the operator
-     * explicitly chooses the demo path because no API key is configured; the UI labels
-     * the result as a demo response.
-     */
-    const val DEMO_MODEL_RESPONSE = """
-        {
-          "supplier": "Anadolu Et Kombinasi A.S.",
-          "invoice_number": "FTR-2026-10871",
-          "items": [
-            {"product_name": "Dana Kiyma Eti (%20 yag)", "quantity": 50, "unit": "KG", "lot_number": "ET-2026-014", "unit_cost": 9.80, "currency": "EUR"},
-            {"product_name": "Kuzu Karkas", "quantity": 25, "unit": "KG", "lot_number": "KUZ-2026-002", "unit_cost": 11.50, "currency": "EUR"},
-            {"product_name": "Dogal Sucuk Kilifi", "quantity": 200, "unit": "ADET", "lot_number": "KLF-2026-031", "unit_cost": 0.35, "currency": "EUR"}
-          ]
-        }
-    """
 }
