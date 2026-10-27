@@ -103,4 +103,12 @@
     <string name="pos_catalog_empty">Keine Chargen auf Lager in %1$s.</string>
     <string name="pos_catalog_loading">Chargen werden aus der Go-API geladen...</string>
     <string name="pos_btn_refresh">Aktualisieren</string>
+
+    <!-- OCR camera capture -->
+    <string name="ocr_btn_take_photo">Rechnung fotografieren</string>
+    <string name="ocr_btn_sample">Beispielrechnung</string>
+    <string name="ocr_processing_title">Wird verarbeitet...</string>
+    <string name="ocr_processing_body">Rechnung wird mit %1$s gelesen. Das kann bis zu einer Minute dauern.</string>
+    <string name="ocr_camera_unavailable">Keine Kamera-App gefunden. Es wird die Beispielrechnung verwendet.</string>
+    <string name="ocr_capture_failed">Das Foto konnte nicht gelesen werden. Bitte erneut versuchen.</string>
 </resources>

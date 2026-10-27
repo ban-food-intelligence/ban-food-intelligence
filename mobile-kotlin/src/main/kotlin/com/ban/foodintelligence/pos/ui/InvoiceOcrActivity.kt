@@ -1,14 +1,20 @@
 package com.ban.foodintelligence.pos.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -19,6 +25,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,11 +38,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.Inventory
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
@@ -65,6 +84,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.core.content.FileProvider
 import androidx.compose.ui.unit.dp
 import com.ban.foodintelligence.pos.R
 import com.ban.foodintelligence.pos.database.AppDatabase
@@ -76,6 +97,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.Locale
 
 /** UI state for the invoice OCR flow. */
@@ -99,6 +121,10 @@ private sealed interface OcrUiState {
  * lot-less receipt would break traceability.
  */
 class InvoiceOcrActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     companion object {
         const val OCR_UNAVAILABLE_SNACKBAR_MESSAGE =
@@ -179,10 +205,48 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
         }
     }
 
+    val cameraUnavailableMsg = stringResource(R.string.ocr_camera_unavailable)
+    val captureFailedMsg = stringResource(R.string.ocr_capture_failed)
+
+    // Real camera capture: the system camera app writes a full-size JPEG into our cache via FileProvider.
+    val photoFile = remember { File(File(context.cacheDir, "invoices").apply { mkdirs() }, "invoice.jpg") }
+    val photoUri = remember {
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        if (!saved) return@rememberLauncherForActivityResult
+        scope.launch {
+            val bitmap = withContext(Dispatchers.IO) { decodeInvoicePhoto(photoFile) }
+            if (bitmap == null) {
+                snackbarHostState.showSnackbar(captureFailedMsg)
+            } else {
+                capturedInvoice = bitmap
+                runExtraction(bitmap)
+            }
+        }
+    }
+
+    fun useSampleInvoice() {
+        val sample = renderSimulatedInvoice()
+        capturedInvoice = sample
+        runExtraction(sample)
+    }
+
+    fun openCamera() {
+        try {
+            cameraLauncher.launch(photoUri)
+        } catch (e: ActivityNotFoundException) {
+            // No camera app on this device/emulator image: fall back to the labelled sample invoice.
+            scope.launch { snackbarHostState.showSnackbar(cameraUnavailableMsg) }
+            useSampleInvoice()
+        }
+    }
+
     Scaffold(
         containerColor = SoftPosColors.BackgroundOffWhite,
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
+      Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -194,7 +258,14 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
         ) {
             // Header
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onBack) { Text(stringResource(R.string.ocr_back)) }
+                TextButton(
+                    onClick = onBack,
+                    colors = ButtonDefaults.textButtonColors(contentColor = SoftPosColors.PrimaryIndigo)
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.ocr_back))
+                }
                 Spacer(Modifier.width(4.dp))
                 Column {
                     Text(
@@ -238,27 +309,28 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(
-                        onClick = {
-                            capturedInvoice = renderSimulatedInvoice()
-                            state = OcrUiState.Idle
-                        },
-                        enabled = state !is OcrUiState.Loading,
-                        shape = RoundedCornerShape(50),
-                        modifier = Modifier.weight(1f).height(50.dp)
-                    ) {
-                        Text(
-                            stringResource(
-                                if (capturedInvoice == null) R.string.ocr_btn_capture else R.string.ocr_btn_recapture
-                            )
-                        )
-                    }
-                    PillButton(
+                PosPrimaryButton(
+                    text = stringResource(
+                        if (capturedInvoice == null) R.string.ocr_btn_take_photo else R.string.ocr_btn_recapture
+                    ),
+                    icon = Icons.Rounded.CameraAlt,
+                    enabled = state !is OcrUiState.Loading,
+                    onClick = { openCamera() }
+                )
+                PosSecondaryButton(
+                    text = stringResource(R.string.ocr_btn_sample),
+                    icon = Icons.Rounded.Description,
+                    enabled = state !is OcrUiState.Loading,
+                    onClick = { useSampleInvoice() },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (capturedInvoice != null) {
+                    PosSecondaryButton(
                         text = stringResource(R.string.ocr_btn_extract),
-                        enabled = capturedInvoice != null && state !is OcrUiState.Loading,
-                        modifier = Modifier.weight(1.4f),
-                        onClick = { capturedInvoice?.let(::runExtraction) }
+                        icon = Icons.Rounded.DocumentScanner,
+                        enabled = state !is OcrUiState.Loading,
+                        onClick = { capturedInvoice?.let(::runExtraction) },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -289,7 +361,9 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                             Text(text = s.message, style = MaterialTheme.typography.bodyMedium)
                         }
                         if (s.offerDemo) {
-                            OutlinedButton(
+                            PosSecondaryButton(
+                                text = stringResource(R.string.ocr_btn_use_demo),
+                                icon = Icons.Rounded.Science,
                                 onClick = {
                                     state = OcrUiState.Suggestions(
                                         NvidiaVisionOcrClient.parseModelContent(
@@ -299,11 +373,8 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                                         )
                                     )
                                 },
-                                shape = RoundedCornerShape(50),
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
-                            ) {
-                                Text(stringResource(R.string.ocr_btn_use_demo))
-                            }
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
 
@@ -342,12 +413,81 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                             text = stringResource(R.string.ocr_saved_success, s.count),
                             style = MaterialTheme.typography.titleMedium.copy(color = SoftPosColors.EmeraldVerifiedText)
                         )
-                        PillButton(text = stringResource(R.string.ocr_back), onClick = onBack)
+                        PosPrimaryButton(
+                            text = stringResource(R.string.ocr_back),
+                            icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                            onClick = onBack
+                        )
                     }
                 }
             }
         }
+
+        if (state is OcrUiState.Loading) {
+            OcrProcessingOverlay(modelId = NvidiaVisionOcrClient.MODEL_ID)
+        }
+      }
     }
+}
+
+/** Full-screen scrim with a spinner while the NVIDIA NIM request is in flight; blocks touches. */
+@Composable
+private fun OcrProcessingOverlay(modelId: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.35f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(SoftPosDimens.CardCornerRadius),
+            color = SoftPosColors.SurfacePureWhite,
+            shadowElevation = 8.dp,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                CircularProgressIndicator(color = SoftPosColors.PrimaryIndigo, strokeWidth = 4.dp)
+                Text(
+                    text = stringResource(R.string.ocr_processing_title),
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    text = stringResource(R.string.ocr_processing_body, modelId),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+/** Decodes the camera JPEG at most ~1600 px on the long side, upright per its EXIF orientation. */
+private fun decodeInvoicePhoto(file: File): Bitmap? {
+    if (!file.exists() || file.length() == 0L) return null
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.path, bounds)
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 1600) sample *= 2
+    val bitmap = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+        ?: return null
+    val degrees = when (ExifInterface(file.path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        else -> 0f
+    }
+    if (degrees == 0f) return bitmap
+    val matrix = Matrix().apply { postRotate(degrees) }
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }
 
 /**
@@ -521,18 +661,20 @@ private fun SuggestionsCard(
             )
         }
 
-        PillButton(
+        PosPrimaryButton(
             text = stringResource(R.string.ocr_btn_confirm_save),
+            icon = Icons.Rounded.Inventory,
             enabled = !isSaving && extraction.items.any { it.lotNumber.isNotBlank() },
             onClick = onConfirm
         )
-        TextButton(
-            onClick = onDiscard,
+        PosSecondaryButton(
+            text = stringResource(R.string.ocr_btn_discard),
+            icon = Icons.Rounded.DeleteOutline,
             enabled = !isSaving,
+            onClick = onDiscard,
+            contentColor = SoftPosColors.RecallCrimsonAccent,
             modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.ocr_btn_discard), color = SoftPosColors.TextSecondaryMuted)
-        }
+        )
     }
 }
 
@@ -554,29 +696,6 @@ private fun SoftCard(
                 .padding(SoftPosDimens.CardPaddingStandard),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) { content() }
-    }
-}
-
-@Composable
-private fun PillButton(
-    text: String,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(50),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = SoftPosColors.PrimaryIndigo,
-            contentColor = SoftPosColors.SurfacePureWhite
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 2.dp),
-        modifier = modifier.fillMaxWidth().height(50.dp)
-    ) {
-        Text(text = text, style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -612,7 +731,7 @@ private fun renderSimulatedInvoice(): Bitmap {
         color = android.graphics.Color.BLACK; textSize = 44f; typeface = Typeface.DEFAULT_BOLD
     }
     val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.rgb(30, 30, 30); textSize = 26f
+        color = android.graphics.Color.rgb(30, 30, 30); textSize = 24f
     }
     val bold = Paint(text).apply { typeface = Typeface.DEFAULT_BOLD }
     val line = Paint().apply { color = android.graphics.Color.rgb(180, 180, 180); strokeWidth = 2f }
@@ -626,7 +745,7 @@ private fun renderSimulatedInvoice(): Bitmap {
     c.drawText("Alici: BAN Gida Ltd. - Merkez Depo", 60f, 230f, text)
     c.drawLine(60f, 260f, 940f, 260f, line)
 
-    val cols = floatArrayOf(60f, 400f, 560f, 650f, 800f)
+    val cols = floatArrayOf(60f, 380f, 600f, 700f, 800f)
     listOf("Urun", "Lot No", "Miktar", "Birim", "Birim Fiyat").forEachIndexed { i, h ->
         c.drawText(h, cols[i], 300f, bold)
     }

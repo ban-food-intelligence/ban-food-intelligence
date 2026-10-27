@@ -132,13 +132,14 @@ val SoftPosTypography = Typography(
         letterSpacing = 0.sp,
         color = SoftPosColors.TextSecondaryMuted
     ),
+    // No fixed color: button labels take the button's contentColor, so text on
+    // outlined/text buttons is never white-on-white.
     labelLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 15.sp,
         lineHeight = 20.sp,
-        letterSpacing = 0.1.sp,
-        color = SoftPosColors.SurfacePureWhite
+        letterSpacing = 0.1.sp
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.Monospace,
