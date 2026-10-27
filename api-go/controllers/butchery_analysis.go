@@ -101,29 +101,29 @@ func analyseButchery(r *http.Request, s *ButcheryOperationSummaryDto) {
 
 var butcheryTexts = map[string]map[string]string{
 	"declared_cost": {
-		"en": "Declared cost %.2f EUR does not match %.2f kg x %.2f EUR = %.2f EUR. The difference of %.2f EUR has no supporting document, so it is not used.",
-		"tr": "Beyan edilen maliyet %.2f €, %.2f kg × %.2f € = %.2f € ile uyuşmuyor. %.2f € fark belgeyle desteklenmediği için kullanılmaz.",
-		"de": "Der angegebene Wert %.2f € stimmt nicht mit %.2f kg × %.2f € = %.2f € überein. Die Differenz von %.2f € ist nicht belegt und wird nicht verwendet.",
+		"en": "Declared cost %s EUR does not match %s kg x %s EUR = %s EUR. The difference of %s EUR has no supporting document, so it is not used.",
+		"tr": "Beyan edilen maliyet %s €, %s kg × %s € = %s € ile uyuşmuyor. %s € fark belgeyle desteklenmediği için kullanılmaz.",
+		"de": "Der angegebene Wert %s € stimmt nicht mit %s kg × %s € = %s € überein. Die Differenz von %s € ist nicht belegt und wird nicht verwendet.",
 	},
 	"weight_gap": {
-		"en": "Input %.2f kg, but parts %.2f kg and recorded waste %.2f kg leave %.2f kg unrecorded. Weigh and record it as waste or by-product.",
-		"tr": "Giriş %.2f kg; parçalar %.2f kg ve kayıtlı fire %.2f kg ile %.2f kg kayıtsız kalıyor. Tartıp fire veya yan ürün olarak kaydedin.",
-		"de": "Eingang %.2f kg, aber Teile %.2f kg und erfasster Ausschuss %.2f kg lassen %.2f kg unerfasst. Wiegen und als Ausschuss oder Nebenprodukt erfassen.",
+		"en": "Input %s kg, but parts %s kg and recorded waste %s kg leave %s kg unrecorded. Weigh and record it as waste or by-product.",
+		"tr": "Giriş %s kg; parçalar %s kg ve kayıtlı fire %s kg ile %s kg kayıtsız kalıyor. Tartıp fire veya yan ürün olarak kaydedin.",
+		"de": "Eingang %s kg, aber Teile %s kg und erfasster Ausschuss %s kg lassen %s kg unerfasst. Wiegen und als Ausschuss oder Nebenprodukt erfassen.",
 	},
 	"weight_ok": {
-		"en": "Weight balance OK: %.2f kg = %.2f kg parts + %.2f kg waste.",
-		"tr": "Ağırlık dengesi tamam: %.2f kg = %.2f kg parça + %.2f kg fire.",
-		"de": "Gewichtsbilanz stimmt: %.2f kg = %.2f kg Teile + %.2f kg Ausschuss.",
+		"en": "Weight balance OK: %s kg = %s kg parts + %s kg waste.",
+		"tr": "Ağırlık dengesi tamam: %s kg = %s kg parça + %s kg fire.",
+		"de": "Gewichtsbilanz stimmt: %s kg = %s kg Teile + %s kg Ausschuss.",
 	},
 	"alloc_ok": {
-		"en": "Allocated %.2f EUR equals the total cost %.2f EUR.",
-		"tr": "Dağıtılan %.2f €, toplam maliyet %.2f € ile eşit.",
-		"de": "Verteilte %.2f € entsprechen den Gesamtkosten %.2f €.",
+		"en": "Allocated %s EUR equals the total cost %s EUR.",
+		"tr": "Dağıtılan %s €, toplam maliyet %s € ile eşit.",
+		"de": "Verteilte %s € entsprechen den Gesamtkosten %s €.",
 	},
 	"alloc_bad": {
-		"en": "Allocated %.2f EUR differs from the total cost %.2f EUR.",
-		"tr": "Dağıtılan %.2f €, toplam maliyet %.2f € ile farklı.",
-		"de": "Verteilte %.2f € weichen von den Gesamtkosten %.2f € ab.",
+		"en": "Allocated %s EUR differs from the total cost %s EUR.",
+		"tr": "Dağıtılan %s €, toplam maliyet %s € ile farklı.",
+		"de": "Verteilte %s € weichen von den Gesamtkosten %s € ab.",
 	},
 }
 
@@ -132,7 +132,24 @@ func tr(l, key string, args ...interface{}) string {
 	if t == "" {
 		t = butcheryTexts[key]["en"]
 	}
-	return fmt.Sprintf(t, args...)
+	out := make([]interface{}, len(args))
+	for i, a := range args {
+		if f, ok := a.(float64); ok {
+			out[i] = localNum(l, f)
+		} else {
+			out[i] = a
+		}
+	}
+	return fmt.Sprintf(t, out...)
+}
+
+// localNum formats 2 decimals with the language's separator: 287,50 (tr/de), 287.50 (en).
+func localNum(l string, v float64) string {
+	s := fmt.Sprintf("%.2f", v)
+	if l == "tr" || l == "de" {
+		s = strings.Replace(s, ".", ",", 1)
+	}
+	return s
 }
 
 // AllocationLineDto is one line of a computed cost allocation preview.
