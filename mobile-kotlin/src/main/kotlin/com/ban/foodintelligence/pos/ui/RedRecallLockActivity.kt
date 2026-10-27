@@ -13,8 +13,10 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -115,9 +117,8 @@ class RedRecallLockActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        println("🎨 Applying Soft Minimalist Material 3...")
-        println("✨ Smoothing edges and removing brutalist artifacts...")
-        println("🌍 Provisioning DE/EN/TR i18n...")
+        println("[INFO] Applying Soft Minimalist Material 3 Kiosk Recall Lock...")
+        println("[INFO] Provisioning DE/EN/TR i18n...")
 
         // 1. Resolve Incident Details (from Intent or persisted SharedPreferences)
         val fallbackIncident = TerminalLockStore.readIncident(this)
@@ -141,7 +142,7 @@ class RedRecallLockActivity : ComponentActivity() {
             lockedAtEpochMs = System.currentTimeMillis()
         )
         TerminalLockStore.lock(this, incident)
-        println("🔒 [PERSISTENT-LOCK] Set SharedPreferences IS_TERMINAL_LOCKED = true (Code: $recallCode)")
+        println("[WARN] [PERSISTENT-LOCK] Set SharedPreferences IS_TERMINAL_LOCKED = true (Code: $recallCode)")
 
         // 3. Mount Soft Minimalist Material 3 Jetpack Compose UI
         setContent {
@@ -177,12 +178,12 @@ class RedRecallLockActivity : ComponentActivity() {
     }
 
     private fun engageKioskLockTaskMode() {
-        println("🧱 Engaging Kiosk Mode (startLockTask)...")
+        println("[INFO] Engaging Kiosk Mode (startLockTask)...")
         runCatching {
             KioskController.engage(this)
             startLockTask()
         }.onFailure { ex ->
-            Log.e(TAG, "⚠️ startLockTask() warning: ${ex.message}")
+            Log.e(TAG, "[WARN] startLockTask() warning: ${ex.message}")
         }
     }
 
@@ -230,7 +231,7 @@ class RedRecallLockActivity : ComponentActivity() {
         val isAuthorized = authResult is SupervisorAuth.Result.Success || enteredPin == SUPERVISOR_MASTER_PIN
 
         if (isAuthorized) {
-            println("🔓 [SUPERVISOR-UNLOCK] PIN Verified! Calling stopLockTask() & clearing IS_TERMINAL_LOCKED...")
+            println("[INFO] [SUPERVISOR-UNLOCK] PIN Verified. Calling stopLockTask() & clearing IS_TERMINAL_LOCKED...")
             TerminalLockStore.unlock(this)
             runCatching {
                 KioskController.release(this)
@@ -241,6 +242,8 @@ class RedRecallLockActivity : ComponentActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             startActivity(mainIntent)
+            @Suppress("DEPRECATION")
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
             finish()
             return true to msg
         }
@@ -248,11 +251,11 @@ class RedRecallLockActivity : ComponentActivity() {
         val errorFeedback = when (authResult) {
             is SupervisorAuth.Result.LockedOut -> {
                 val secs = (authResult.remainingMs / 1000L).toInt()
-                println("⛔ [SUPERVISOR-LOCKOUT] Too many failed PIN attempts. Locked out for ${secs}s.")
+                println("[WARN] [SUPERVISOR-LOCKOUT] Too many failed PIN attempts. Locked out for ${secs}s.")
                 getString(R.string.error_lockout_throttled, secs)
             }
             is SupervisorAuth.Result.WrongPin -> {
-                println("❌ [SUPERVISOR-DENIED] Invalid PIN entered. Terminal remains locked.")
+                println("[WARN] [SUPERVISOR-DENIED] Invalid PIN entered. Terminal remains locked.")
                 getString(R.string.error_invalid_pin, authResult.freeAttemptsLeft)
             }
             else -> getString(R.string.error_invalid_pin_generic)
@@ -267,23 +270,23 @@ class RedRecallLockActivity : ComponentActivity() {
         oodMetric: String,
         oodValue: Float
     ) {
-        println("🚨 ========================================================================= 🚨")
-        println("🚨 [RED-RECALL-LOCKDOWN] ${getString(R.string.lockdown_body)}")
-        println("🧱 [KIOSK-LOCK-TASK]     Android Kiosk Mode (startLockTask) ENGAGED.")
-        println("🔒 [PERSISTENT-STATE]    SharedPreferences IS_TERMINAL_LOCKED = true")
-        println("🚨 [INCIDENT-DETAILS]    Code: $recallCode | Lot: $affectedLot | Root: $rootLot")
-        println("🚨 [OOD-TELEMETRY]       Metric: $oodMetric = $oodValue")
-        println("🛑 [POS-PERIPHERALS]     Barcode Scanner, Cash Drawer & Payment Terminal LOCKED.")
-        println("🚨 ========================================================================= 🚨")
+        println("=========================================================================")
+        println("[WARN] [RED-RECALL-LOCKDOWN] ${getString(R.string.lockdown_body)}")
+        println("[INFO] [KIOSK-LOCK-TASK]     Android Kiosk Mode (startLockTask) ENGAGED.")
+        println("[INFO] [PERSISTENT-STATE]    SharedPreferences IS_TERMINAL_LOCKED = true")
+        println("[WARN] [INCIDENT-DETAILS]    Code: $recallCode | Lot: $affectedLot | Root: $rootLot")
+        println("[WARN] [OOD-TELEMETRY]       Metric: $oodMetric = $oodValue")
+        println("[WARN] [POS-PERIPHERALS]     Barcode Scanner, Cash Drawer & Payment Terminal LOCKED.")
+        println("=========================================================================")
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        println("⛔ [KIOSK-BLOCK] Back button blocked during Kiosk Lockdown!")
+        println("[WARN] [KIOSK-BLOCK] Back button blocked during Kiosk Lockdown.")
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        println("⛔ [KIOSK-BLOCK] Hardware KeyEvent ($keyCode) blocked during Kiosk Lockdown.")
+        println("[WARN] [KIOSK-BLOCK] Hardware KeyEvent ($keyCode) blocked during Kiosk Lockdown.")
         return true
     }
 
@@ -319,20 +322,29 @@ class RedRecallLockActivity : ComponentActivity() {
             }
         }
 
+        var contentVisible by remember { mutableStateOf(false) }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            contentVisible = true
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(SoftPosColors.BackgroundOffWhite),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            AnimatedVisibility(
+                visible = contentVisible,
+                enter = fadeIn(animationSpec = tween(350)) + slideInVertically(animationSpec = tween(350)) { it / 12 }
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp, vertical = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                 // Top Subtle Pill Bar (Hidden 5-Tap Supervisor Trigger)
                 Surface(
                     shape = CircleShape,
@@ -635,6 +647,7 @@ class RedRecallLockActivity : ComponentActivity() {
                             }
                         }
                     }
+                }
                 }
             }
         }

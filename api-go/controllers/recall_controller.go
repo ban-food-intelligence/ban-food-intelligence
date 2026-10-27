@@ -92,10 +92,11 @@ func (c *RecallController) TriggerRecall(w http.ResponseWriter, r *http.Request)
 		req.RecallCode, req.TriggerLot, req.Reason, req.Initiator,
 	)
 	if err != nil && !strings.Contains(err.Error(), "Duplicate entry") {
-		log.Printf("⚠️ [MYSQL-RECALL] sp_recall_by_lot warning: %v", err)
+		log.Printf("[WARN] [MYSQL-RECALL] sp_recall_by_lot warning: %v", err)
 		http.Error(w, fmt.Sprintf(`{"error":"sp_recall_by_lot failed: %s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
+	log.Printf("[WARN] [RECALL] Emergency recall triggered for lot=%s (code=%s)", req.TriggerLot, req.RecallCode)
 
 	event, err := c.loadRecallEventFromDB(r, req.RecallCode, req.TriggerLot)
 	if err != nil {

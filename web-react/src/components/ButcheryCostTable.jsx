@@ -139,24 +139,24 @@ export default function ButcheryCostTable() {
           </div>
         </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+        <table className="data-table">
           <thead>
-            <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-              <th style={{ padding: '0.5rem' }}>Parti / Lot No</th>
-              <th style={{ padding: '0.5rem' }}>Maliyet Unsuru</th>
-              <th style={{ padding: '0.5rem' }}>Miktar</th>
-              <th style={{ padding: '0.5rem' }}>Birim Fiyat</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right' }}>Tutar (€)</th>
+            <tr>
+              <th className="col-text">Parti / Lot No</th>
+              <th className="col-text">Maliyet Unsuru</th>
+              <th className="col-num">Miktar</th>
+              <th className="col-num">Birim Fiyat</th>
+              <th className="col-num">Tutar (€)</th>
             </tr>
           </thead>
           <tbody>
             {(productionOrder.breakdown || FALLBACK_PRODUCTION_ORDER.breakdown).map((item, idx) => (
-              <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
-                <td style={{ padding: '0.5rem', fontFamily: 'monospace', color: '#38bdf8' }}>{item.lot_no}</td>
-                <td style={{ padding: '0.5rem', color: '#f1f5f9' }}>{item.cost_element}</td>
-                <td style={{ padding: '0.5rem', color: '#cbd5e1' }}>{Number(item.qty).toFixed(2)} {item.uom_code}</td>
-                <td style={{ padding: '0.5rem', color: '#cbd5e1' }}>{Number(item.unit_cost).toFixed(2)} €</td>
-                <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 700, color: '#fbbf24' }}>{Number(item.amount).toFixed(2)} €</td>
+              <tr key={idx}>
+                <td className="col-text" style={{ fontFamily: 'monospace', color: '#38bdf8' }}>{item.lot_no}</td>
+                <td className="col-text" style={{ color: '#f1f5f9' }}>{item.cost_element}</td>
+                <td className="col-num" style={{ color: '#cbd5e1' }}>{Number(item.qty).toFixed(2)} {item.uom_code}</td>
+                <td className="col-num" style={{ color: '#cbd5e1' }}>{Number(item.unit_cost).toFixed(2)} €</td>
+                <td className="col-num" style={{ fontWeight: 700, color: '#fbbf24' }}>{Number(item.amount).toFixed(2)} €</td>
               </tr>
             ))}
           </tbody>
@@ -175,34 +175,34 @@ export default function ButcheryCostTable() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <span style={{ background: '#f59e0b', color: '#0f172a', padding: '0.25rem 0.65rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 800 }}>
-            ⚠️ GÖREV 2 ZORUNLU MUTABAKAT ANALİZİ (ŞARTNAME SAYFA 1 NOTU)
+            GÖREV 2 ZORUNLU MUTABAKAT ANALİZİ (ŞARTNAME SAYFA 1 NOTU)
           </span>
           <span style={{ fontSize: '0.8rem', color: apiConnected ? '#34d399' : '#94a3b8' }}>
-            {apiConnected ? '🟢 Go API + MySQL v_butchery_reconciliation Canlı' : '⚡ MySQL Seed Mutabakat Verisi'}
+            {apiConnected ? 'Go API + MySQL v_butchery_reconciliation Canlı' : 'MySQL Seed Mutabakat Verisi'}
           </span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
-          <div style={{ background: '#121826', padding: '1rem', borderRadius: '8px', border: '1px solid #f59e0b' }}>
+          <div className="discrepancy-warning">
             <div style={{ color: '#fbbf24', fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.35rem' }}>
-              1. Maliyet Tutarsızlığı: 287,50 € ≠ 351,00 € (+63,50 € Fark)
+              1. Maliyet Tutarsızlığı (Uyarı): 287.50 € vs 351.00 € (+63.50 € Fark)
             </div>
-            <p style={{ color: '#cbd5e1', fontSize: '0.83rem', lineHeight: 1.5, margin: 0 }}>
-              Giriş karkası <strong>25,00 kg × 11,50 €/kg = 287,50 €</strong> gerçek alış maliyetine sahiptir. Şartname görselinde yazan{' '}
-              <strong style={{ color: '#f87171' }}>351,00 €</strong> ile arasında <strong>+63,50 €</strong> tutarsızlık vardır. Bu fark; ya birim fiyatın
-              14,04 €/kg olması gerektiğini ya da faturada satır olarak gösterilmemiş 63,50 € ek kesim/nakliye giderini gösterir. Sistemimiz belgesiz
-              351,00 € beyanını reddeder ve gerçek <strong>287,50 €</strong> alış maliyetini dağıtır.
+            <p style={{ color: '#fde68a', fontSize: '0.83rem', lineHeight: 1.5, margin: 0 }}>
+              Giriş karkası <strong>25.00 kg × 11.50 €/kg = 287.50 €</strong> gerçek alış maliyetine sahiptir. Şartname görselinde yazan{' '}
+              <strong style={{ color: '#f59e0b' }}>351.00 €</strong> ile arasında <strong>+63.50 €</strong> tutarsızlık vardır. Bu fark; ya birim fiyatın
+              14.04 €/kg olması gerektiğini ya da faturada satır olarak gösterilmemiş 63.50 € ek kesim/nakliye giderini gösterir. Sistemimiz belgesiz
+              351.00 € beyanını uyarı olarak işaretler ve gerçek <strong>287.50 €</strong> alış maliyetini dağıtır.
             </p>
           </div>
 
-          <div style={{ background: '#121826', padding: '1rem', borderRadius: '8px', border: '1px solid #38bdf8' }}>
-            <div style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.35rem' }}>
-              2. Ağırlık Dengesi Tutarsızlığı: 22,00 kg Parça + 3,00 kg Fire = 25,00 kg
+          <div className="discrepancy-match">
+            <div style={{ color: '#34d399', fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.35rem' }}>
+              2. Kütle Denkliği (Tam Eşleşme): 25.00 kg = 22.00 kg Parça + 3.00 kg Fire
             </div>
-            <p style={{ color: '#cbd5e1', fontSize: '0.83rem', lineHeight: 1.5, margin: 0 }}>
-              Görseldeki satılabilir parça ürünlerin (But 7,5 + Omuz 4,8 + Sırt 4,2 + Kaburga 3,5 + Kıyma 2,0 kg) toplamı{' '}
-              <strong style={{ color: '#f87171' }}>22,00 kg</strong> etmektedir. Giriş karkası <strong>25,00 kg</strong> olduğundan aradaki{' '}
-              <strong>3,00 kg (%12,0)</strong> kemik/fire/soğutma kaybıdır. Sistem 3,00 kg fireyi açıkça kaydederek 25,00 kg ağırlık dengesini kapatır.
+            <p style={{ color: '#a7f3d0', fontSize: '0.83rem', lineHeight: 1.5, margin: 0 }}>
+              Görseldeki satılabilir parça ürünlerin (But 7.5 + Omuz 4.8 + Sırt 4.2 + Kaburga 3.5 + Kıyma 2.0 kg) toplamı{' '}
+              <strong style={{ color: '#34d399' }}>22.00 kg</strong> etmektedir. Giriş karkası <strong>25.00 kg</strong> olduğundan aradaki{' '}
+              <strong>3.00 kg (%12.0)</strong> kemik/fire/soğutma kaybıdır. Sistem 3.00 kg fireyi açıkça kaydederek <strong>25.00 kg = 22.00 kg + 3.00 kg</strong> kütle dengesini tam olarak doğrular.
             </p>
           </div>
         </div>
@@ -253,17 +253,17 @@ export default function ButcheryCostTable() {
           </div>
         </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+        <table className="data-table">
           <thead>
-            <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-              <th style={{ padding: '0.75rem' }}>Parça Ürün & Lot No</th>
-              <th style={{ padding: '0.75rem' }}>Fiili Ağırlık (KG)</th>
-              <th style={{ padding: '0.75rem' }}>Satış Fiyatı (€/KG)</th>
-              <th style={{ padding: '0.75rem' }}>Satış Değeri (€)</th>
-              <th style={{ padding: '0.75rem' }}>Dağıtım Payı %</th>
-              <th style={{ padding: '0.75rem' }}>Aktarılan Maliyet (€)</th>
-              <th style={{ padding: '0.75rem' }}>Birim Maliyet (€/KG)</th>
-              <th style={{ padding: '0.75rem' }}>Brüt Marj %</th>
+            <tr>
+              <th className="col-text">Parça Ürün & Lot No</th>
+              <th className="col-num">Fiili Ağırlık (KG)</th>
+              <th className="col-num">Satış Fiyatı (€/KG)</th>
+              <th className="col-num">Satış Değeri (€)</th>
+              <th className="col-num">Dağıtım Payı %</th>
+              <th className="col-num">Aktarılan Maliyet (€)</th>
+              <th className="col-num">Birim Maliyet (€/KG)</th>
+              <th className="col-num">Brüt Marj %</th>
             </tr>
           </thead>
           <tbody>
@@ -271,29 +271,28 @@ export default function ButcheryCostTable() {
               <tr
                 key={row.cut_sku}
                 style={{
-                  borderBottom: '1px solid #1e293b',
-                  background: row.isWaste ? 'rgba(239, 68, 68, 0.06)' : 'transparent',
+                  background: row.isWaste ? 'rgba(239, 68, 68, 0.06)' : undefined,
                 }}
               >
-                <td style={{ padding: '0.75rem' }}>
+                <td className="col-text">
                   <strong style={{ color: row.isWaste ? '#f87171' : '#f1f5f9' }}>{row.name}</strong>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>
                     {row.cut_sku} • Lot: {row.lot_no}
                   </div>
                 </td>
-                <td style={{ padding: '0.75rem', color: '#38bdf8', fontWeight: 600 }}>{row.yield_weight_kg.toFixed(2)} KG</td>
-                <td style={{ padding: '0.75rem', color: '#cbd5e1' }}>
+                <td className="col-num" style={{ color: '#38bdf8', fontWeight: 600 }}>{row.yield_weight_kg.toFixed(2)} KG</td>
+                <td className="col-num" style={{ color: '#cbd5e1' }}>
                   {row.isWaste ? '— (Fire)' : `${row.market_price_per_kg.toFixed(2)} €`}
                 </td>
-                <td style={{ padding: '0.75rem', color: '#10b981' }}>
+                <td className="col-num" style={{ color: '#10b981' }}>
                   {row.isWaste ? '0.00 €' : `${row.cutSalesValue.toFixed(2)} €`}
                 </td>
-                <td style={{ padding: '0.75rem', color: '#cbd5e1' }}>{row.sharePct.toFixed(2)}%</td>
-                <td style={{ padding: '0.75rem', color: '#fbbf24', fontWeight: 700 }}>{row.allocatedCost.toFixed(2)} €</td>
-                <td style={{ padding: '0.75rem', fontWeight: 600, color: '#f1f5f9' }}>
+                <td className="col-num" style={{ color: '#cbd5e1' }}>{row.sharePct.toFixed(2)}%</td>
+                <td className="col-num" style={{ color: '#fbbf24', fontWeight: 700 }}>{row.allocatedCost.toFixed(2)} €</td>
+                <td className="col-num" style={{ fontWeight: 600, color: '#f1f5f9' }}>
                   {row.isWaste ? '0.00 €/KG' : `${row.unitCost.toFixed(2)} €/KG`}
                 </td>
-                <td style={{ padding: '0.75rem', color: row.isWaste ? '#94a3b8' : '#34d399', fontWeight: 600 }}>
+                <td className="col-num" style={{ color: row.isWaste ? '#94a3b8' : '#34d399', fontWeight: 600 }}>
                   {row.isWaste ? '—' : `%${row.marginPct.toFixed(1)}`}
                 </td>
               </tr>
@@ -301,14 +300,14 @@ export default function ButcheryCostTable() {
           </tbody>
           <tfoot>
             <tr style={{ borderTop: '2px solid #475569', background: '#1e293b', fontWeight: 700 }}>
-              <td style={{ padding: '0.75rem', color: '#f1f5f9' }}>TOPLAM MUTABAKAT DENGESİ</td>
-              <td style={{ padding: '0.75rem', color: '#38bdf8' }}>25.00 KG (22+3)</td>
-              <td style={{ padding: '0.75rem' }}>—</td>
-              <td style={{ padding: '0.75rem', color: '#10b981' }}>{totalSalesValue.toFixed(2)} €</td>
-              <td style={{ padding: '0.75rem', color: '#cbd5e1' }}>100.00%</td>
-              <td style={{ padding: '0.75rem', color: '#fbbf24' }}>{totalAllocatedCost.toFixed(2)} €</td>
-              <td style={{ padding: '0.75rem', color: '#34d399' }} colSpan={2}>
-                ✓ Dağıtılan Tutar = Gerçek Maliyet (287,50 €)
+              <td className="col-text" style={{ color: '#f1f5f9' }}>TOPLAM MUTABAKAT DENGESİ</td>
+              <td className="col-num" style={{ color: '#34d399' }}>25.00 KG (22+3)</td>
+              <td className="col-num">—</td>
+              <td className="col-num" style={{ color: '#10b981' }}>{totalSalesValue.toFixed(2)} €</td>
+              <td className="col-num" style={{ color: '#cbd5e1' }}>100.00%</td>
+              <td className="col-num" style={{ color: '#fbbf24' }}>{totalAllocatedCost.toFixed(2)} €</td>
+              <td className="col-num" style={{ color: '#34d399' }} colSpan={2}>
+                Dağıtılan Tutar = Gerçek Maliyet (287.50 €)
               </td>
             </tr>
           </tfoot>

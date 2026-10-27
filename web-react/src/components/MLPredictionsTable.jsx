@@ -79,32 +79,32 @@ export default function MLPredictionsTable() {
           </p>
         </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem', textAlign: 'left' }}>
+        <table className="data-table">
           <thead>
-            <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-              <th style={{ padding: '0.65rem' }}>Model / Yöntem</th>
-              <th style={{ padding: '0.65rem' }}>Tahmin Edilen Miktar</th>
-              <th style={{ padding: '0.65rem' }}>Gerçekleşen Miktar</th>
-              <th style={{ padding: '0.65rem' }}>Miktar Sapması</th>
-              <th style={{ padding: '0.65rem' }}>Tahmin EKP (€)</th>
-              <th style={{ padding: '0.65rem' }}>Gerçek EKP (€)</th>
-              <th style={{ padding: '0.65rem' }}>EKP Sapması</th>
-              <th style={{ padding: '0.65rem' }}>5-Fold Test MAE</th>
+            <tr>
+              <th className="col-text">Model / Yöntem</th>
+              <th className="col-num">Tahmin Edilen Miktar</th>
+              <th className="col-num">Gerçekleşen Miktar</th>
+              <th className="col-num">Miktar Sapması</th>
+              <th className="col-num">Tahmin EKP (€)</th>
+              <th className="col-num">Gerçek EKP (€)</th>
+              <th className="col-num">EKP Sapması</th>
+              <th className="col-num">5-Fold Test MAE</th>
             </tr>
           </thead>
           <tbody>
             {DEFAULT_TASK_4A_ROWS.map((r, idx) => (
-              <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
-                <td style={{ padding: '0.65rem', fontWeight: 600, color: idx === 2 ? '#34d399' : '#f1f5f9' }}>{r.model_name}</td>
-                <td style={{ padding: '0.65rem', color: '#38bdf8', fontWeight: 600 }}>{r.predicted.toFixed(2)} Paket</td>
-                <td style={{ padding: '0.65rem', color: '#f1f5f9' }}>{r.actual.toFixed(2)} Paket</td>
-                <td style={{ padding: '0.65rem', color: Math.abs(r.deviation) < 1 ? '#34d399' : '#fbbf24' }}>
+              <tr key={idx}>
+                <td className="col-text" style={{ fontWeight: 600, color: idx === 2 ? '#34d399' : '#f1f5f9' }}>{r.model_name}</td>
+                <td className="col-num" style={{ color: '#38bdf8', fontWeight: 600 }}>{r.predicted.toFixed(2)} Paket</td>
+                <td className="col-num" style={{ color: '#f1f5f9' }}>{r.actual.toFixed(2)} Paket</td>
+                <td className="col-num" style={{ color: Math.abs(r.deviation) < 1 ? '#34d399' : '#fbbf24' }}>
                   {r.deviation > 0 ? `+${r.deviation.toFixed(2)}` : r.deviation.toFixed(2)} Paket (%{r.deviation_pct.toFixed(2)})
                 </td>
-                <td style={{ padding: '0.65rem', color: '#38bdf8', fontWeight: 600 }}>{r.ekp_pred.toFixed(2)} €</td>
-                <td style={{ padding: '0.65rem', color: '#f1f5f9' }}>{r.ekp_actual.toFixed(2)} €</td>
-                <td style={{ padding: '0.65rem', color: '#34d399' }}>+{r.ekp_diff.toFixed(2)} €</td>
-                <td style={{ padding: '0.65rem', fontFamily: 'monospace', color: '#cbd5e1' }}>{r.test_mae}</td>
+                <td className="col-num" style={{ color: '#38bdf8', fontWeight: 600 }}>{r.ekp_pred.toFixed(2)} €</td>
+                <td className="col-num" style={{ color: '#f1f5f9' }}>{r.ekp_actual.toFixed(2)} €</td>
+                <td className="col-num" style={{ color: '#34d399' }}>+{r.ekp_diff.toFixed(2)} €</td>
+                <td className="col-num" style={{ fontFamily: 'monospace', color: '#cbd5e1' }}>{r.test_mae}</td>
               </tr>
             ))}
           </tbody>
@@ -125,15 +125,15 @@ export default function MLPredictionsTable() {
           </p>
         </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem', textAlign: 'left' }}>
+        <table className="data-table">
           <thead>
-            <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-              <th style={{ padding: '0.65rem' }}>Parça Kodu & Ürün Adı</th>
-              <th style={{ padding: '0.65rem' }}>Basit Referans (Reçete %)</th>
-              <th style={{ padding: '0.65rem' }}>KI Model Tahmini (KG)</th>
-              <th style={{ padding: '0.65rem' }}>Gerçekleşen Ağırlık (KG)</th>
-              <th style={{ padding: '0.65rem' }}>Fark / Sapma (KG)</th>
-              <th style={{ padding: '0.65rem' }}>Oransal Fark (%)</th>
+            <tr>
+              <th className="col-text">Parça Kodu & Ürün Adı</th>
+              <th className="col-num">Basit Referans (Reçete %)</th>
+              <th className="col-num">KI Model Tahmini (KG)</th>
+              <th className="col-num">Gerçekleşen Ağırlık (KG)</th>
+              <th className="col-num">Fark / Sapma (KG)</th>
+              <th className="col-num">Oransal Fark (%)</th>
             </tr>
           </thead>
           <tbody>
@@ -141,17 +141,17 @@ export default function MLPredictionsTable() {
               const diffKg = c.actual_kg - c.predicted_kg;
               const diffPct = (diffKg / c.actual_kg) * 100;
               return (
-                <tr key={c.cut_sku} style={{ borderBottom: '1px solid #1e293b' }}>
-                  <td style={{ padding: '0.65rem', fontWeight: 600, color: '#f1f5f9' }}>
+                <tr key={c.cut_sku}>
+                  <td className="col-text" style={{ fontWeight: 600, color: '#f1f5f9' }}>
                     {c.name} <span style={{ color: '#64748b', fontFamily: 'monospace' }}>({c.cut_sku})</span>
                   </td>
-                  <td style={{ padding: '0.65rem', color: '#94a3b8' }}>{c.baseline_kg.toFixed(2)} KG</td>
-                  <td style={{ padding: '0.65rem', color: '#38bdf8', fontWeight: 700 }}>{c.predicted_kg.toFixed(2)} KG</td>
-                  <td style={{ padding: '0.65rem', color: '#10b981', fontWeight: 700 }}>{c.actual_kg.toFixed(2)} KG</td>
-                  <td style={{ padding: '0.65rem', color: '#34d399', fontFamily: 'monospace' }}>
+                  <td className="col-num" style={{ color: '#94a3b8' }}>{c.baseline_kg.toFixed(2)} KG</td>
+                  <td className="col-num" style={{ color: '#38bdf8', fontWeight: 700 }}>{c.predicted_kg.toFixed(2)} KG</td>
+                  <td className="col-num" style={{ color: '#10b981', fontWeight: 700 }}>{c.actual_kg.toFixed(2)} KG</td>
+                  <td className="col-num" style={{ color: '#34d399', fontFamily: 'monospace' }}>
                     {diffKg >= 0 ? `+${diffKg.toFixed(2)}` : diffKg.toFixed(2)} KG
                   </td>
-                  <td style={{ padding: '0.65rem', color: '#cbd5e1', fontFamily: 'monospace' }}>
+                  <td className="col-num" style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>
                     {diffPct >= 0 ? `+${diffPct.toFixed(2)}%` : `${diffPct.toFixed(2)}%`}
                   </td>
                 </tr>
