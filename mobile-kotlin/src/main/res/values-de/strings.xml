@@ -73,4 +73,16 @@
     <string name="ocr_raw_json">Roh-JSON</string>
     <string name="ocr_meta">Lieferant: %1$s · Rechnung: %2$s</string>
     <string name="ocr_back">Zurück</string>
+
+    <!-- Quick Guide / How to Use BottomSheet (DE) -->
+    <string name="quick_guide_button_label">Kurzanleitung</string>
+    <string name="quick_guide_title">Kurzanleitung — Bedienung</string>
+    <string name="quick_guide_subtitle">Klare 3-Schritte-Anleitung für Lager- und Kassenpersonal</string>
+    <string name="quick_guide_step1_title">Verkauf durchführen</string>
+    <string name="quick_guide_step1_desc">Charge (Lot) auswählen, Menge eingeben und auf Verkauf abschließen tippen.</string>
+    <string name="quick_guide_step2_title">Sperrstatus</string>
+    <string name="quick_guide_step2_desc">Zurückgerufene (recalled) Risikochargen werden vom System automatisch blockiert.</string>
+    <string name="quick_guide_step3_title">Supervisor-Entsperrung</string>
+    <string name="quick_guide_step3_desc">Zum Verlassen des Sperrbildschirms 5-mal schnell auf die obere Kopfzeile tippen und die Supervisor-PIN eingeben.</string>
+    <string name="quick_guide_btn_close">Verstanden, Schließen</string>
 </resources>
