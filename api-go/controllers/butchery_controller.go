@@ -107,7 +107,7 @@ func (c *ButcheryController) ReconcileButchery(w http.ResponseWriter, r *http.Re
 	// Execute MySQL stored procedure `CALL sp_execute_butchery(?, ?)`
 	rows, err := c.db.QueryContext(r.Context(), `CALL sp_execute_butchery(?, ?)`, opNo, allocMethod)
 	if err != nil {
-		log.Printf("❌ [MYSQL-BUTCHERY] sp_execute_butchery error: %v", err)
+		log.Printf("[ERROR] [MYSQL-BUTCHERY] sp_execute_butchery error: %v", err)
 		http.Error(w, fmt.Sprintf(`{"error":"sp_execute_butchery failed: %s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
@@ -136,6 +136,9 @@ func (c *ButcheryController) ReconcileButchery(w http.ResponseWriter, r *http.Re
 		if declaredDiff.Valid {
 			v := declaredDiff.Float64
 			summary.DeclaredCostDiff = &v
+			if v != 0 || !summary.DeclaredCostOk {
+				log.Printf("[WARN] [BUTCHERY] Discrepancy Flagged on op=%s: calculated=%.2f EUR vs declared=%.2f EUR (diff=%+.2f EUR)", summary.OpNo, summary.TotalCost, declaredCost.Float64, v)
+			}
 		}
 	}
 	rows.Close()
@@ -186,6 +189,9 @@ func (c *ButcheryController) ListButcheryOperations(w http.ResponseWriter, r *ht
 		if declaredDiff.Valid {
 			v := declaredDiff.Float64
 			s.DeclaredCostDiff = &v
+			if v != 0 || !s.DeclaredCostOk {
+				log.Printf("[WARN] [BUTCHERY] Discrepancy Flagged on op=%s: calculated=%.2f EUR vs declared=%.2f EUR (diff=%+.2f EUR)", s.OpNo, s.TotalCost, declaredCost.Float64, v)
+			}
 		}
 		s.Cuts = c.fetchCutAllocations(r, s.OpNo)
 		ops = append(ops, s)

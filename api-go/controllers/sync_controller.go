@@ -29,7 +29,7 @@ type SyncController struct {
 }
 
 func NewSyncController(db *sql.DB) *SyncController {
-	log.Println("🔐 Enforcing ECDSA Sync Contract (SECP256R1 / SHA256withECDSA)...")
+	log.Println("[INFO] [SYNC] Enforcing ECDSA P-256 (SECP256R1 / SHA256withECDSA) sync contract")
 	return &SyncController{
 		db: db,
 	}
@@ -59,7 +59,7 @@ func (c *SyncController) RegisterDeviceKey(w http.ResponseWriter, r *http.Reques
 	}
 
 	c.deviceKeys.Store(body.DeviceID, pubKey)
-	log.Printf("🔐 [ECDSA-ENROLL] Registered P-256 public key for device=%s (sha256=%s)", body.DeviceID, fingerprint)
+	log.Printf("[INFO] [SYNC-ENROLL] Registered ECDSA P-256 public key for device=%s (sha256=%s)", body.DeviceID, fingerprint)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -189,16 +189,20 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 
 		if itemPubKey != nil {
 			if !verifyECDSAP256Signature(itemPubKey, canonicalRecord, item.Signature) {
+				log.Printf("[ERROR] [SYNC] ECDSA P-256 signature verification failed for device=%s UUIDv7=%s", deviceID, item.Timestamp)
 				http.Error(w, fmt.Sprintf(`{"error":"security alert: ECDSA-P256 signature mismatch for UUIDv7=%s"}`, item.Timestamp), http.StatusForbidden)
 				return
 			}
+			log.Printf("[INFO] [SYNC] ECDSA P-256 Signature Verified for device=%s batch=%s UUIDv7=%s", deviceID, item.BatchID, item.Timestamp)
 		} else {
 			// Even if the device hasn't enrolled its public key via /sync/register-key yet,
 			// strictly enforce valid Base64 ASN.1 DER ECDSA signature structure (0x30 SEQUENCE header).
 			if err := validateASN1DERSignatureStructure(item.Signature); err != nil {
+				log.Printf("[ERROR] [SYNC] Malformed ASN.1 DER ECDSA signature for UUIDv7=%s: %v", item.Timestamp, err)
 				http.Error(w, fmt.Sprintf(`{"error":"security alert: malformed ASN.1 DER ECDSA signature: %s"}`, err.Error()), http.StatusForbidden)
 				return
 			}
+			log.Printf("[INFO] [SYNC] ECDSA P-256 Signature Verified (ASN.1 DER structure) for device=%s UUIDv7=%s", deviceID, item.Timestamp)
 		}
 
 		// Persist to MySQL `sync_inbox` (idempotent via PRIMARY KEY `event_uuid`)
@@ -214,7 +218,7 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 				payloadHashHex,
 			)
 			if dbErr != nil {
-				log.Printf("⚠️ [SYNC-MYSQL] sync_inbox insert warning for %s: %v", item.Timestamp, dbErr)
+				log.Printf("[WARN] [SYNC-MYSQL] sync_inbox insert warning for %s: %v", item.Timestamp, dbErr)
 			}
 		}
 

@@ -100,7 +100,7 @@ func (c *ProductionController) ListOrders(w http.ResponseWriter, r *http.Request
 
 	rows, err := c.db.QueryContext(r.Context(), query, args...)
 	if err != nil {
-		log.Printf("❌ [MYSQL-PRODUCTION] Query error: %v", err)
+		log.Printf("[ERROR] [MYSQL-PRODUCTION] Query error: %v", err)
 		http.Error(w, fmt.Sprintf(`{"error":"database query failed: %s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
@@ -164,7 +164,7 @@ func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWrit
 			req.SubWarehouse, req.TargetWh, req.InvoiceNo,
 		)
 		if err != nil {
-			log.Printf("ℹ️ [MYSQL-SP] sp_production_complete note for %s: %v", req.OrderNo, err)
+			log.Printf("[INFO] [MYSQL-SP] sp_production_complete note for %s: %v", req.OrderNo, err)
 		}
 	}
 
