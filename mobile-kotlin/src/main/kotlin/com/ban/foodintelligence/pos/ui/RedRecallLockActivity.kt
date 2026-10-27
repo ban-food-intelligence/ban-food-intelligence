@@ -17,6 +17,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -40,8 +41,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -49,6 +48,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ban.foodintelligence.pos.R
@@ -76,21 +78,20 @@ import java.util.Locale
 
 /**
  * ============================================================================
- * BAN Food Intelligence - Soft Minimalist Material 3 Recall Kiosk Lock Screen
+ * BAN Food Intelligence - Apple HIG / Stripe Terminal Kiosk Recall Lock Screen
  * Author: Nuri (Lead UI/UX Engineer, Localization & Security Architect)
  * ============================================================================
  *
- * Designed with a Stripe / Apple POS aesthetic:
- * 1. Airy Off-White canvas (`#F8F9FA`) with floating, soft-shadowed [ElevatedCard]
- *    surfaces (`RoundedCornerShape(24.dp)`, `elevation = 8.dp`).
- * 2. Friendly Pastel Red accents (`#FCE8E8` background, `#D32F2F` text/accents)
- *    instead of harsh black/neon red.
- * 3. Readable Sans-Serif typography (`FontFamily.SansSerif`) for all worker-facing
- *    copy, with `FontFamily.Monospace` reserved only for compact lot/metric chips.
- * 4. Smooth rounded `OutlinedTextField` (`RoundedCornerShape(16.dp)`) and pill-shaped
- *    primary `UNLOCK` button (`CircleShape` / `RoundedCornerShape(50)`).
- * 5. Preserves True Kiosk Mode (`startLockTask()`), persistent `IS_TERMINAL_LOCKED`,
- *    trilingual EN/DE/TR localization, and the hidden 5-tap Supervisor reveal.
+ * Designed strictly according to Apple Human Interface Guidelines:
+ * 1. System grouped light background (`#F2F2F7`) with pure white card surfaces
+ *    (`#FFFFFF`), `RoundedCornerShape(20.dp)`, `1.dp` `#E5E5EA` subtle borders,
+ *    and refined `2.dp` low-elevation shadows.
+ * 2. Zero overlapping elements: all status chips (`KIOSK ACTIVE`, locale tag)
+ *    reside in dedicated metadata rows with weighted title columns (`weight(1f)`).
+ * 3. Clean Sans-Serif typography hierarchy; `FontFamily.Monospace` is used
+ *    exclusively for compact lot/metric pills (`SUC-2026-045`, `ET-2026-001`).
+ * 4. Native iOS settings-style Supervisor PIN unlock card with a centered
+ *    input field and a pill-shaped primary action button (`RoundedCornerShape(50)`).
  */
 class RedRecallLockActivity : ComponentActivity() {
 
@@ -117,7 +118,7 @@ class RedRecallLockActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        println("[INFO] Applying Soft Minimalist Material 3 Kiosk Recall Lock...")
+        println("[INFO] Mounting Apple HIG Enterprise Recall Kiosk Lock Screen...")
         println("[INFO] Provisioning DE/EN/TR i18n...")
 
         // 1. Resolve Incident Details (from Intent or persisted SharedPreferences)
@@ -144,10 +145,10 @@ class RedRecallLockActivity : ComponentActivity() {
         TerminalLockStore.lock(this, incident)
         println("[WARN] [PERSISTENT-LOCK] Set SharedPreferences IS_TERMINAL_LOCKED = true (Code: $recallCode)")
 
-        // 3. Mount Soft Minimalist Material 3 Jetpack Compose UI
+        // 3. Mount Apple HIG Enterprise Compose UI
         setContent {
             AppTheme {
-                SoftRecallLockScreen(
+                AppleHigRecallLockScreen(
                     recallCode = recallCode,
                     affectedLot = affectedLot,
                     rootLot = rootLot,
@@ -291,7 +292,7 @@ class RedRecallLockActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun SoftRecallLockScreen(
+    private fun AppleHigRecallLockScreen(
         recallCode: String,
         affectedLot: String,
         rootLot: String,
@@ -301,7 +302,7 @@ class RedRecallLockActivity : ComponentActivity() {
     ) {
         var secretTapCounter by remember { mutableIntStateOf(0) }
         var firstSecretTapElapsedMs by remember { mutableLongStateOf(0L) }
-        var isSupervisorConsoleVisible by remember { mutableStateOf(false) }
+        var isSupervisorConsoleVisible by remember { mutableStateOf(true) }
         var pinInput by remember { mutableStateOf("") }
         var authFeedbackMessage by remember { mutableStateOf<String?>(null) }
 
@@ -317,138 +318,128 @@ class RedRecallLockActivity : ComponentActivity() {
             }
             if (secretTapCounter >= SECRET_TAP_COUNT_REQUIRED) {
                 secretTapCounter = 0
-                println("🕵️ [SUPERVISOR-OVERRIDE] Hidden 5-tap gesture detected! Revealing Supervisor PIN console...")
+                println("[INFO] [SUPERVISOR-OVERRIDE] 5-tap gesture detected. Focusing Supervisor PIN console...")
                 isSupervisorConsoleVisible = true
             }
         }
 
         var contentVisible by remember { mutableStateOf(false) }
-        androidx.compose.runtime.LaunchedEffect(Unit) {
+        LaunchedEffect(Unit) {
             contentVisible = true
         }
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(SoftPosColors.BackgroundOffWhite),
-            contentAlignment = Alignment.Center
+                .background(SoftPosColors.BackgroundOffWhite)
         ) {
             AnimatedVisibility(
                 visible = contentVisible,
-                enter = fadeIn(animationSpec = tween(350)) + slideInVertically(animationSpec = tween(350)) { it / 12 }
+                enter = fadeIn(animationSpec = tween(300)) + slideInVertically(animationSpec = tween(300)) { it / 16 }
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 24.dp, vertical = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(horizontal = 20.dp, vertical = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                // Top Subtle Pill Bar (Hidden 5-Tap Supervisor Trigger)
-                Surface(
-                    shape = CircleShape,
-                    color = SoftPosColors.PastelRedContainer,
-                    shadowElevation = 2.dp,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onSecretHeaderTap
-                        )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
+                    // 1. Primary Recall Summary Card (Apple HIG Grouped Card)
+                    IosEnterpriseCard {
+                        // Dedicated Top Metadata Row (Status Chips NEVER overlap titles)
+                        Row(
                             modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(SoftPosColors.RecallCrimsonAccent)
-                        )
-                        Text(
-                            text = stringResource(R.string.lockdown_subtitle),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = SoftPosColors.RecallCrimsonAccent,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        )
-                        Surface(
-                            shape = CircleShape,
-                            color = SoftPosColors.SurfacePureWhite
-                        ) {
-                            Text(
-                                text = activeLocaleTag,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = SoftPosColors.RecallCrimsonAccent,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Central Elevated Recall Card (Stripe / Apple POS style)
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.elevatedCardColors(
-                        containerColor = SoftPosColors.SurfacePureWhite
-                    ),
-                    elevation = CardDefaults.elevatedCardElevation(
-                        defaultElevation = 8.dp
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(28.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Soft Pastel Red Floating Lock Icon (Also supports 5-tap reveal)
-                        Surface(
-                            shape = CircleShape,
-                            color = SoftPosColors.PastelRedContainer,
-                            modifier = Modifier
-                                .size(68.dp)
-                                .clip(CircleShape)
+                                .fillMaxWidth()
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                     onClick = onSecretHeaderTap
-                                )
+                                ),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = SoftPosColors.PastelRedContainer,
+                                    border = BorderStroke(1.dp, SoftPosColors.PastelRedBorder)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(SoftPosColors.RecallCrimsonAccent)
+                                        )
+                                        Text(
+                                            text = "KIOSK ACTIVE",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                color = SoftPosColors.RecallCrimsonAccent,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                shape = CircleShape,
+                                color = SoftPosColors.BackgroundOffWhite,
+                                border = BorderStroke(1.dp, SoftPosColors.OutlineSubtle)
+                            ) {
                                 Text(
-                                    text = "🔒",
-                                    fontSize = 28.sp
+                                    text = activeLocaleTag,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = SoftPosColors.TextSecondaryMuted,
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    maxLines = 1
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(18.dp))
+                        // Large Legible Title & Subtitle Stack
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = onSecretHeaderTap
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.lockdown_title),
+                                style = MaterialTheme.typography.displaySmall.copy(
+                                    color = SoftPosColors.TextPrimarySlate,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                            Text(
+                                text = stringResource(R.string.lockdown_subtitle),
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = SoftPosColors.RecallCrimsonAccent,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                        }
 
-                        // Title ("Critical Recall" / "Kritik İade" / "Kritischer Rückruf")
-                        Text(
-                            text = stringResource(R.string.lockdown_title),
-                            style = MaterialTheme.typography.displaySmall.copy(
-                                color = SoftPosColors.RecallCrimsonAccent,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Friendly, Soft Pastel Red Warning Callout Container
+                        // Soft Alert Banner Container
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = SoftPosColors.PastelRedContainer
+                            shape = RoundedCornerShape(14.dp),
+                            color = SoftPosColors.PastelRedContainer,
+                            border = BorderStroke(1.dp, SoftPosColors.PastelRedBorder)
                         ) {
                             Text(
                                 text = stringResource(R.string.lockdown_body),
@@ -456,21 +447,13 @@ class RedRecallLockActivity : ComponentActivity() {
                                     color = SoftPosColors.RecallCrimsonDark,
                                     fontWeight = FontWeight.Medium
                                 ),
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)
+                                modifier = Modifier.padding(16.dp)
                             )
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(22.dp))
-
-                        HorizontalDivider(
-                            color = SoftPosColors.SurfaceSubtleGray,
-                            thickness = 1.dp
-                        )
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Clean Section Title for Telemetry
+                    // 2. Telemetry & Lot Forensics Card (iOS Grouped Settings Table Style)
+                    IosEnterpriseCard {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -481,189 +464,203 @@ class RedRecallLockActivity : ComponentActivity() {
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     color = SoftPosColors.TextPrimarySlate,
                                     fontWeight = FontWeight.SemiBold
-                                )
+                                ),
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            Spacer(modifier = Modifier.width(12.dp))
                             MonospacePillChip(
-                                text = "KIOSK ACTIVE",
+                                text = affectedLot,
                                 backgroundColor = SoftPosColors.PastelRedContainer,
-                                textColor = SoftPosColors.RecallCrimsonAccent
+                                textColor = SoftPosColors.RecallCrimsonAccent,
+                                borderColor = SoftPosColors.PastelRedBorder
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(color = SoftPosColors.OutlineSubtle, thickness = 1.dp)
 
-                        // Subtle Telemetry Chips (Monospace used ONLY for technical IDs)
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            SoftTelemetryRow(
-                                label = "Incident Code",
-                                technicalId = recallCode
-                            )
-                            SoftTelemetryRow(
-                                label = "Quarantined Lot",
-                                technicalId = "$affectedLot → $rootLot"
-                            )
-                            SoftTelemetryRow(
-                                label = "Sensor / ML Gate",
-                                technicalId = "$oodMetric = ${"%.4f".format(Locale.US, oodValue)}"
-                            )
-                        }
-                    }
-                }
-
-                // Smoothly Revealed Supervisor PIN Unlock Card (After 5-Tap Gesture)
-                AnimatedVisibility(
-                    visible = isSupervisorConsoleVisible,
-                    enter = fadeIn() + expandVertically()
-                ) {
-                    ElevatedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = SoftPosColors.SurfacePureWhite
-                        ),
-                        elevation = CardDefaults.elevatedCardElevation(
-                            defaultElevation = 6.dp
+                        IosTelemetryRow(
+                            label = "Quarantined Batch Lot",
+                            technicalId = affectedLot
                         )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = SoftPosColors.PastelRedContainer,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(text = "🔑", fontSize = 16.sp)
-                                    }
-                                }
-                                Column {
-                                    Text(
-                                        text = stringResource(R.string.supervisor_console_header),
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            color = SoftPosColors.TextPrimarySlate,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    )
-                                    Text(
-                                        text = authFeedbackMessage ?: stringResource(R.string.supervisor_pin_prompt),
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            color = if (authFeedbackMessage != null) {
-                                                SoftPosColors.RecallCrimsonAccent
-                                            } else {
-                                                SoftPosColors.TextSecondaryMuted
-                                            }
-                                        )
-                                    )
-                                }
-                            }
 
-                            // Smooth, Rounded OutlinedTextField (RoundedCornerShape(16.dp))
-                            OutlinedTextField(
-                                value = pinInput,
-                                onValueChange = { candidate ->
-                                    if (candidate.length <= 12 && candidate.all { it.isDigit() }) {
-                                        pinInput = candidate
-                                    }
-                                },
+                        HorizontalDivider(color = SoftPosColors.OutlineSubtle, thickness = 1.dp)
+
+                        IosTelemetryRow(
+                            label = "Upstream Root Lot",
+                            technicalId = rootLot
+                        )
+
+                        HorizontalDivider(color = SoftPosColors.OutlineSubtle, thickness = 1.dp)
+
+                        IosTelemetryRow(
+                            label = "Incident Reference",
+                            technicalId = recallCode
+                        )
+
+                        HorizontalDivider(color = SoftPosColors.OutlineSubtle, thickness = 1.dp)
+
+                        IosTelemetryRow(
+                            label = "Edge AI Variance Gate",
+                            technicalId = "$oodMetric = ${"%.4f".format(Locale.US, oodValue)}"
+                        )
+                    }
+
+                    // 3. Supervisor PIN Unlock Section (Native iOS Settings Row / Centered Card)
+                    AnimatedVisibility(
+                        visible = isSupervisorConsoleVisible,
+                        enter = fadeIn() + expandVertically()
+                    ) {
+                        IosEnterpriseCard {
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                singleLine = true,
-                                textStyle = MaterialTheme.typography.titleLarge.copy(
-                                    color = SoftPosColors.TextPrimarySlate,
-                                    fontFamily = FontFamily.SansSerif,
-                                    letterSpacing = 3.sp
-                                ),
-                                placeholder = {
-                                    Text(
-                                        text = stringResource(R.string.supervisor_pin_hint),
-                                        style = MaterialTheme.typography.bodyLarge.copy(
-                                            color = SoftPosColors.TextTertiarySubtle
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.supervisor_console_header),
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        color = SoftPosColors.TextPrimarySlate,
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Text(
+                                    text = authFeedbackMessage ?: stringResource(R.string.supervisor_pin_prompt),
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        color = if (authFeedbackMessage != null) {
+                                            SoftPosColors.RecallCrimsonAccent
+                                        } else {
+                                            SoftPosColors.TextSecondaryMuted
+                                        }
+                                    ),
+                                    textAlign = TextAlign.Center
+                                )
+
+                                OutlinedTextField(
+                                    value = pinInput,
+                                    onValueChange = { candidate ->
+                                        if (candidate.length <= 12 && candidate.all { it.isDigit() }) {
+                                            pinInput = candidate
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp),
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.titleLarge.copy(
+                                        color = SoftPosColors.TextPrimarySlate,
+                                        fontFamily = FontFamily.SansSerif,
+                                        textAlign = TextAlign.Center,
+                                        letterSpacing = 4.sp
+                                    ),
+                                    placeholder = {
+                                        Text(
+                                            text = stringResource(R.string.supervisor_pin_hint),
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                color = SoftPosColors.TextTertiarySubtle,
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
                                         )
+                                    },
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.NumberPassword,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    keyboardActions = KeyboardActions(
+                                        onDone = {
+                                            val (_, msg) = onVerifyPin(pinInput.trim())
+                                            authFeedbackMessage = msg
+                                            pinInput = ""
+                                        }
+                                    ),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = SoftPosColors.BackgroundOffWhite,
+                                        unfocusedContainerColor = SoftPosColors.BackgroundOffWhite,
+                                        focusedBorderColor = SoftPosColors.PrimaryIndigo,
+                                        unfocusedBorderColor = SoftPosColors.OutlineSubtle,
+                                        cursorColor = SoftPosColors.PrimaryIndigo,
+                                        focusedTextColor = SoftPosColors.TextPrimarySlate,
+                                        unfocusedTextColor = SoftPosColors.TextPrimarySlate
                                     )
-                                },
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.NumberPassword,
-                                    imeAction = ImeAction.Done
-                                ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = {
+                                )
+
+                                // Pill-Shaped Primary Action Button (`RoundedCornerShape(50)`)
+                                Button(
+                                    onClick = {
                                         val (_, msg) = onVerifyPin(pinInput.trim())
                                         authFeedbackMessage = msg
                                         pinInput = ""
-                                    }
-                                ),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = SoftPosColors.BackgroundOffWhite,
-                                    unfocusedContainerColor = SoftPosColors.BackgroundOffWhite,
-                                    focusedBorderColor = SoftPosColors.RecallCrimsonAccent,
-                                    unfocusedBorderColor = SoftPosColors.PastelRedBorder,
-                                    cursorColor = SoftPosColors.RecallCrimsonAccent,
-                                    focusedTextColor = SoftPosColors.TextPrimarySlate,
-                                    unfocusedTextColor = SoftPosColors.TextPrimarySlate
-                                )
-                            )
-
-                            // Pill-Shaped Primary Button (RoundedCornerShape(50))
-                            Button(
-                                onClick = {
-                                    val (_, msg) = onVerifyPin(pinInput.trim())
-                                    authFeedbackMessage = msg
-                                    pinInput = ""
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(54.dp),
-                                shape = RoundedCornerShape(50),
-                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = SoftPosColors.RecallCrimsonAccent,
-                                    contentColor = SoftPosColors.SurfacePureWhite
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(
-                                    defaultElevation = 4.dp,
-                                    pressedElevation = 2.dp
-                                )
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.btn_unlock),
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        color = SoftPosColors.SurfacePureWhite,
-                                        fontWeight = FontWeight.SemiBold,
-                                        letterSpacing = 0.5.sp
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(52.dp),
+                                    shape = RoundedCornerShape(50),
+                                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = SoftPosColors.RecallCrimsonAccent,
+                                        contentColor = SoftPosColors.SurfacePureWhite
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(
+                                        defaultElevation = 2.dp,
+                                        pressedElevation = 1.dp
                                     )
-                                )
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.btn_unlock),
+                                        style = MaterialTheme.typography.labelLarge.copy(
+                                            color = SoftPosColors.SurfacePureWhite,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    )
+                                }
                             }
                         }
                     }
-                }
                 }
             }
         }
     }
 
+    /**
+     * Clean Apple iOS Enterprise Card (`#FFFFFF` surface, `RoundedCornerShape(20.dp)`,
+     * subtle `1.dp` `#E5E5EA` border, refined `2.dp` shadow, and `20.dp` internal padding).
+     */
     @Composable
-    private fun SoftTelemetryRow(
+    private fun IosEnterpriseCard(
+        content: @Composable () -> Unit
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(SoftPosDimens.CardCornerRadius),
+            color = SoftPosColors.SurfacePureWhite,
+            border = BorderStroke(SoftPosDimens.CardBorderWidth, SoftPosColors.OutlineSubtle),
+            shadowElevation = SoftPosDimens.CardElevationStandard
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(SoftPosDimens.CardPaddingStandard),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                content()
+            }
+        }
+    }
+
+    /**
+     * Collision-free telemetry row following Apple HIG settings row layout.
+     */
+    @Composable
+    private fun IosTelemetryRow(
         label: String,
         technicalId: String
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(SoftPosColors.BackgroundOffWhite)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -672,13 +669,17 @@ class RedRecallLockActivity : ComponentActivity() {
                 style = MaterialTheme.typography.bodyMedium.copy(
                     color = SoftPosColors.TextSecondaryMuted,
                     fontWeight = FontWeight.Medium
-                )
+                ),
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             MonospacePillChip(
                 text = technicalId,
-                backgroundColor = SoftPosColors.SurfacePureWhite,
-                textColor = SoftPosColors.TextPrimarySlate
+                backgroundColor = SoftPosColors.BackgroundOffWhite,
+                textColor = SoftPosColors.TextPrimarySlate,
+                borderColor = SoftPosColors.OutlineSubtle
             )
         }
     }
@@ -686,13 +687,14 @@ class RedRecallLockActivity : ComponentActivity() {
     @Composable
     private fun MonospacePillChip(
         text: String,
-        backgroundColor: androidx.compose.ui.graphics.Color,
-        textColor: androidx.compose.ui.graphics.Color
+        backgroundColor: Color,
+        textColor: Color,
+        borderColor: Color = SoftPosColors.OutlineSubtle
     ) {
         Surface(
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(8.dp),
             color = backgroundColor,
-            shadowElevation = 1.dp
+            border = BorderStroke(1.dp, borderColor)
         ) {
             Text(
                 text = text,
@@ -701,6 +703,8 @@ class RedRecallLockActivity : ComponentActivity() {
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Medium
                 ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
             )
         }

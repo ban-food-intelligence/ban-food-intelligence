@@ -541,17 +541,18 @@ private fun SoftCard(
     containerColor: Color = SoftPosColors.SurfacePureWhite,
     content: @Composable () -> Unit
 ) {
-    ElevatedCard(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = SoftPosDimens.CardElevationStandard)
+        shape = RoundedCornerShape(SoftPosDimens.CardCornerRadius),
+        color = containerColor,
+        border = BorderStroke(SoftPosDimens.CardBorderWidth, SoftPosColors.OutlineSubtle),
+        shadowElevation = SoftPosDimens.CardElevationStandard
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(SoftPosDimens.CardPaddingStandard),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) { content() }
     }
 }
