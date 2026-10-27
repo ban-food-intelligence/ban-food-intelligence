@@ -305,3 +305,12 @@ cd mobile-kotlin && ./gradlew assembleDebug
 
 **Delta-A AVATAR Artificial Intelligence Competition — Submission Release**
 Engineering Team: Ali (Database and Baseline ML) · Nuri (Android Edge POS, Security, and Stacking ML) · Berke (Go Backend and React Control Plane)
+
+## Demo credentials (demo only)
+
+| What | Value | Notes |
+|---|---|---|
+| POS supervisor PIN | `246813` | Releases the recall lock on the Android POS. Demo value only. MySQL stores only its bcrypt hash (`supervisor.pin_hash`); the app's offline fallback uses a PBKDF2 hash from the gitignored `local.properties`. Five wrong PINs lock the device for 5 minutes. |
+| MySQL | `root` / `ban` | Local docker compose only. |
+
+The previous supervisor PIN was committed in plain text in earlier history; it is considered rotated and no longer works.

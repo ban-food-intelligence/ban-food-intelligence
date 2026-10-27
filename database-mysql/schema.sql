@@ -475,6 +475,18 @@ CREATE TABLE audit_log (
   changed_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB;
 
+-- POS kiosk kilidini açabilen yetkililer. PIN yalnızca bcrypt özeti olarak saklanır;
+-- her deneme (başarılı/başarısız) audit_log'a 'terminal_lock' kaydı olarak yazılır.
+CREATE TABLE supervisor (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  username      VARCHAR(50)  NOT NULL UNIQUE,
+  display_name  VARCHAR(100) NOT NULL,
+  pin_hash      VARCHAR(100) NOT NULL,                   -- bcrypt ($2a$/$2b$, cost >= 10)
+  is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT ck_sup_hash CHECK (pin_hash LIKE '$2%')
+) ENGINE=InnoDB;
+
 CREATE TABLE sync_inbox (
   event_uuid    CHAR(36)    PRIMARY KEY,                 -- outbox paketindeki UUIDv7
   device_id     VARCHAR(64) NOT NULL,

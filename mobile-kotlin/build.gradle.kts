@@ -30,6 +30,9 @@ android {
         resourceConfigurations += listOf("en", "tr", "de")
 
         buildConfigField("String", "NVIDIA_API_KEY", "\"${localProp("NVIDIA_API_KEY")}\"")
+        // Offline supervisor unlock: "iterations:saltHex:pbkdf2HashHex" (never the PIN itself).
+        // Empty -> offline unlock disabled; the server check (bcrypt in MySQL) still works.
+        buildConfigField("String", "SUPERVISOR_PIN_PBKDF2", "\"${localProp("SUPERVISOR_PIN_PBKDF2")}\"")
         // Default server: 127.0.0.1 works on a USB phone with `adb reverse tcp:8080 tcp:8080`.
         // The cashier can switch to the emulator host or a LAN IP in Settings at runtime.
         buildConfigField("String", "POS_API_BASE_URL", "\"${localProp("POS_API_BASE_URL", "http://127.0.0.1:8080")}\"")

@@ -82,10 +82,10 @@ object TerminalLockStore {
     fun readIncident(context: Context): LockIncident {
         val p = prefs(context)
         return LockIncident(
-            recallCode = p.getString(KEY_RECALL_CODE, null) ?: "RCL-OOD-THERMAL-BIOHAZARD",
-            affectedLot = p.getString(KEY_AFFECTED_LOT, null) ?: "SUC-2026-045",
-            rootLot = p.getString(KEY_ROOT_LOT, null) ?: "ET-2026-001",
-            oodMetric = p.getString(KEY_OOD_METRIC, null) ?: "ambient_temp_celsius",
+            recallCode = p.getString(KEY_RECALL_CODE, null).orEmpty(),
+            affectedLot = p.getString(KEY_AFFECTED_LOT, null).orEmpty(),
+            rootLot = p.getString(KEY_ROOT_LOT, null).orEmpty(),
+            oodMetric = p.getString(KEY_OOD_METRIC, null).orEmpty(),
             oodValue = p.getFloat(KEY_OOD_VALUE, Float.NaN),
             lockedAtEpochMs = p.getLong(KEY_LOCKED_AT, 0L)
         )
