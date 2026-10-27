@@ -65,6 +65,7 @@ func main() {
 	yieldCtrl := controllers.NewYieldController(db)
 	reportsCtrl := controllers.NewReportsController(db)
 	authCtrl := controllers.NewSupervisorAuthController(db)
+	movementsCtrl := controllers.NewMovementsController(db)
 
 	mux := http.NewServeMux()
 
@@ -76,12 +77,12 @@ func main() {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"service":        "ban-food-intelligence-api-go",
-			"version":        apiVersion,
-			"status":         "UP",
-			"mysql_status":   dbStatus,
-			"sync_crypto":    "ECDSA-P256-SHA256 (crypto/ecdsa + crypto/x509)",
-			"server_time":    time.Now().UTC(),
+			"service":      "ban-food-intelligence-api-go",
+			"version":      apiVersion,
+			"status":       "UP",
+			"mysql_status": dbStatus,
+			"sync_crypto":  "ECDSA-P256-SHA256 (crypto/ecdsa + crypto/x509)",
+			"server_time":  time.Now().UTC(),
 		})
 	})
 
@@ -92,11 +93,13 @@ func main() {
 	// Task 2: Whole Lamb Butchery & Cost Allocation
 	mux.HandleFunc("/butchery", butcheryCtrl.ReconcileButchery)
 	mux.HandleFunc("/butchery/reconcile", butcheryCtrl.ReconcileButchery)
+	mux.HandleFunc("/butchery/allocation", butcheryCtrl.Allocation)
 	mux.HandleFunc("/api/v1/butchery", butcheryCtrl.ReconcileButchery)
 
 	// Task 3: Recursive Lot Traceability & Emergency Recall
 	mux.HandleFunc("/recall", recallCtrl.TriggerRecall)
 	mux.HandleFunc("/api/v1/recall", recallCtrl.TriggerRecall)
+	mux.HandleFunc("/recall/contacts.csv", recallCtrl.ContactsCSV)
 	mux.HandleFunc("/trace/", traceCtrl.TraceHandler)
 	mux.HandleFunc("/api/v1/trace/", traceCtrl.TraceHandler)
 	mux.HandleFunc("/lots", lotCtrl.ListStockByLot)
@@ -110,6 +113,12 @@ func main() {
 	mux.HandleFunc("/purchases", reportsCtrl.Purchases)
 	mux.HandleFunc("/movements", reportsCtrl.Movements)
 	mux.HandleFunc("/sales", reportsCtrl.Sales)
+
+	// Lot movements: transfer, customer return, waste, rework (sale/shipment/production elsewhere)
+	mux.HandleFunc("/movements/transfer", movementsCtrl.Transfer)
+	mux.HandleFunc("/movements/return", movementsCtrl.Return)
+	mux.HandleFunc("/movements/waste", movementsCtrl.Waste)
+	mux.HandleFunc("/rework", movementsCtrl.Rework)
 
 	// Task 4: ML Yield Predictions & Deviation Telemetry
 	mux.HandleFunc("/yield", yieldCtrl.PredictYield)

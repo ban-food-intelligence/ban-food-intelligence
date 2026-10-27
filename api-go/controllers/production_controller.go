@@ -20,39 +20,39 @@ type CostBreakdownLineDto struct {
 }
 
 type ProductionOrderDto struct {
-	OrderNo             string                 `json:"order_no"`
-	ProductSKU          string                 `json:"product_sku"`
-	ProductName         string                 `json:"product_name"`
-	Status              string                 `json:"status"`
-	PlannedQty          float64                `json:"planned_qty"`
-	ActualQty           float64                `json:"actual_qty"`
-	QtyVariance         float64                `json:"qty_variance"`
-	FulfilmentPct       float64                `json:"fulfilment_pct"`
-	InputKg             float64                `json:"input_kg"`
-	YieldPctOfMeat      float64                `json:"yield_pct_of_meat"`
-	MaterialCost        float64                `json:"material_cost"`
-	ServiceCost         float64                `json:"service_cost"`
-	TotalCost           float64                `json:"total_cost"`
-	EKP                 float64                `json:"ekp"`
-	EKPDisplay          float64                `json:"ekp_display"`
-	VKP                 float64                `json:"vkp"`
-	GrossProfitPerUnit  float64                `json:"gross_profit_per_unit"`
-	RevenueAtVKP        float64                `json:"revenue_at_vkp"`
-	GrossProfitTotal    float64                `json:"gross_profit_total"`
-	MarginPct           float64                `json:"margin_pct"`
-	OutputLotNumber     string                 `json:"output_lot_number,omitempty"`
-	Breakdown           []CostBreakdownLineDto `json:"breakdown,omitempty"`
+	OrderNo            string                 `json:"order_no"`
+	ProductSKU         string                 `json:"product_sku"`
+	ProductName        string                 `json:"product_name"`
+	Status             string                 `json:"status"`
+	PlannedQty         float64                `json:"planned_qty"`
+	ActualQty          float64                `json:"actual_qty"`
+	QtyVariance        float64                `json:"qty_variance"`
+	FulfilmentPct      float64                `json:"fulfilment_pct"`
+	InputKg            float64                `json:"input_kg"`
+	YieldPctOfMeat     float64                `json:"yield_pct_of_meat"`
+	MaterialCost       float64                `json:"material_cost"`
+	ServiceCost        float64                `json:"service_cost"`
+	TotalCost          float64                `json:"total_cost"`
+	EKP                float64                `json:"ekp"`
+	EKPDisplay         float64                `json:"ekp_display"`
+	VKP                float64                `json:"vkp"`
+	GrossProfitPerUnit float64                `json:"gross_profit_per_unit"`
+	RevenueAtVKP       float64                `json:"revenue_at_vkp"`
+	GrossProfitTotal   float64                `json:"gross_profit_total"`
+	MarginPct          float64                `json:"margin_pct"`
+	OutputLotNumber    string                 `json:"output_lot_number,omitempty"`
+	Breakdown          []CostBreakdownLineDto `json:"breakdown,omitempty"`
 }
 
 type CompleteProductionRequest struct {
-	OrderNo      string  `json:"order_no"`       // e.g. "URT-2026-045"
-	ActualQty    float64 `json:"actual_qty"`     // e.g. 85
-	OutputLotNo  string  `json:"output_lot_no"`  // e.g. "SUC-2026-045"
-	LotDate      string  `json:"lot_date"`       // e.g. "2026-10-15"
-	ExpiryDate   string  `json:"expiry_date"`    // e.g. "2026-12-15"
-	SubWarehouse string  `json:"sub_warehouse"`  // e.g. "WH-FASON"
-	TargetWh     string  `json:"target_wh"`      // e.g. "WH-MAMUL"
-	InvoiceNo    string  `json:"invoice_no"`     // e.g. "FTR-FASON-2026-045"
+	OrderNo      string  `json:"order_no"`      // e.g. "URT-2026-045"
+	ActualQty    float64 `json:"actual_qty"`    // e.g. 85
+	OutputLotNo  string  `json:"output_lot_no"` // e.g. "SUC-2026-045"
+	LotDate      string  `json:"lot_date"`      // e.g. "2026-10-15"
+	ExpiryDate   string  `json:"expiry_date"`   // e.g. "2026-12-15"
+	SubWarehouse string  `json:"sub_warehouse"` // e.g. "WH-FASON"
+	TargetWh     string  `json:"target_wh"`     // e.g. "WH-MAMUL"
+	InvoiceNo    string  `json:"invoice_no"`    // e.g. "FTR-FASON-2026-045"
 }
 
 type ProductionController struct {
