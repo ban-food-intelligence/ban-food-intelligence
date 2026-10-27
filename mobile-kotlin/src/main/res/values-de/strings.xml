@@ -67,7 +67,7 @@
     <string name="ocr_btn_use_demo">Beispielantwort verwenden (Demo)</string>
     <string name="ocr_demo_badge">DEMO-ANTWORT — NICHT VOM LIVE-MODELL</string>
     <string name="ocr_error_title">Auslesen fehlgeschlagen</string>
-    <string name="ocr_error_no_key">NVIDIA-API-Schlüssel ist nicht konfiguriert. NV_API_KEY setzen oder Anfrage über das Backend leiten.</string>
+    <string name="ocr_error_no_key">NVIDIA-API-Schlüssel ist nicht konfiguriert. NVIDIA_API_KEY in local.properties setzen oder Anfrage über das Backend leiten.</string>
     <string name="ocr_saved_success">%1$d Wareneingänge gespeichert und zur Synchronisierung eingereiht.</string>
     <string name="ocr_missing_lot">Keine Chargennummer auf der Rechnung — wird abgelehnt</string>
     <string name="ocr_raw_json">Roh-JSON</string>
@@ -85,4 +85,22 @@
     <string name="quick_guide_step3_title">Supervisor-Entsperrung</string>
     <string name="quick_guide_step3_desc">Zum Verlassen des Sperrbildschirms 5-mal schnell auf die obere Kopfzeile tippen und die Supervisor-PIN eingeben.</string>
     <string name="quick_guide_btn_close">Verstanden, Schließen</string>
+
+    <!-- POS catalog and sale validation -->
+    <string name="pos_qty_error_empty">Bitte eine Menge eingeben.</string>
+    <string name="pos_qty_error_not_number">Die Menge muss eine Zahl sein.</string>
+    <string name="pos_qty_error_not_positive">Die Menge muss größer als 0 sein.</string>
+    <string name="pos_qty_error_kg_precision">KG erlaubt höchstens 3 Nachkommastellen.</string>
+    <string name="pos_qty_error_whole_number">%1$s muss eine ganze Zahl sein.</string>
+    <string name="pos_qty_error_exceeds_stock">Nur %1$s auf Lager.</string>
+    <string name="pos_total_label">GESAMT</string>
+    <string name="pos_available_label">Verfügbar: %1$s</string>
+    <string name="pos_rows_count">%1$d Zeilen</string>
+    <string name="pos_recall_tag">Rückruf %1$s (Ursprung %2$s)</string>
+    <string name="pos_catalog_live">Live-Bestand aus der Go-API</string>
+    <string name="pos_catalog_cached">Offline: letzte Chargen- und Rückrufliste von %1$s</string>
+    <string name="pos_catalog_none">Keine Chargendaten. Go-API nicht erreichbar: %1$s</string>
+    <string name="pos_catalog_empty">Keine Chargen auf Lager in %1$s.</string>
+    <string name="pos_catalog_loading">Chargen werden aus der Go-API geladen...</string>
+    <string name="pos_btn_refresh">Aktualisieren</string>
 </resources>

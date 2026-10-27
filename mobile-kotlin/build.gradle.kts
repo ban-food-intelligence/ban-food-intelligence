@@ -1,8 +1,18 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application") version "8.8.0"
     id("org.jetbrains.kotlin.android") version "2.0.21"
     id("org.jetbrains.kotlin.plugin.compose") version "2.0.21"
 }
+
+// Secrets and per-machine settings live in local.properties (gitignored), never in source.
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun localProp(key: String, default: String = ""): String =
+    (localProps.getProperty(key) ?: default).replace("\\", "\\\\").replace("\"", "\\\"")
 
 // Android Module Configuration for Nuri's Offline-First POS & 21st.dev Brutalist Compose UI
 android {
@@ -18,10 +28,15 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("en", "tr", "de")
+
+        buildConfigField("String", "NVIDIA_API_KEY", "\"${localProp("NVIDIA_API_KEY")}\"")
+        // 10.0.2.2 is the host machine from the Android emulator; override for a real device.
+        buildConfigField("String", "POS_API_BASE_URL", "\"${localProp("POS_API_BASE_URL", "http://10.0.2.2:8080")}\"")
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     buildTypes {

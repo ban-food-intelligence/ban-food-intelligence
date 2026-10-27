@@ -2,6 +2,7 @@ package com.ban.foodintelligence.pos.ocr
 
 import android.util.Base64
 import android.util.Log
+import com.ban.foodintelligence.pos.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -55,17 +56,19 @@ class InvoiceOcrException(
  * The model output is treated as a SUGGESTION only. Nothing is written to stock
  * until the operator explicitly confirms it in [com.ban.foodintelligence.pos.ui.InvoiceOcrActivity].
  *
- * SECURITY NOTE: [NV_API_KEY] is a placeholder. A key compiled into an APK can be
- * extracted by anyone holding the device. For production the call should be
- * proxied through the Go backend (which holds the key server-side and can apply
- * per-terminal rate limits), with the terminal authenticating via its ECDSA key.
+ * SECURITY NOTE: [NV_API_KEY] comes from `NVIDIA_API_KEY` in the gitignored
+ * `local.properties` via BuildConfig, so it is never in source control. It is still
+ * compiled into the APK and can be extracted by anyone holding the device. For
+ * production the call should be proxied through the Go backend (which holds the key
+ * server-side and can apply per-terminal rate limits), with the terminal
+ * authenticating via its ECDSA key.
  */
 object NvidiaVisionOcrClient {
 
     private const val TAG = "NvidiaVisionOcr"
 
-    /** Placeholder. Replace with a real `nvapi-...` key (or route via the Go backend). */
-    const val NV_API_KEY = "YOUR_NVIDIA_API_KEY"
+    /** `NVIDIA_API_KEY` from local.properties; empty when not configured. */
+    private val NV_API_KEY: String = BuildConfig.NVIDIA_API_KEY
 
     const val MODEL_ID = "nvidia/nemotron-3.5-super-vl-120b-a12b"
     private const val ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions"
@@ -111,7 +114,7 @@ object NvidiaVisionOcrClient {
     """.trimIndent()
 
     val isApiKeyConfigured: Boolean
-        get() = NV_API_KEY.isNotBlank() && NV_API_KEY != "YOUR_NVIDIA_API_KEY"
+        get() = NV_API_KEY.startsWith("nvapi-")
 
     /**
      * Runs OCR on a JPEG-encoded invoice image. Executes on [Dispatchers.IO].
@@ -119,7 +122,7 @@ object NvidiaVisionOcrClient {
      */
     suspend fun extractInvoice(imageJpeg: ByteArray): InvoiceExtraction = withContext(Dispatchers.IO) {
         if (!isApiKeyConfigured) {
-            throw InvoiceOcrException("NVIDIA API key is not configured (NV_API_KEY placeholder).")
+            throw InvoiceOcrException("NVIDIA API key is not configured (set NVIDIA_API_KEY in local.properties).")
         }
 
         val dataUri = "data:image/jpeg;base64," + Base64.encodeToString(imageJpeg, Base64.NO_WRAP)
