@@ -31,7 +31,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.PointOfSale
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.ShoppingCart
+import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
@@ -80,6 +92,10 @@ import java.util.Locale
  * ============================================================================
  */
 class MainActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -234,11 +250,11 @@ private fun PosSalesCheckoutScreen(
                             modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "✓",
-                                    color = SoftPosColors.EmeraldVerifiedText,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
+                                Icon(
+                                    imageVector = Icons.Rounded.VerifiedUser,
+                                    contentDescription = null,
+                                    tint = SoftPosColors.EmeraldVerifiedText,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
                         }
@@ -260,6 +276,15 @@ private fun PosSalesCheckoutScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                    }
+
+                    // Language (TR | EN | DE) and Quick Guide, always visible in the header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LanguageToggle()
                         QuickGuideHelpButton(onClick = { isQuickGuideOpen = true })
                     }
 
@@ -273,9 +298,15 @@ private fun PosSalesCheckoutScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 14.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Icon(
+                                imageVector = if (pendingOutboxCount > 0) Icons.Rounded.CloudUpload else Icons.Rounded.CloudDone,
+                                contentDescription = null,
+                                tint = if (pendingOutboxCount > 0) SoftPosColors.PrimaryIndigo else SoftPosColors.EmeraldVerifiedText,
+                                modifier = Modifier.size(20.dp)
+                            )
                             Text(
                                 text = if (pendingOutboxCount > 0) {
                                     stringResource(R.string.sync_status_syncing, pendingOutboxCount)
@@ -287,48 +318,42 @@ private fun PosSalesCheckoutScreen(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.size(10.dp))
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = SoftPosColors.SurfacePureWhite,
                                 border = BorderStroke(1.dp, SoftPosColors.OutlineSubtle)
                             ) {
-                                Text(
-                                    text = "ECDSA: ${pubKeyFingerprint.take(10)}...",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontFamily = FontFamily.Monospace
-                                    ),
-                                    maxLines = 1,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Key,
+                                        contentDescription = null,
+                                        tint = SoftPosColors.TextSecondarySlate,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = pubKeyFingerprint.take(10),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontFamily = FontFamily.Monospace
+                                        ),
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // Task 5: Launch Invoice OCR Scanner (NVIDIA Nemotron-3.5-VL)
-                    Button(
+                    // Task 5: Invoice OCR (camera capture -> NVIDIA Nemotron VL)
+                    PosPrimaryButton(
+                        text = stringResource(R.string.ocr_open_scanner),
+                        icon = Icons.Rounded.CameraAlt,
                         onClick = {
                             context.startActivity(Intent(context, InvoiceOcrActivity::class.java))
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(50),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SoftPosColors.PrimaryIndigo,
-                            contentColor = SoftPosColors.SurfacePureWhite
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(
-                            defaultElevation = 2.dp,
-                            pressedElevation = 1.dp
-                        )
-                    ) {
-                        Text(
-                            text = stringResource(R.string.ocr_open_scanner),
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                    }
+                        }
+                    )
                 }
             }
 
@@ -346,11 +371,9 @@ private fun PosSalesCheckoutScreen(
                         .padding(SoftPosDimens.CardPaddingStandard),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = stringResource(R.string.pos_sales_section_title),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold
-                        )
+                    PosSectionHeader(
+                        title = stringResource(R.string.pos_sales_section_title),
+                        icon = Icons.Rounded.PointOfSale
                     )
 
                     Text(
@@ -391,17 +414,12 @@ private fun PosSalesCheckoutScreen(
                             ),
                             modifier = Modifier.weight(1f)
                         )
-                        OutlinedButton(
+                        PosSecondaryButton(
+                            text = stringResource(R.string.pos_btn_refresh),
+                            icon = Icons.Rounded.Refresh,
                             onClick = { scope.launch { refreshLocal(); refreshCatalog() } },
-                            enabled = !isCatalogLoading,
-                            shape = RoundedCornerShape(50),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.pos_btn_refresh),
-                                style = MaterialTheme.typography.labelLarge.copy(color = SoftPosColors.PrimaryIndigo)
-                            )
-                        }
+                            enabled = !isCatalogLoading
+                        )
                     }
 
                     if (currentCatalog != null && inventoryLots.isEmpty() && !isCatalogLoading) {
@@ -592,7 +610,15 @@ private fun PosSalesCheckoutScreen(
                         }
 
                         // Pill Action Button: Either Execute Sale (Indigo) or Recall Quarantine Trigger (Crimson)
-                        Button(
+                        PosPrimaryButton(
+                            text = if (isSelectedRecalled) {
+                                stringResource(R.string.pos_btn_recall_block)
+                            } else {
+                                stringResource(R.string.pos_btn_execute_sale)
+                            },
+                            icon = if (isSelectedRecalled) Icons.Rounded.Lock else Icons.Rounded.ShoppingCart,
+                            containerColor = if (isSelectedRecalled) SoftPosColors.RecallCrimsonAccent else SoftPosColors.PrimaryIndigo,
+                            height = 54.dp,
                             onClick = {
                                 if (isSelectedRecalled) {
                                     Toast.makeText(
@@ -626,34 +652,8 @@ private fun PosSalesCheckoutScreen(
                                     }
                                 }
                             },
-                            enabled = !isSaving && (isSelectedRecalled || validQty != null),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(54.dp),
-                            shape = RoundedCornerShape(50),
-                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelectedRecalled) {
-                                    SoftPosColors.RecallCrimsonAccent
-                                } else {
-                                    SoftPosColors.PrimaryIndigo
-                                },
-                                contentColor = SoftPosColors.SurfacePureWhite
-                            ),
-                            elevation = ButtonDefaults.buttonElevation(
-                                defaultElevation = 4.dp,
-                                pressedElevation = 2.dp
-                            )
-                        ) {
-                            Text(
-                                text = if (isSelectedRecalled) {
-                                    stringResource(R.string.pos_btn_recall_block)
-                                } else {
-                                    stringResource(R.string.pos_btn_execute_sale)
-                                },
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
+                            enabled = !isSaving && (isSelectedRecalled || validQty != null)
+                        )
                     }
 
                     lastActionBanner?.let { banner ->
@@ -694,14 +694,10 @@ private fun PosSalesCheckoutScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = stringResource(R.string.pos_sqlite_ledger_title),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                        PosSectionHeader(
+                            title = stringResource(R.string.pos_sqlite_ledger_title),
+                            icon = Icons.AutoMirrored.Rounded.ReceiptLong,
+                            modifier = Modifier.weight(1f)
                         )
                         Spacer(modifier = Modifier.size(10.dp))
                         Surface(

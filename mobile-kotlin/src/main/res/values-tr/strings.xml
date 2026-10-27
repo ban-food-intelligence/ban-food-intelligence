@@ -103,4 +103,12 @@
     <string name="pos_catalog_empty">%1$s deposunda stokta lot yok.</string>
     <string name="pos_catalog_loading">Lotlar Go API\'den yükleniyor...</string>
     <string name="pos_btn_refresh">Yenile</string>
+
+    <!-- OCR camera capture -->
+    <string name="ocr_btn_take_photo">Faturanın fotoğrafını çek</string>
+    <string name="ocr_btn_sample">Örnek fatura</string>
+    <string name="ocr_processing_title">İşleniyor...</string>
+    <string name="ocr_processing_body">Fatura %1$s ile okunuyor. Bu işlem bir dakikaya kadar sürebilir.</string>
+    <string name="ocr_camera_unavailable">Kamera uygulaması bulunamadı. Örnek fatura kullanılıyor.</string>
+    <string name="ocr_capture_failed">Fotoğraf okunamadı. Lütfen tekrar deneyin.</string>
 </resources>
