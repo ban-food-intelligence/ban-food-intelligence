@@ -67,7 +67,7 @@
     <string name="ocr_btn_use_demo">Örnek Yanıtı Kullan (Demo)</string>
     <string name="ocr_demo_badge">DEMO YANITI — CANLI MODELDEN DEĞİL</string>
     <string name="ocr_error_title">Okuma başarısız</string>
-    <string name="ocr_error_no_key">NVIDIA API anahtarı tanımlı değil. NV_API_KEY değerini girin veya isteği sunucu üzerinden yönlendirin.</string>
+    <string name="ocr_error_no_key">NVIDIA API anahtarı tanımlı değil. local.properties içine NVIDIA_API_KEY girin veya isteği sunucu üzerinden yönlendirin.</string>
     <string name="ocr_saved_success">%1$d stok girişi kaydedildi ve senkronizasyon kuyruğuna alındı.</string>
     <string name="ocr_missing_lot">Faturada parti numarası yok — reddedilecek</string>
     <string name="ocr_raw_json">Ham JSON</string>
@@ -85,4 +85,22 @@
     <string name="quick_guide_step3_title">Yönetici Kilidi</string>
     <string name="quick_guide_step3_desc">Kilitli ekrandan çıkmak için üst başlığa 5 kez hızlıca dokunup yönetici PIN\'ini girin.</string>
     <string name="quick_guide_btn_close">Anladım, Kapat</string>
+
+    <!-- POS catalog and sale validation -->
+    <string name="pos_qty_error_empty">Bir miktar girin.</string>
+    <string name="pos_qty_error_not_number">Miktar bir sayı olmalıdır.</string>
+    <string name="pos_qty_error_not_positive">Miktar 0\'dan büyük olmalıdır.</string>
+    <string name="pos_qty_error_kg_precision">KG en fazla 3 ondalık basamağa izin verir.</string>
+    <string name="pos_qty_error_whole_number">%1$s tam sayı olmalıdır.</string>
+    <string name="pos_qty_error_exceeds_stock">Stokta yalnızca %1$s var.</string>
+    <string name="pos_total_label">TOPLAM</string>
+    <string name="pos_available_label">Mevcut: %1$s</string>
+    <string name="pos_rows_count">%1$d satır</string>
+    <string name="pos_recall_tag">Geri çağırma %1$s (kök %2$s)</string>
+    <string name="pos_catalog_live">Go API\'den canlı stok</string>
+    <string name="pos_catalog_cached">Çevrimdışı: %1$s tarihli son lot ve geri çağırma listesi</string>
+    <string name="pos_catalog_none">Lot verisi yok. Go API\'ye ulaşılamıyor: %1$s</string>
+    <string name="pos_catalog_empty">%1$s deposunda stokta lot yok.</string>
+    <string name="pos_catalog_loading">Lotlar Go API\'den yükleniyor...</string>
+    <string name="pos_btn_refresh">Yenile</string>
 </resources>
