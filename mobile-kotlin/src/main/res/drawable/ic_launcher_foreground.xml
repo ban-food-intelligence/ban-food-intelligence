@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-35">
+        <!-- Lot tag; the hole and two text lines are cut out with evenOdd -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M39,40 H72 A4,4 0 0 1 76,44 V64 A4,4 0 0 1 72,68 H39 A3,3 0 0 1 36.8,67 L29,57 A4.5,4.5 0 0 1 29,51 L36.8,41 A3,3 0 0 1 39,40 Z
+                              M42,54 A3.2,3.2 0 1 0 35.6,54 A3.2,3.2 0 1 0 42,54 Z
+                              M49,48.5 H67 A1.5,1.5 0 0 1 67,51.5 H49 A1.5,1.5 0 0 1 49,48.5 Z
+                              M49,56.5 H61 A1.5,1.5 0 0 1 61,59.5 H49 A1.5,1.5 0 0 1 49,56.5 Z" />
+    </group>
+</vector>
