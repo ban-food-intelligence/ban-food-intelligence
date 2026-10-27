@@ -2,7 +2,7 @@ package com.ban.foodintelligence.pos.catalog
 
 import android.content.Context
 import android.util.Log
-import com.ban.foodintelligence.pos.BuildConfig
+import com.ban.foodintelligence.pos.net.ApiConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -62,8 +62,9 @@ object PosCatalogRepository {
     suspend fun load(context: Context): PosCatalog = withContext(Dispatchers.IO) {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         try {
-            val lotsJson = get("/lots")
-            val recallsJson = get("/recall")
+            val baseUrl = ApiConfig.baseUrl(context)
+            val lotsJson = get(baseUrl, "/lots")
+            val recallsJson = get(baseUrl, "/recall")
             val lots = parse(lotsJson, recallsJson)
             val now = System.currentTimeMillis()
             prefs.edit()
@@ -90,8 +91,8 @@ object PosCatalogRepository {
         }
     }
 
-    private fun get(path: String): String {
-        val request = Request.Builder().url(BuildConfig.POS_API_BASE_URL + path).get().build()
+    private fun get(baseUrl: String, path: String): String {
+        val request = Request.Builder().url(baseUrl + path).get().build()
         httpClient.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) throw IOException("GET $path returned HTTP ${response.code}")

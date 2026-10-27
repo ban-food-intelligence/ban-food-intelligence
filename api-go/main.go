@@ -15,6 +15,9 @@ import (
 	"ban-food-intelligence/api-go/controllers"
 )
 
+// apiVersion is reported by GET /health.
+const apiVersion = "1.2.0"
+
 const defaultMySQLDSN = "root:ban@tcp(127.0.0.1:3306)/food_intel?parseTime=true&multiStatements=true&charset=utf8mb4"
 
 func logInfo(component, msg string, args ...interface{}) {
@@ -73,6 +76,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"service":        "ban-food-intelligence-api-go",
+			"version":        apiVersion,
 			"status":         "UP",
 			"mysql_status":   dbStatus,
 			"sync_crypto":    "ECDSA-P256-SHA256 (crypto/ecdsa + crypto/x509)",

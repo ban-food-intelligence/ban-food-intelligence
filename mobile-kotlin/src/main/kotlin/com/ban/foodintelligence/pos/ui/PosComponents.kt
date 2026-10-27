@@ -47,6 +47,8 @@ object AppLocale {
     private const val PREFS = "pos_locale"
     private const val KEY_LANG = "lang"
     val SUPPORTED = listOf("tr" to "TR", "en" to "EN", "de" to "DE")
+    /** Language names shown in their own language (iOS convention). */
+    val SUPPORTED_NAMES = listOf("tr" to "Türkçe", "en" to "English", "de" to "Deutsch")
 
     fun current(context: Context): String {
         val saved = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_LANG, null)
