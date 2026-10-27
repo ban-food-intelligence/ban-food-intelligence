@@ -176,6 +176,9 @@ abstract class AppDatabase : RoomDatabase() {
     open suspend fun getRecentStockMovements(limit: Int = 25): List<StockMovementRecord> =
         emptyList()
 
+    /** Quantity sold locally per lot that the server has not acknowledged yet. */
+    open suspend fun pendingSaleQtyByLot(): Map<String, Double> = emptyMap()
+
     companion object {
         private const val TAG = "AppDatabase"
         private const val DATABASE_NAME = "ban_avatar_pos_offline_outbox.db"
@@ -473,6 +476,23 @@ internal class SqliteBackedAppDatabase(
                 }
             }
             list
+        }
+
+    override suspend fun pendingSaleQtyByLot(): Map<String, Double> =
+        withContext(Dispatchers.IO) {
+            val result = mutableMapOf<String, Double>()
+            sqliteHelper.readableDatabase.rawQuery(
+                """
+                SELECT lot_no, -SUM(qty_delta)
+                FROM local_stock_movements
+                WHERE movement_type = 'SALE' AND sync_status <> ?
+                GROUP BY lot_no
+                """.trimIndent(),
+                arrayOf(SyncOutboxQueue.STATUS_SYNCED)
+            ).use { c ->
+                while (c.moveToNext()) result[c.getString(0)] = c.getDouble(1)
+            }
+            result
         }
 
     override fun createOpenHelper(config: androidx.room.DatabaseConfiguration): SupportSQLiteOpenHelper {

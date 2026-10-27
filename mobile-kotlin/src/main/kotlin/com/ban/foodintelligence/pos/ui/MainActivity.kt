@@ -36,6 +36,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -43,7 +44,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -60,6 +60,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ban.foodintelligence.pos.R
+import com.ban.foodintelligence.pos.catalog.CatalogSource
+import com.ban.foodintelligence.pos.catalog.PosCatalog
+import com.ban.foodintelligence.pos.catalog.PosCatalogRepository
+import com.ban.foodintelligence.pos.catalog.PosInventoryLot
 import com.ban.foodintelligence.pos.database.AppDatabase
 import com.ban.foodintelligence.pos.database.StockMovementRecord
 import com.ban.foodintelligence.pos.security.FatalSecurityException
@@ -68,19 +72,6 @@ import com.ban.foodintelligence.pos.security.TerminalLockStore
 import com.ban.foodintelligence.pos.worker.SyncWorker
 import kotlinx.coroutines.launch
 import java.util.Locale
-
-/**
- * Represents a lot-tracked retail inventory batch available on the POS terminal.
- */
-data class PosInventoryLot(
-    val lotNo: String,
-    val productName: String,
-    val rootLotNo: String,
-    val availableQty: Double,
-    val uom: String,
-    val unitPriceEur: Double,
-    val status: String // "ACTIVE" or "RECALLED"
-)
 
 /**
  * ============================================================================
@@ -116,11 +107,11 @@ class MainActivity : ComponentActivity() {
                     pubKeyFingerprint = pubKeyFingerprint,
                     appDb = appDb,
                     onTriggerRecallQuarantine = { recalledLot ->
-                        println("[WARN] [POS-RECALL-INTERLOCK] Blocked sale attempt on RECALLED lot ${recalledLot.lotNo} (Root: ${recalledLot.rootLotNo}). Triggering RedRecallLockActivity...")
+                        println("[WARN] [POS-RECALL-INTERLOCK] Blocked sale attempt on ${recalledLot.status} lot ${recalledLot.lotNo} (recall: ${recalledLot.recallCode}). Triggering RedRecallLockActivity...")
                         val lockIntent = Intent(this@MainActivity, RedRecallLockActivity::class.java).apply {
-                            putExtra(RedRecallLockActivity.EXTRA_RECALL_CODE, "RCL-POS-SALE-BLOCKED-CONTAMINATED-LOT")
+                            putExtra(RedRecallLockActivity.EXTRA_RECALL_CODE, recalledLot.recallCode ?: recalledLot.status)
                             putExtra(RedRecallLockActivity.EXTRA_AFFECTED_LOT, recalledLot.lotNo)
-                            putExtra(RedRecallLockActivity.EXTRA_ROOT_LOT, recalledLot.rootLotNo)
+                            putExtra(RedRecallLockActivity.EXTRA_ROOT_LOT, recalledLot.recallRootLot ?: recalledLot.lotNo)
                             putExtra(RedRecallLockActivity.EXTRA_OOD_METRIC, "pos_lot_quarantine_gate")
                             putExtra(RedRecallLockActivity.EXTRA_OOD_VALUE, 1.0000f)
                         }
@@ -167,70 +158,43 @@ private fun PosSalesCheckoutScreen(
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
-    val inventoryLots = remember {
-        mutableStateListOf(
-            PosInventoryLot(
-                lotNo = "KZ-BUT-2026-001",
-                productName = "Kuzu But (Kemikli)",
-                rootLotNo = "KUZ-2026-001",
-                availableQty = 7.50,
-                uom = "KG",
-                unitPriceEur = 22.00,
-                status = "ACTIVE"
-            ),
-            PosInventoryLot(
-                lotNo = "KZ-SRT-2026-001",
-                productName = "Kuzu Sırt / Pirzola",
-                rootLotNo = "KUZ-2026-001",
-                availableQty = 4.20,
-                uom = "KG",
-                unitPriceEur = 28.00,
-                status = "ACTIVE"
-            ),
-            PosInventoryLot(
-                lotNo = "KZ-OMZ-2026-001",
-                productName = "Kuzu Omuz / Kol",
-                rootLotNo = "KUZ-2026-001",
-                availableQty = 4.80,
-                uom = "KG",
-                unitPriceEur = 17.50,
-                status = "ACTIVE"
-            ),
-            PosInventoryLot(
-                lotNo = "SUC-2026-044",
-                productName = "Narin Kangal Sucuk (Temiz Parti)",
-                rootLotNo = "ET-2026-000",
-                availableQty = 40.0,
-                uom = "PAKET",
-                unitPriceEur = 24.50,
-                status = "ACTIVE"
-            ),
-            PosInventoryLot(
-                lotNo = "SUC-2026-045",
-                productName = "Narin Kangal Sucuk (Karantina / Recall)",
-                rootLotNo = "ET-2026-001",
-                availableQty = 30.0,
-                uom = "PAKET",
-                unitPriceEur = 24.50,
-                status = "RECALLED"
-            )
-        )
+    // Lots and recall state come from the Go API (GET /lots + GET /recall), cached for offline use.
+    var catalog by remember { mutableStateOf<PosCatalog?>(null) }
+    var pendingSales by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    var isCatalogLoading by remember { mutableStateOf(false) }
+
+    // Available = server stock minus local sales the server has not acknowledged yet.
+    val inventoryLots = catalog?.lots.orEmpty().map { lot ->
+        lot.copy(availableQty = (lot.availableQty - (pendingSales[lot.lotNo] ?: 0.0)).coerceAtLeast(0.0))
     }
 
-    var selectedLotIndex by remember { mutableStateOf(0) }
-    val selectedLot = inventoryLots[selectedLotIndex]
+    var selectedLotNo by remember { mutableStateOf<String?>(null) }
+    val selectedLot = inventoryLots.firstOrNull { it.lotNo == selectedLotNo } ?: inventoryLots.firstOrNull()
 
-    var quantityInput by remember { mutableStateOf("1.50") }
+    var quantityInput by remember { mutableStateOf("") }
     var recentMovements by remember { mutableStateOf<List<StockMovementRecord>>(emptyList()) }
     var pendingOutboxCount by remember { mutableStateOf(0) }
     var lastActionBanner by remember { mutableStateOf<String?>(null) }
     var isQuickGuideOpen by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
 
     val saleRecordedToastMsg = stringResource(R.string.pos_sale_recorded_toast)
 
-    LaunchedEffect(Unit) {
+    suspend fun refreshLocal() {
         recentMovements = appDb.getRecentStockMovements(15)
         pendingOutboxCount = runCatching { appDb.outboxDao().countPending() }.getOrDefault(0)
+        pendingSales = runCatching { appDb.pendingSaleQtyByLot() }.getOrDefault(emptyMap())
+    }
+
+    suspend fun refreshCatalog() {
+        isCatalogLoading = true
+        catalog = PosCatalogRepository.load(context)
+        isCatalogLoading = false
+    }
+
+    LaunchedEffect(Unit) {
+        refreshLocal()
+        refreshCatalog()
     }
 
     Box(
@@ -396,11 +360,62 @@ private fun PosSalesCheckoutScreen(
                         )
                     )
 
+                    // Catalog source: live API, offline cache, or nothing yet
+                    val currentCatalog = catalog
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = when {
+                                currentCatalog == null || (isCatalogLoading && currentCatalog.lots.isEmpty()) ->
+                                    stringResource(R.string.pos_catalog_loading)
+                                currentCatalog.source == CatalogSource.LIVE ->
+                                    stringResource(R.string.pos_catalog_live)
+                                currentCatalog.source == CatalogSource.CACHED ->
+                                    stringResource(
+                                        R.string.pos_catalog_cached,
+                                        java.text.DateFormat.getDateTimeInstance(
+                                            java.text.DateFormat.SHORT, java.text.DateFormat.SHORT
+                                        ).format(java.util.Date(currentCatalog.fetchedAtMs))
+                                    )
+                                else -> stringResource(R.string.pos_catalog_none, currentCatalog.error.orEmpty())
+                            },
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = if (currentCatalog?.source == CatalogSource.LIVE) {
+                                    SoftPosColors.EmeraldVerifiedText
+                                } else {
+                                    SoftPosColors.TextSecondarySlate
+                                }
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedButton(
+                            onClick = { scope.launch { refreshLocal(); refreshCatalog() } },
+                            enabled = !isCatalogLoading,
+                            shape = RoundedCornerShape(50),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.pos_btn_refresh),
+                                style = MaterialTheme.typography.labelLarge.copy(color = SoftPosColors.PrimaryIndigo)
+                            )
+                        }
+                    }
+
+                    if (currentCatalog != null && inventoryLots.isEmpty() && !isCatalogLoading) {
+                        Text(
+                            text = stringResource(R.string.pos_catalog_empty, PosCatalogRepository.STORE_WAREHOUSE),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
                     // Selectable Lot Inventory Rows
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        inventoryLots.forEachIndexed { index, lot ->
-                            val isSelected = index == selectedLotIndex
-                            val isRecalled = lot.status == "RECALLED"
+                        inventoryLots.forEach { lot ->
+                            val isSelected = lot.lotNo == selectedLot?.lotNo
+                            val isRecalled = lot.isBlocked
 
                             val cardBg = when {
                                 isRecalled && isSelected -> SoftPosColors.RecallPastelBackground
@@ -422,77 +437,77 @@ private fun PosSalesCheckoutScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        selectedLotIndex = index
-                                        quantityInput = if (lot.uom == "PAKET") "2" else "1.25"
+                                        selectedLotNo = lot.lotNo
+                                        quantityInput = ""
                                     }
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 14.dp, vertical = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Text(
-                                                text = lot.productName,
-                                                style = MaterialTheme.typography.bodyMedium.copy(
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = if (isRecalled) SoftPosColors.RecallCrimsonAccent else SoftPosColors.TextPrimarySlate
-                                                )
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = SoftPosColors.SurfacePureWhite
-                                            ) {
-                                                Text(
-                                                    text = lot.lotNo,
-                                                    style = MaterialTheme.typography.labelSmall.copy(
-                                                        fontFamily = FontFamily.Monospace,
-                                                        fontWeight = FontWeight.Medium
-                                                    ),
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                            Text(
-                                                text = "Root: ${lot.rootLotNo}",
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    color = SoftPosColors.TextSecondarySlate
-                                                )
-                                            )
-                                        }
-                                    }
-
-                                    Column(horizontalAlignment = Alignment.End) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = lot.productName,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isRecalled) SoftPosColors.RecallCrimsonAccent else SoftPosColors.TextPrimarySlate
+                                            ),
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                         Surface(
                                             shape = RoundedCornerShape(50),
                                             color = if (isRecalled) SoftPosColors.RecallCrimsonAccent else SoftPosColors.EmeraldVerifiedBg
                                         ) {
                                             Text(
-                                                text = lot.status,
+                                                text = if (lot.recallCode != null) "RECALLED" else lot.status,
                                                 style = MaterialTheme.typography.labelSmall.copy(
                                                     color = if (isRecalled) Color.White else SoftPosColors.EmeraldVerifiedText,
                                                     fontWeight = FontWeight.Bold
                                                 ),
+                                                maxLines = 1,
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                             )
                                         }
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = SoftPosColors.SurfacePureWhite
+                                        ) {
+                                            Text(
+                                                text = lot.lotNo,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontWeight = FontWeight.Medium
+                                                ),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
                                         Text(
-                                            text = "${"%.2f".format(Locale.US, lot.availableQty)} ${lot.uom} • ${"%.2f".format(Locale.US, lot.unitPriceEur)} €",
+                                            text = "${SaleQuantityValidator.formatQty(lot.availableQty, lot.uom)} | ${"%.2f".format(Locale.US, lot.unitPriceEur)} EUR/${lot.uom}",
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontFamily = FontFamily.Monospace,
                                                 color = SoftPosColors.TextSecondarySlate
+                                            )
+                                        )
+                                    }
+                                    if (lot.recallCode != null) {
+                                        Text(
+                                            text = stringResource(R.string.pos_recall_tag, lot.recallCode, lot.recallRootLot.orEmpty()),
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                color = SoftPosColors.RecallCrimsonAccent
                                             )
                                         )
                                     }
@@ -501,118 +516,144 @@ private fun PosSalesCheckoutScreen(
                         }
                     }
 
-                    // Quantity Input & Calculated Total Row
-                    val parsedQty = quantityInput.replace(',', '.').toDoubleOrNull() ?: 0.0
-                    val computedTotalEur = parsedQty * selectedLot.unitPriceEur
-                    val isSelectedRecalled = selectedLot.status == "RECALLED"
+                    if (selectedLot != null) {
+                        // Quantity is validated on every keystroke; the total is shown only for a valid quantity.
+                        val qtyCheck = SaleQuantityValidator.check(quantityInput, selectedLot.uom, selectedLot.availableQty)
+                        val validQty = (qtyCheck as? QtyCheck.Valid)?.qty
+                        val isSelectedRecalled = selectedLot.isBlocked
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = quantityInput,
-                            onValueChange = { quantityInput = it },
-                            label = {
-                                Text("${stringResource(R.string.pos_quantity_hint)} (${selectedLot.uom})")
-                            },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = if (isSelectedRecalled) SoftPosColors.RecallCrimsonAccent else SoftPosColors.PrimaryIndigo,
-                                unfocusedBorderColor = SoftPosColors.OutlineSubtle
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = SoftPosColors.BackgroundOffWhite,
-                            modifier = Modifier.padding(top = 6.dp)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalAlignment = Alignment.End
+                            OutlinedTextField(
+                                value = quantityInput,
+                                onValueChange = { quantityInput = it },
+                                label = {
+                                    Text("${stringResource(R.string.pos_quantity_hint)} (${selectedLot.uom})")
+                                },
+                                supportingText = {
+                                    Text(
+                                        text = when (qtyCheck) {
+                                            is QtyCheck.Invalid -> if (qtyCheck.arg != null) {
+                                                stringResource(qtyCheck.messageRes, qtyCheck.arg)
+                                            } else {
+                                                stringResource(qtyCheck.messageRes)
+                                            }
+                                            is QtyCheck.Valid -> stringResource(
+                                                R.string.pos_available_label,
+                                                SaleQuantityValidator.formatQty(selectedLot.availableQty, selectedLot.uom)
+                                            )
+                                        }
+                                    )
+                                },
+                                isError = qtyCheck is QtyCheck.Invalid && quantityInput.isNotBlank(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = if (selectedLot.uom == "KG") KeyboardType.Decimal else KeyboardType.Number
+                                ),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = if (isSelectedRecalled) SoftPosColors.RecallCrimsonAccent else SoftPosColors.PrimaryIndigo,
+                                    unfocusedBorderColor = SoftPosColors.OutlineSubtle
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = SoftPosColors.BackgroundOffWhite,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    text = "TOPLAM / TOTAL",
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                                Text(
-                                    text = "${"%.2f".format(Locale.US, computedTotalEur)} €",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelectedRecalled) SoftPosColors.RecallCrimsonAccent else SoftPosColors.PrimaryIndigo
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.pos_total_label),
+                                        style = MaterialTheme.typography.labelSmall
                                     )
-                                )
-                            }
-                        }
-                    }
-
-                    // Pill Action Button: Either Execute Sale (Indigo) or Recall Quarantine Trigger (Crimson)
-                    Button(
-                        onClick = {
-                            if (selectedLot.status == "RECALLED") {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.pos_recall_blocked_toast, selectedLot.lotNo),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                onTriggerRecallQuarantine(selectedLot)
-                            } else {
-                                val qty = parsedQty.coerceAtLeast(0.1)
-                                scope.launch {
-                                    val record = appDb.recordPosSale(
-                                        lotNo = selectedLot.lotNo,
-                                        productName = selectedLot.productName,
-                                        qty = qty,
-                                        uom = selectedLot.uom,
-                                        unitPriceEur = selectedLot.unitPriceEur
+                                    Text(
+                                        text = if (validQty != null) {
+                                            "${"%.2f".format(Locale.US, validQty * selectedLot.unitPriceEur)} EUR"
+                                        } else {
+                                            "-"
+                                        },
+                                        style = MaterialTheme.typography.titleLarge.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelectedRecalled) SoftPosColors.RecallCrimsonAccent else SoftPosColors.PrimaryIndigo
+                                        )
                                     )
-                                    val updatedQty = (selectedLot.availableQty - qty).coerceAtLeast(0.0)
-                                    inventoryLots[selectedLotIndex] = selectedLot.copy(availableQty = updatedQty)
-                                    recentMovements = appDb.getRecentStockMovements(15)
-                                    pendingOutboxCount = runCatching { appDb.outboxDao().countPending() }.getOrDefault(0)
-                                    lastActionBanner = "✓ ${record.lotNo} (${"%.2f".format(Locale.US, record.qtyDelta)} ${record.uom}) -> SQLite WAL & ECDSA Outbox (${record.outboxUuidV7.take(13)}...)"
-
-                                    runCatching { SyncWorker.enqueueWhenNetworkConnected(context) }
-
-                                    Toast.makeText(
-                                        context,
-                                        saleRecordedToastMsg,
-                                        Toast.LENGTH_SHORT
-                                    ).show()
                                 }
                             }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(54.dp),
-                        shape = RoundedCornerShape(50),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isSelectedRecalled) {
-                                SoftPosColors.RecallCrimsonAccent
-                            } else {
-                                SoftPosColors.PrimaryIndigo
+                        }
+
+                        // Pill Action Button: Either Execute Sale (Indigo) or Recall Quarantine Trigger (Crimson)
+                        Button(
+                            onClick = {
+                                if (isSelectedRecalled) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.pos_recall_blocked_toast, selectedLot.lotNo),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    onTriggerRecallQuarantine(selectedLot)
+                                } else if (validQty != null) {
+                                    isSaving = true
+                                    scope.launch {
+                                        val record = appDb.recordPosSale(
+                                            lotNo = selectedLot.lotNo,
+                                            productName = selectedLot.productName,
+                                            qty = validQty,
+                                            uom = selectedLot.uom,
+                                            unitPriceEur = selectedLot.unitPriceEur
+                                        )
+                                        quantityInput = ""
+                                        refreshLocal()
+                                        lastActionBanner = "${record.lotNo} (${"%.3f".format(Locale.US, record.qtyDelta)} ${record.uom}) -> SQLite WAL & ECDSA Outbox (${record.outboxUuidV7.take(13)}...)"
+
+                                        runCatching { SyncWorker.enqueueWhenNetworkConnected(context) }
+                                        isSaving = false
+
+                                        Toast.makeText(
+                                            context,
+                                            saleRecordedToastMsg,
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
                             },
-                            contentColor = SoftPosColors.SurfacePureWhite
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(
-                            defaultElevation = 4.dp,
-                            pressedElevation = 2.dp
-                        )
-                    ) {
-                        Text(
-                            text = if (isSelectedRecalled) {
-                                stringResource(R.string.pos_btn_recall_block)
-                            } else {
-                                stringResource(R.string.pos_btn_execute_sale)
-                            },
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                            enabled = !isSaving && (isSelectedRecalled || validQty != null),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp),
+                            shape = RoundedCornerShape(50),
+                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isSelectedRecalled) {
+                                    SoftPosColors.RecallCrimsonAccent
+                                } else {
+                                    SoftPosColors.PrimaryIndigo
+                                },
+                                contentColor = SoftPosColors.SurfacePureWhite
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(
+                                defaultElevation = 4.dp,
+                                pressedElevation = 2.dp
+                            )
+                        ) {
+                            Text(
+                                text = if (isSelectedRecalled) {
+                                    stringResource(R.string.pos_btn_recall_block)
+                                } else {
+                                    stringResource(R.string.pos_btn_execute_sale)
+                                },
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
 
                     lastActionBanner?.let { banner ->
@@ -669,7 +710,7 @@ private fun PosSalesCheckoutScreen(
                             border = BorderStroke(1.dp, SoftPosColors.OutlineSubtle)
                         ) {
                             Text(
-                                text = "${recentMovements.size} Rows",
+                                text = stringResource(R.string.pos_rows_count, recentMovements.size),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontFamily = FontFamily.Monospace
                                 ),
