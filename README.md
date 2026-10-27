@@ -95,16 +95,25 @@ rotated and no longer works.
 ./scripts/check-all.sh    # or: make check
 ```
 
-Runs, then restores the clean seed:
+Runs, then restores the clean seed. Needs the compose stack running, Python 3, JDK 17 + Android
+SDK and Node 18+. Go, pytest and a mysql client are **not** needed on the host: Go runs in a
+container, and the DB tests install pytest into `.venv` and use the mysql client inside the
+compose container. Only the database tests: `./scripts/test-db.sh` (or `make test-db`).
 
 | Suite | What it covers |
 |---|---|
 | `go test ./...` (api-go) | cost allocation rounding, PIN lockout, error codes, CORS, ECDSA sync verification |
 | Go integration tests (`MYSQL_TEST_DSN`) | EKP 18.16, butchery findings, allocation sums, forward/backward/butchery trace, every lot movement, oversell 409, recall CSV |
-| `pytest database-mysql` | schema, triggers (no negative stock, append-only ledger, recalled lots blocked), EKP, trace, recall |
+| `scripts/test-db.sh` (pytest, `database-mysql/tests`) | schema, triggers (no negative stock, append-only ledger, recalled lots blocked), EKP, trace, recall |
 | `./gradlew testDebugUnitTest` | sale quantity validation, server address handling |
 | `npm run build` (web-react) | dashboard compiles |
-| `pytest ml-engine/tests` | ML pipeline (needs `pip install -r ml-engine/requirements.txt`) |
+
+ML tests (separate, heavier dependencies):
+
+```bash
+python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.txt   # Windows: .venv-ml\Scripts\pip
+.venv-ml/bin/python -m pytest ml-engine/tests -q -p no:warnings
+```
 
 ## Spec requirements → where they are implemented
 

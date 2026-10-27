@@ -3,7 +3,7 @@
 
 COMPOSE ?= docker compose
 
-.PHONY: up down demo-reset check logs phone
+.PHONY: up down demo-reset check test-db logs phone
 
 ## Build and start MySQL + Go API + React dashboard
 up:
@@ -20,6 +20,10 @@ demo-reset:
 ## Run every automated check (Go, MySQL, Android, React) and restore the seed
 check:
 	./scripts/check-all.sh
+
+## MySQL test suite only (installs pytest into .venv, uses the container's mysql client)
+test-db:
+	COMPOSE="$(COMPOSE)" ./scripts/test-db.sh
 
 ## Follow the API log
 logs:
