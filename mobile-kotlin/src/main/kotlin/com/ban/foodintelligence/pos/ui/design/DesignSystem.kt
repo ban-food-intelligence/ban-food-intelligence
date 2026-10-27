@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -198,8 +200,10 @@ val palette: Palette
 object Fmt {
     private val EUR: Currency = Currency.getInstance("EUR")
 
+    /** TR/DE: "18,16 €" (symbol after the number); EN: "€18.16". */
     fun money(value: Double, locale: Locale = Locale.getDefault()): String =
-        NumberFormat.getCurrencyInstance(locale).apply { currency = EUR }.format(value)
+        if (locale.language == "tr" || locale.language == "de") "${number(value, 2, locale)} €"
+        else NumberFormat.getCurrencyInstance(locale).apply { currency = EUR }.format(value)
 
     fun number(value: Double, decimals: Int, locale: Locale = Locale.getDefault()): String =
         NumberFormat.getNumberInstance(locale).apply {
@@ -288,10 +292,9 @@ fun InsetGroup(
     val scope = InsetGroupScope().apply(content)
     Column(modifier = modifier.fillMaxWidth()) {
         if (header != null) SectionHeader(header)
-        Surface(
-            color = palette.group,
-            shape = Shapes.group,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = Space.screen)
+        // Plain background, not Surface: inside sheets Material would tint it (tonal elevation).
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Space.screen).clip(Shapes.group).background(palette.group)
         ) {
             Column {
                 scope.rows.forEachIndexed { index, (inset, row) ->
@@ -518,6 +521,106 @@ fun SkeletonGroup(rows: Int = 3) {
     }
 }
 
+/** Single-line label that shrinks (down to 70 %) instead of being cut off at large font scales. */
+@Composable
+fun FitText(text: String, fontSize: androidx.compose.ui.unit.TextUnit, color: Color, modifier: Modifier = Modifier) {
+    var scale by remember(text) { mutableStateOf(1f) }
+    Text(
+        text = text,
+        fontSize = fontSize * scale,
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        onTextLayout = { r -> if (r.hasVisualOverflow && scale > 0.7f) scale -= 0.08f },
+        modifier = modifier
+    )
+}
+
 /** Vertical spacing helper used between groups. */
 @Composable
 fun ColumnScope.GroupGap() = Spacer(Modifier.height(Space.s))
+
+/**
+ * Screen scaffold: large left-aligned title that collapses into a compact centred title in
+ * the top bar once the content scrolls; [trailing] (e.g. the sync pill) stays in the top bar.
+ */
+@Composable
+fun PosScreen(
+    title: String,
+    modifier: Modifier = Modifier,
+    trailing: @Composable RowScope.() -> Unit = {},
+    content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit
+) {
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val collapsed by remember {
+        androidx.compose.runtime.derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 80 }
+    }
+    Column(modifier = modifier.fillMaxWidth().background(palette.background)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(if (collapsed) palette.group.copy(alpha = 0.96f) else palette.background)
+                .statusBarsPadding()
+                .height(44.dp)
+                .padding(horizontal = Space.screen)
+        ) {
+            val titleAlpha by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = if (collapsed) 1f else 0f,
+                animationSpec = tween(200),
+                label = "compact-title"
+            )
+            Text(
+                title,
+                style = PosType.headline,
+                color = palette.label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center).padding(horizontal = 96.dp)
+                    .then(Modifier.graphicsLayerAlpha(titleAlpha))
+            )
+            Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically, content = trailing)
+        }
+        if (collapsed) HorizontalDivider(thickness = 0.5.dp, color = palette.separator)
+        androidx.compose.foundation.lazy.LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(bottom = Space.xl),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            item(key = "large-title") { LargeTitle(title) }
+            content()
+        }
+    }
+}
+
+private fun Modifier.graphicsLayerAlpha(a: Float): Modifier = this.then(Modifier.alpha(a))
+
+/** iOS segmented control (two or three equal options). */
+@Composable
+fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(palette.fill).padding(2.dp)
+    ) {
+        options.forEachIndexed { i, label ->
+            val isSel = i == selected
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 36.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(if (isSel) palette.group else Color.Transparent)
+                    .clickable(role = Role.Tab) { onSelect(i) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    label,
+                    style = PosType.footnote.copy(fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Normal),
+                    color = palette.label,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = Space.s)
+                )
+            }
+        }
+    }
+}

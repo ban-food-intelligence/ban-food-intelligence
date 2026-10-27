@@ -30,7 +30,7 @@ func (c *LotController) ListStockByLot(w http.ResponseWriter, r *http.Request) {
 	rows, err := c.db.QueryContext(
 		r.Context(),
 		`SELECT v.lot_no, v.sku, v.product_name, v.warehouse_code, v.qty, v.uom_code, v.unit_cost, v.stock_value, v.status,
-		        p.sale_price
+		        p.sale_price, COALESCE(DATE_FORMAT(v.expiry_date, '%Y-%m-%d'), '')
 		 FROM v_stock_by_lot v
 		 JOIN product p ON p.sku = v.sku
 		 ORDER BY v.lot_no ASC, v.warehouse_code ASC`,
@@ -52,6 +52,7 @@ func (c *LotController) ListStockByLot(w http.ResponseWriter, r *http.Request) {
 		StockValue    float64  `json:"stock_value"`
 		Status        string   `json:"status"`
 		SalePrice     *float64 `json:"sale_price"` // VKP; null when the product is not sold
+		ExpiryDate    string   `json:"expiry_date"`
 	}
 
 	var list []StockLotDto
@@ -60,7 +61,7 @@ func (c *LotController) ListStockByLot(w http.ResponseWriter, r *http.Request) {
 		var salePrice sql.NullFloat64
 		if err := rows.Scan(
 			&s.LotNo, &s.SKU, &s.ProductName, &s.WarehouseCode,
-			&s.Qty, &s.UomCode, &s.UnitCost, &s.StockValue, &s.Status, &salePrice,
+			&s.Qty, &s.UomCode, &s.UnitCost, &s.StockValue, &s.Status, &salePrice, &s.ExpiryDate,
 		); err == nil {
 			if salePrice.Valid {
 				s.SalePrice = &salePrice.Float64

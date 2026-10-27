@@ -20,22 +20,22 @@ type Lot struct {
 
 // LotTraceNode represents a single step in the recursive lot genealogy graph
 type LotTraceNode struct {
-	Depth            int      `json:"depth"`
-	CurrentLotNumber string   `json:"current_lot_number"`
-	ProductName      string   `json:"product_name"`
-	ProductCategory  string   `json:"product_category"`
-	Quantity         float64  `json:"quantity"`
-	Status           string   `json:"status"`
-	ParentLotNumber  *string  `json:"parent_lot_number,omitempty"`
-	QuantityConsumed float64  `json:"quantity_consumed,omitempty"`
-	TracePath        string   `json:"trace_path"`
+	Depth            int             `json:"depth"`
+	CurrentLotNumber string          `json:"current_lot_number"`
+	ProductName      string          `json:"product_name"`
+	ProductCategory  string          `json:"product_category"`
+	Quantity         float64         `json:"quantity"`
+	Status           string          `json:"status"`
+	ParentLotNumber  *string         `json:"parent_lot_number,omitempty"`
+	QuantityConsumed float64         `json:"quantity_consumed,omitempty"`
+	TracePath        string          `json:"trace_path"`
 	Children         []*LotTraceNode `json:"children,omitempty"`
 }
 
 // TraceResponse wraps the backward and forward genealogy trees for a lot
 type TraceResponse struct {
-	RootLotNumber string          `json:"root_lot_number"`
-	Direction     string          `json:"direction"` // backward or forward
-	Nodes         []*LotTraceNode `json:"nodes"`
-	TotalAncestors int            `json:"total_ancestors"`
+	RootLotNumber  string          `json:"root_lot_number"`
+	Direction      string          `json:"direction"` // backward or forward
+	Nodes          []*LotTraceNode `json:"nodes"`
+	TotalAncestors int             `json:"total_ancestors"`
 }

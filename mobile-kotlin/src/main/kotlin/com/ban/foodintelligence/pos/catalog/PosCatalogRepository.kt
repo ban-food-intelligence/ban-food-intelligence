@@ -22,7 +22,11 @@ data class PosInventoryLot(
     val status: String,
     /** Recall that blocks this lot, if any (from GET /recall, lock_enforced = true). */
     val recallCode: String?,
-    val recallRootLot: String?
+    val recallRootLot: String?,
+    /** "2026-10-19"; empty when the lot has no expiry date. */
+    val expiryDate: String = "",
+    /** Recall reason text, when recalled. */
+    val recallReason: String? = null
 ) {
     val isBlocked: Boolean get() = status == "RECALLED" || status == "BLOCKED" || recallCode != null
 }
@@ -30,11 +34,21 @@ data class PosInventoryLot(
 /** Where the lot list on screen came from. */
 enum class CatalogSource { LIVE, CACHED, NONE }
 
+/** One active recall (GET /recall, lock_enforced = true). */
+data class RecallInfo(
+    val recallCode: String,
+    val triggerLot: String,
+    val reason: String,
+    val affectedLots: List<String>,
+    val initiatedAt: String
+)
+
 data class PosCatalog(
     val lots: List<PosInventoryLot>,
     val source: CatalogSource,
     val fetchedAtMs: Long,
-    val error: String?
+    val error: String?,
+    val recalls: List<RecallInfo> = emptyList()
 )
 
 /**
@@ -66,13 +80,14 @@ object PosCatalogRepository {
             val lotsJson = get(baseUrl, "/lots")
             val recallsJson = get(baseUrl, "/recall")
             val lots = parse(lotsJson, recallsJson)
+            val recalls = parseRecalls(recallsJson)
             val now = System.currentTimeMillis()
             prefs.edit()
                 .putString(KEY_LOTS, lotsJson)
                 .putString(KEY_RECALLS, recallsJson)
                 .putLong(KEY_FETCHED_AT, now)
                 .apply()
-            PosCatalog(lots, CatalogSource.LIVE, now, null)
+            PosCatalog(lots, CatalogSource.LIVE, now, null, recalls)
         } catch (e: Exception) {
             if (e !is IOException && e !is JSONException) throw e
             Log.w(TAG, "Catalog fetch failed, using cache: ${e.message}")
@@ -85,7 +100,8 @@ object PosCatalogRepository {
                     lots = parse(cachedLots, cachedRecalls ?: "[]"),
                     source = CatalogSource.CACHED,
                     fetchedAtMs = prefs.getLong(KEY_FETCHED_AT, 0L),
-                    error = e.message
+                    error = e.message,
+                    recalls = parseRecalls(cachedRecalls ?: "[]")
                 )
             }
         }
@@ -100,18 +116,31 @@ object PosCatalogRepository {
         }
     }
 
-    /** Lots in [STORE_WAREHOUSE] with stock and a sale price, joined with the active recalls. */
-    private fun parse(lotsJson: String, recallsJson: String): List<PosInventoryLot> {
-        val recalledBy = mutableMapOf<String, Pair<String, String>>()
-        val recalls = if (recallsJson.isBlank() || recallsJson == "null") JSONArray() else JSONArray(recallsJson)
-        for (i in 0 until recalls.length()) {
-            val ev = recalls.getJSONObject(i)
-            if (!ev.optBoolean("lock_enforced", false)) continue
-            val lots = ev.optJSONArray("affected_lots") ?: continue
-            for (j in 0 until lots.length()) {
-                recalledBy[lots.getString(j)] = ev.optString("recall_code") to ev.optString("trigger_lot")
+    /** Active recalls only (lock_enforced = true: the recall is OPEN and its lots are RECALLED). */
+    private fun parseRecalls(recallsJson: String): List<RecallInfo> {
+        val arr = if (recallsJson.isBlank() || recallsJson == "null") JSONArray() else JSONArray(recallsJson)
+        return buildList {
+            for (i in 0 until arr.length()) {
+                val ev = arr.getJSONObject(i)
+                if (!ev.optBoolean("lock_enforced", false)) continue
+                val lots = ev.optJSONArray("affected_lots") ?: JSONArray()
+                add(
+                    RecallInfo(
+                        recallCode = ev.optString("recall_code"),
+                        triggerLot = ev.optString("trigger_lot"),
+                        reason = ev.optString("reason"),
+                        affectedLots = (0 until lots.length()).map { lots.getString(it) },
+                        initiatedAt = ev.optString("timestamp")
+                    )
+                )
             }
         }
+    }
+
+    /** Lots in [STORE_WAREHOUSE] with stock and a sale price, joined with the active recalls. */
+    private fun parse(lotsJson: String, recallsJson: String): List<PosInventoryLot> {
+        val recalledBy = mutableMapOf<String, RecallInfo>()
+        parseRecalls(recallsJson).forEach { rc -> rc.affectedLots.forEach { recalledBy[it] = rc } }
 
         val rows = if (lotsJson.isBlank() || lotsJson == "null") JSONArray() else JSONArray(lotsJson)
         return buildList {
@@ -131,8 +160,10 @@ object PosCatalogRepository {
                         uom = o.optString("uom_code"),
                         unitPriceEur = o.getDouble("sale_price"),
                         status = o.optString("status"),
-                        recallCode = recall?.first,
-                        recallRootLot = recall?.second
+                        recallCode = recall?.recallCode,
+                        recallRootLot = recall?.triggerLot,
+                        expiryDate = o.optString("expiry_date"),
+                        recallReason = recall?.reason
                     )
                 )
             }

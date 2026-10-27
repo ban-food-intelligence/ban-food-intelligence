@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Application Identity -->
-    <string name="app_name">BAN FOOD POS // EDGE-TERMINAL</string>
-
+    <string name="app_name">BAN Laden</string>
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
     <string name="lockdown_hazard_banner">/// KLASSE-I BIOGEFAHR &amp; EDGE-KI OOD-SPERRE AKTIVIERT ///</string>
     <string name="lockdown_title">Verkauf angehalten</string>
@@ -157,5 +156,96 @@
     <plurals name="lock_pin_wrong">
         <item quantity="one">Falsche PIN. Noch 1 Versuch.</item>
         <item quantity="other">Falsche PIN. Noch %d Versuche.</item>
+    </plurals>
+    <string name="tab_sell">Verkauf</string>
+    <string name="tab_lots">Chargen</string>
+    <string name="tab_recall">Rückruf</string>
+    <string name="tab_sync">Sync</string>
+    <string name="tab_settings">Einstellungen</string>
+    <string name="status_synced">Synchronisiert</string>
+    <string name="status_pending">%1$d ausstehend</string>
+    <string name="status_offline">Offline</string>
+    <string name="catalog_offline_banner">Offline. Liste vom %1$s.</string>
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_close">Schließen</string>
+    <string name="sell_title">Verkauf</string>
+    <string name="sell_search_hint">Produkt oder Charge suchen</string>
+    <string name="sell_section_available">In diesem Geschäft verfügbar</string>
+    <string name="sell_section_blocked">Zurückgerufen, Verkauf gesperrt</string>
+    <string name="sell_empty">In diesem Geschäft sind keine Chargen auf Lager.</string>
+    <string name="sell_no_match">Keine Charge passt zu „%1$s“.</string>
+    <string name="lot_expiry">MHD %1$s</string>
+    <string name="lot_recalled_pill">Zurückgerufen</string>
+    <string name="lot_recalled_reason">Rückruf %1$s aus Ursprungscharge %2$s. Verkauf gesperrt.</string>
+    <string name="lot_blocked_reason">Diese Charge ist gesperrt. Verkauf gesperrt.</string>
+    <string name="sell_sheet_quantity">Menge</string>
+    <string name="sell_sheet_price">Preis</string>
+    <string name="sell_sheet_total">Summe</string>
+    <string name="sell_sheet_in_stock">Auf Lager</string>
+    <string name="sell_confirm">Verkauf bestätigen</string>
+    <string name="sell_done_title">Verkauf gespeichert</string>
+    <string name="sell_done_body">%1$s %2$s verkauft. Wird automatisch an den Server gesendet.</string>
+    <string name="sell_next">Neuer Verkauf</string>
+    <string name="sell_decrease">Menge verringern</string>
+    <string name="sell_increase">Menge erhöhen</string>
+    <string name="lots_title">Chargen</string>
+    <string name="lots_section_shop">In diesem Geschäft</string>
+    <string name="lots_section_tools">Weitere</string>
+    <string name="lots_receive_invoice">Wareneingang per Rechnung</string>
+    <string name="lots_forecasts">Ausbeuteprognosen</string>
+    <string name="lots_forecasts_sub">KI-Prognose im Vergleich zum Ist-Ergebnis</string>
+    <string name="trace_backward">Herkunft</string>
+    <string name="trace_forward">Verbleib</string>
+    <string name="trace_loading">Rückverfolgung wird geladen …</string>
+    <string name="trace_empty">Für diese Charge sind keine Beziehungen erfasst.</string>
+    <string name="trace_doc_production">Fertigungsauftrag %1$s</string>
+    <string name="trace_doc_butchery">Zerlegung %1$s</string>
+    <string name="trace_doc_rework">Nacharbeit %1$s</string>
+    <string name="trace_used">%1$s verwendet, %2$s erzeugt</string>
+    <string name="trace_supplier">Lieferant: %1$s</string>
+    <string name="trace_shipments">Lieferungen</string>
+    <string name="trace_tier2">Weiterlieferung (erfasst)</string>
+    <string name="ai_title">Ausbeuteprognosen</string>
+    <string name="ai_actual">Ist</string>
+    <string name="ai_model">Modell</string>
+    <string name="ai_baseline">Referenz</string>
+    <string name="ai_note">Mit synthetischen Daten trainiert. Abweichung = Ist minus Prognose. Rückruf und Rückverfolgung nutzen diese Prognosen nie.</string>
+    <string name="ai_section_production">Fertigungsauftrag %1$s</string>
+    <string name="ai_section_butchery">Zerlegung %1$s</string>
+    <string name="ai_error_header">Fehler im Testzeitraum (MAPE, niedriger ist besser)</string>
+    <string name="ai_metric_value">Modell %1$s · Referenz %2$s</string>
+    <string name="ai_target_actual_qty">Packungen</string>
+    <string name="ai_target_ekp">Einstandspreis (EKP)</string>
+    <string name="ai_target_but_kg">Keule</string>
+    <string name="ai_target_sirt_kg">Rücken</string>
+    <string name="ai_target_omuz_kg">Schulter</string>
+    <string name="ai_target_kaburga_kg">Rippen</string>
+    <string name="ai_target_kiyma_kg">Hackfleisch</string>
+    <string name="ai_target_fire_kg">Ausschuss</string>
+    <string name="ai_target_part_kg">Teilgewichte</string>
+    <string name="recall_title">Rückruf</string>
+    <string name="recall_none">Kein aktiver Rückruf.</string>
+    <string name="recall_none_sub">Zurückgerufene Chargen werden hier automatisch gesperrt, auch offline.</string>
+    <string name="recall_active_header">Aktive Rückrufe</string>
+    <string name="recall_source_lot">Ursprungscharge %1$s</string>
+    <string name="recall_local_header">Betroffene Chargen in diesem Geschäft</string>
+    <string name="recall_unlock_history">Entsperrungen durch Aufsicht auf diesem Gerät</string>
+    <string name="recall_unlock_offline">offline</string>
+    <string name="sync_title">Synchronisierung</string>
+    <string name="sync_last">Letzter Kontakt zum Server</string>
+    <string name="sync_never">Noch nie</string>
+    <string name="sync_send_now">Jetzt senden</string>
+    <string name="sync_retry_rejected">Abgelehnte Verkäufe erneut senden</string>
+    <string name="sync_queue_header">Verkäufe auf diesem Gerät</string>
+    <string name="sync_empty">Auf diesem Gerät gibt es noch keine Verkäufe.</string>
+    <string name="sync_state_pending">Wartet auf Versand</string>
+    <string name="sync_state_synced">Gesendet</string>
+    <string name="sync_state_rejected">Abgelehnt</string>
+    <string name="sync_state_failed">Fehlgeschlagen</string>
+    <string name="sync_footer">Verkäufe werden auf diesem Gerät signiert und im Hintergrund gesendet. Jeder Verkauf wird nur einmal verbucht, auch wenn er zweimal gesendet wird.</string>
+    <string name="settings_help">So funktioniert die App</string>
+    <plurals name="recall_banner">
+        <item quantity="one">1 zurückgerufene Charge ist in diesem Geschäft. Nehmen Sie sie aus dem Regal.</item>
+        <item quantity="other">%d zurückgerufene Chargen sind in diesem Geschäft. Nehmen Sie sie aus dem Regal.</item>
     </plurals>
 </resources>
