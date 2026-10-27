@@ -40,7 +40,7 @@ func NewSyncController(db *sql.DB) *SyncController {
 // can enroll their Hardware Keystore X.509 SPKI Base64 public key.
 func (c *SyncController) RegisterDeviceKey(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
 		return
 	}
 
@@ -49,13 +49,13 @@ func (c *SyncController) RegisterDeviceKey(w http.ResponseWriter, r *http.Reques
 		PublicKeyB64 string `json:"public_key_b64"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.DeviceID == "" || body.PublicKeyB64 == "" {
-		http.Error(w, `{"error":"device_id and public_key_b64 are required"}`, http.StatusBadRequest)
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "device_id and public_key_b64 are required")
 		return
 	}
 
 	pubKey, fingerprint, err := parseP256PublicKeyBase64(body.PublicKeyB64)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"invalid ECDSA P-256 SPKI key: %s"}`, err.Error()), http.StatusBadRequest)
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "invalid ECDSA P-256 SPKI key: "+err.Error())
 		return
 	}
 
@@ -77,24 +77,24 @@ func (c *SyncController) RegisterDeviceKey(w http.ResponseWriter, r *http.Reques
 // 3. Enforces UUIDv7 idempotency and persists into Ali's MySQL `sync_inbox` (and `sale`/`sale_line` when applicable).
 func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
 		return
 	}
 
 	rawBodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, `{"error":"failed to read request body"}`, http.StatusBadRequest)
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "failed to read request body")
 		return
 	}
 
 	var req models.SyncBatchRequest
 	if err := json.Unmarshal(rawBodyBytes, &req); err != nil {
-		http.Error(w, `{"error":"invalid JSON body for outbox_items envelope"}`, http.StatusBadRequest)
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "invalid JSON body for outbox_items envelope")
 		return
 	}
 
 	if len(req.OutboxItems) == 0 {
-		http.Error(w, `{"error":"outbox_items cannot be empty"}`, http.StatusBadRequest)
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "outbox_items cannot be empty")
 		return
 	}
 
@@ -107,11 +107,11 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 	if pubKeyB64 != "" {
 		parsedKey, fp, err := parseP256PublicKeyBase64(pubKeyB64)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":"invalid X-POS-Public-Key SPKI: %s"}`, err.Error()), http.StatusForbidden)
+			writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "invalid X-POS-Public-Key SPKI: "+err.Error())
 			return
 		}
 		if headerFP := strings.TrimSpace(r.Header.Get("X-Key-Fingerprint")); headerFP != "" && !strings.EqualFold(headerFP, fp) {
-			http.Error(w, `{"error":"security alert: X-Key-Fingerprint mismatch with SPKI public key"}`, http.StatusForbidden)
+			writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: X-Key-Fingerprint mismatch with SPKI public key")
 			return
 		}
 		c.deviceKeys.Store(req.DeviceID, parsedKey)
@@ -136,7 +136,7 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 			string(rawBodyBytes),
 		)
 		if !verifyECDSAP256Signature(devicePubKey, envelopeCanonical, envelopeSigB64) {
-			http.Error(w, `{"error":"security alert: ECDSA-P256 envelope signature verification failed"}`, http.StatusForbidden)
+			writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: ECDSA-P256 envelope signature verification failed")
 			return
 		}
 	}
@@ -153,7 +153,7 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 		if item.PublicKeyB64 != "" {
 			parsedItemKey, _, err := parseP256PublicKeyBase64(item.PublicKeyB64)
 			if err != nil {
-				http.Error(w, `{"error":"security alert: invalid item ECDSA public key"}`, http.StatusForbidden)
+				writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: invalid item ECDSA public key")
 				return
 			}
 			itemPubKey = parsedItemKey
@@ -185,14 +185,14 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 
 		// Verify ASN.1 DER format or cryptographic ECDSA signature
 		if item.Signature == "" {
-			http.Error(w, `{"error":"security alert: missing ECDSA signature on outbox item"}`, http.StatusForbidden)
+			writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: missing ECDSA signature on outbox item")
 			return
 		}
 
 		if itemPubKey != nil {
 			if !verifyECDSAP256Signature(itemPubKey, canonicalRecord, item.Signature) {
 				log.Printf("[ERROR] [SYNC] ECDSA P-256 signature verification failed for device=%s UUIDv7=%s", deviceID, item.Timestamp)
-				http.Error(w, fmt.Sprintf(`{"error":"security alert: ECDSA-P256 signature mismatch for UUIDv7=%s"}`, item.Timestamp), http.StatusForbidden)
+				writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: ECDSA-P256 signature mismatch for UUIDv7="+item.Timestamp)
 				return
 			}
 			log.Printf("[INFO] [SYNC] ECDSA P-256 Signature Verified for device=%s batch=%s UUIDv7=%s", deviceID, item.BatchID, item.Timestamp)
@@ -201,7 +201,7 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 			// strictly enforce valid Base64 ASN.1 DER ECDSA signature structure (0x30 SEQUENCE header).
 			if err := validateASN1DERSignatureStructure(item.Signature); err != nil {
 				log.Printf("[ERROR] [SYNC] Malformed ASN.1 DER ECDSA signature for UUIDv7=%s: %v", item.Timestamp, err)
-				http.Error(w, fmt.Sprintf(`{"error":"security alert: malformed ASN.1 DER ECDSA signature: %s"}`, err.Error()), http.StatusForbidden)
+				writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: malformed ASN.1 DER ECDSA signature: "+err.Error())
 				return
 			}
 			log.Printf("[INFO] [SYNC] ECDSA P-256 Signature Verified (ASN.1 DER structure) for device=%s UUIDv7=%s", deviceID, item.Timestamp)

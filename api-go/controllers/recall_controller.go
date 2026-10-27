@@ -68,13 +68,13 @@ func (c *RecallController) TriggerRecall(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
 		return
 	}
 
 	var req RecallTriggerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request payload"}`, http.StatusBadRequest)
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "invalid request payload")
 		return
 	}
 	if req.TriggerLot == "" {
@@ -109,7 +109,7 @@ func (c *RecallController) TriggerRecall(w http.ResponseWriter, r *http.Request)
 
 	event, err := c.loadRecallEventFromDB(r, req.RecallCode, req.TriggerLot)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"failed to load recall report: %s"}`, err.Error()), http.StatusInternalServerError)
+		writeDBError(w, r, err)
 		return
 	}
 
@@ -132,7 +132,7 @@ func (c *RecallController) GetActiveRecalls(w http.ResponseWriter, r *http.Reque
 		 ORDER BY rc.initiated_at DESC`,
 	)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"failed to query recall table: %s"}`, err.Error()), http.StatusInternalServerError)
+		writeDBError(w, r, err)
 		return
 	}
 	defer rows.Close()

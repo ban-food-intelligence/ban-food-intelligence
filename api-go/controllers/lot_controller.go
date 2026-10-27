@@ -3,7 +3,6 @@ package controllers
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 )
 
@@ -36,7 +35,7 @@ func (c *LotController) ListStockByLot(w http.ResponseWriter, r *http.Request) {
 		 ORDER BY v.lot_no ASC, v.warehouse_code ASC`,
 	)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"failed to query v_stock_by_lot: %s"}`, err.Error()), http.StatusInternalServerError)
+		writeDBError(w, r, err)
 		return
 	}
 	defer rows.Close()

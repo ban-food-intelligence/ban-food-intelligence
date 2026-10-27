@@ -3,7 +3,6 @@ package controllers
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -71,7 +70,7 @@ func (c *ProductionController) ListOrders(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if r.Method != http.MethodGet {
-		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
 		return
 	}
 
@@ -101,7 +100,7 @@ func (c *ProductionController) ListOrders(w http.ResponseWriter, r *http.Request
 	rows, err := c.db.QueryContext(r.Context(), query, args...)
 	if err != nil {
 		log.Printf("[ERROR] [MYSQL-PRODUCTION] Query error: %v", err)
-		http.Error(w, fmt.Sprintf(`{"error":"database query failed: %s"}`, err.Error()), http.StatusInternalServerError)
+		writeDBError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -119,7 +118,7 @@ func (c *ProductionController) ListOrders(w http.ResponseWriter, r *http.Request
 			&o.GrossProfitTotal, &o.MarginPct,
 			&o.OutputLotNumber,
 		); err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":"row scan failed: %s"}`, err.Error()), http.StatusInternalServerError)
+			writeDBError(w, r, err)
 			return
 		}
 		o.Breakdown = c.fetchCostBreakdown(r, o.OrderNo)
@@ -136,7 +135,7 @@ func (c *ProductionController) ListOrders(w http.ResponseWriter, r *http.Request
 func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWriter, r *http.Request) {
 	var req CompleteProductionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid JSON request body"}`, http.StatusBadRequest)
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "invalid JSON request body")
 		return
 	}
 	if req.OrderNo == "" {
@@ -175,7 +174,7 @@ func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWrit
 	// Execute stored procedure `CALL sp_calculate_production_cost(?)`
 	rows, err := c.db.QueryContext(r.Context(), `CALL sp_calculate_production_cost(?)`, req.OrderNo)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"sp_calculate_production_cost failed: %s"}`, err.Error()), http.StatusInternalServerError)
+		writeDBError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -191,7 +190,7 @@ func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWrit
 			&result.GrossProfitPerUnit, &result.RevenueAtVKP,
 			&result.GrossProfitTotal, &result.MarginPct,
 		); err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":"scan sp_calculate_production_cost failed: %s"}`, err.Error()), http.StatusInternalServerError)
+			writeDBError(w, r, err)
 			return
 		}
 	}
