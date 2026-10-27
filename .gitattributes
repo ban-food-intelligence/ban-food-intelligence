@@ -1,0 +1,8 @@
+# Shell scripts, the Gradle wrapper and the Makefile must keep LF line endings,
+# otherwise bash fails on a Windows checkout with core.autocrlf=true.
+*.sh      text eol=lf
+gradlew   text eol=lf
+Makefile  text eol=lf
+*.bat     text eol=crlf
+*.png     binary
+*.jpg     binary
