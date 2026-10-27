@@ -142,6 +142,7 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var ackIDs []string
+	rejected := []models.SyncRejectionDto{}
 	for _, item := range req.OutboxItems {
 		if item.Timestamp == "" {
 			continue
@@ -212,8 +213,13 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 
 		if c.db != nil {
 			if dbErr := c.applyOutboxItem(r, item, deviceID, payloadHashHex); dbErr != nil {
-				// Not acknowledged: the POS keeps the item and retries it.
+				// Not acknowledged. The code tells the POS whether a retry can help.
 				log.Printf("[WARN] [SYNC-MYSQL] item %s not applied: %v", item.Timestamp, dbErr)
+				_, code := classifyDBError(dbErr)
+				if strings.Contains(dbErr.Error(), "sale qty must be > 0") || strings.Contains(dbErr.Error(), "has no sale_price") {
+					code = "INVALID_INPUT"
+				}
+				rejected = append(rejected, models.SyncRejectionDto{ID: item.Timestamp, Code: code, Message: messageFor(code, r)})
 				continue
 			}
 		}
@@ -228,6 +234,7 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 	resp := models.SyncBatchResponse{
 		ProcessedCount:    len(ackIDs),
 		AcknowledgedIDs:   ackIDs,
+		Rejected:          rejected,
 		Status:            status,
 		SignatureVerified: true,
 		SignatureAlg:      "ECDSA-P256-SHA256",

@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Application Identity -->
-    <string name="app_name">BAN FOOD POS // EDGE TERMINAL</string>
-
+    <string name="app_name">BAN Shop</string>
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
     <string name="lockdown_hazard_banner">/// CLASS-I BIOHAZARD &amp; EDGE AI OOD INTERLOCK ENGAGED ///</string>
     <string name="lockdown_title">Sales paused</string>
@@ -157,5 +156,96 @@
     <plurals name="lock_pin_wrong">
         <item quantity="one">Wrong PIN. 1 attempt left.</item>
         <item quantity="other">Wrong PIN. %d attempts left.</item>
+    </plurals>
+    <string name="tab_sell">Sell</string>
+    <string name="tab_lots">Lots</string>
+    <string name="tab_recall">Recall</string>
+    <string name="tab_sync">Sync</string>
+    <string name="tab_settings">Settings</string>
+    <string name="status_synced">Synced</string>
+    <string name="status_pending">%1$d pending</string>
+    <string name="status_offline">Offline</string>
+    <string name="catalog_offline_banner">Offline. Showing the list from %1$s.</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="sell_title">Sell</string>
+    <string name="sell_search_hint">Search product or lot</string>
+    <string name="sell_section_available">Available in this shop</string>
+    <string name="sell_section_blocked">Recalled, sale blocked</string>
+    <string name="sell_empty">No lots in stock in this shop.</string>
+    <string name="sell_no_match">No lot matches “%1$s”.</string>
+    <string name="lot_expiry">Best before %1$s</string>
+    <string name="lot_recalled_pill">Recalled</string>
+    <string name="lot_recalled_reason">Recall %1$s from source lot %2$s. Sale blocked.</string>
+    <string name="lot_blocked_reason">This lot is blocked. Sale blocked.</string>
+    <string name="sell_sheet_quantity">Quantity</string>
+    <string name="sell_sheet_price">Price</string>
+    <string name="sell_sheet_total">Total</string>
+    <string name="sell_sheet_in_stock">In stock</string>
+    <string name="sell_confirm">Confirm sale</string>
+    <string name="sell_done_title">Sale saved</string>
+    <string name="sell_done_body">Sold %1$s of %2$s. It will be sent to the server automatically.</string>
+    <string name="sell_next">New sale</string>
+    <string name="sell_decrease">Decrease quantity</string>
+    <string name="sell_increase">Increase quantity</string>
+    <string name="lots_title">Lots</string>
+    <string name="lots_section_shop">In this shop</string>
+    <string name="lots_section_tools">More</string>
+    <string name="lots_receive_invoice">Receive goods from an invoice</string>
+    <string name="lots_forecasts">Yield forecasts</string>
+    <string name="lots_forecasts_sub">AI prediction compared with the actual result</string>
+    <string name="trace_backward">Where it came from</string>
+    <string name="trace_forward">Where it went</string>
+    <string name="trace_loading">Loading trace…</string>
+    <string name="trace_empty">No recorded relations for this lot.</string>
+    <string name="trace_doc_production">Production order %1$s</string>
+    <string name="trace_doc_butchery">Butchery %1$s</string>
+    <string name="trace_doc_rework">Rework %1$s</string>
+    <string name="trace_used">%1$s used, %2$s produced</string>
+    <string name="trace_supplier">Supplier: %1$s</string>
+    <string name="trace_shipments">Shipments</string>
+    <string name="trace_tier2">onward delivery (recorded)</string>
+    <string name="ai_title">Yield forecasts</string>
+    <string name="ai_actual">Actual</string>
+    <string name="ai_model">Model</string>
+    <string name="ai_baseline">Baseline</string>
+    <string name="ai_note">Trained on synthetic data. Deviation = actual minus prediction. Recall and traceability never use these forecasts.</string>
+    <string name="ai_section_production">Production order %1$s</string>
+    <string name="ai_section_butchery">Butchery %1$s</string>
+    <string name="ai_error_header">Error on the test period (MAPE, lower is better)</string>
+    <string name="ai_metric_value">Model %1$s · baseline %2$s</string>
+    <string name="ai_target_actual_qty">Packages</string>
+    <string name="ai_target_ekp">Unit cost (EKP)</string>
+    <string name="ai_target_but_kg">Leg</string>
+    <string name="ai_target_sirt_kg">Loin</string>
+    <string name="ai_target_omuz_kg">Shoulder</string>
+    <string name="ai_target_kaburga_kg">Ribs</string>
+    <string name="ai_target_kiyma_kg">Mince</string>
+    <string name="ai_target_fire_kg">Waste</string>
+    <string name="ai_target_part_kg">Part weights</string>
+    <string name="recall_title">Recall</string>
+    <string name="recall_none">No active recall.</string>
+    <string name="recall_none_sub">Recalled lots are blocked here automatically, also offline.</string>
+    <string name="recall_active_header">Active recalls</string>
+    <string name="recall_source_lot">Source lot %1$s</string>
+    <string name="recall_local_header">Affected lots in this shop</string>
+    <string name="recall_unlock_history">Supervisor unlocks on this device</string>
+    <string name="recall_unlock_offline">offline</string>
+    <string name="sync_title">Sync</string>
+    <string name="sync_last">Last contact with the server</string>
+    <string name="sync_never">Never</string>
+    <string name="sync_send_now">Send now</string>
+    <string name="sync_retry_rejected">Send rejected sales again</string>
+    <string name="sync_queue_header">Sales on this device</string>
+    <string name="sync_empty">No sales on this device yet.</string>
+    <string name="sync_state_pending">Waiting to send</string>
+    <string name="sync_state_synced">Sent</string>
+    <string name="sync_state_rejected">Rejected</string>
+    <string name="sync_state_failed">Failed</string>
+    <string name="sync_footer">Sales are signed on this device and sent in the background. Each sale is booked once, even if it is sent twice.</string>
+    <string name="settings_help">How the app works</string>
+    <plurals name="recall_banner">
+        <item quantity="one">1 recalled lot is in this shop. Take it off the shelf.</item>
+        <item quantity="other">%d recalled lots are in this shop. Take them off the shelf.</item>
     </plurals>
 </resources>

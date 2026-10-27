@@ -196,6 +196,7 @@ class SyncWorker(
             .header("X-Tenant-ID", head.tenantId)
             .header("X-Device-ID", head.deviceId)
             .header("X-Actor-Role", head.actorRole)
+            .header("Accept-Language", Locale.getDefault().language)
             .post(jsonPayload.toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
@@ -222,14 +223,21 @@ class SyncWorker(
         verified: List<SyncOutboxQueue>,
         responseBody: String
     ): BatchOutcome {
+        SyncState.markContacted(applicationContext)
         val ackedIds = parseAcknowledgedIds(responseBody)
+        // Permanent rejections (recalled lot, not enough stock, invalid data) stop retrying and
+        // show their reason on the Sync tab; anything else stays queued for a retry.
+        val permanent = parseRejected(responseBody).filterValues { it.first in PERMANENT_REJECTIONS }
+        if (permanent.isNotEmpty()) {
+            AppDatabase.getInstance(applicationContext).markRejected(permanent.mapValues { it.value.second })
+        }
         if (ackedIds == null) {
             outboxDao.markAcknowledged(verified.map { it.timestamp })
             outboxDao.purgeSyncedRecords()
             return BatchOutcome.Sent(verified.size)
         }
         val acked = verified.filter { it.timestamp in ackedIds }
-        val rejected = verified.filter { it.timestamp !in ackedIds }
+        val rejected = verified.filter { it.timestamp !in ackedIds && it.timestamp !in permanent }
         if (acked.isNotEmpty()) {
             outboxDao.markAcknowledged(acked.map { it.timestamp })
             outboxDao.purgeSyncedRecords()
@@ -239,6 +247,19 @@ class SyncWorker(
         } else {
             BatchOutcome.Retry(rejected.map { it.timestamp }, "partial ack: ${rejected.size} rejected")
         }
+    }
+
+    /** id -> (code, localised message) from the server's "rejected" list. */
+    private fun parseRejected(body: String): Map<String, Pair<String, String>> = try {
+        val array = JSONObject(body).optJSONArray("rejected") ?: JSONArray()
+        buildMap {
+            for (i in 0 until array.length()) {
+                val o = array.getJSONObject(i)
+                put(o.getString("id"), o.optString("code") to o.optString("message"))
+            }
+        }
+    } catch (_: org.json.JSONException) {
+        emptyMap()
     }
 
     private fun parseAcknowledgedIds(body: String): Set<String>? {
@@ -299,6 +320,7 @@ class SyncWorker(
         private const val TAG = "SyncWorker"
 
         const val UNIQUE_WORK_NAME = "ban_avatar_pos_outbox_sync_worker"
+        private val PERMANENT_REJECTIONS = setOf("INSUFFICIENT_STOCK", "LOT_BLOCKED", "INVALID_INPUT", "CONFLICT", "NOT_FOUND", "LOT_NOT_FOUND")
         const val KEY_GO_API_SYNC_URL = "GO_API_SYNC_URL"
 
         const val BATCH_SIZE = 50

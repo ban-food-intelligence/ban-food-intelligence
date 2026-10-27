@@ -28,12 +28,22 @@ type SyncBatchRequest struct {
 	OutboxItems        []OutboxItemDto `json:"outbox_items"`
 }
 
+// SyncRejectionDto explains why one outbox item was not applied. Permanent codes
+// (INSUFFICIENT_STOCK, LOT_BLOCKED, INVALID_INPUT, CONFLICT) will never succeed on retry;
+// DB_ERROR is transient.
+type SyncRejectionDto struct {
+	ID      string `json:"id"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
 // SyncBatchResponse returns acknowledgement of verified & persisted UUIDv7 operations.
 type SyncBatchResponse struct {
-	ProcessedCount    int       `json:"processed_count"`
-	AcknowledgedIDs   []string  `json:"acknowledged_ids"`
-	Status            string    `json:"status"` // SUCCESS, PARTIAL, ERROR
-	SignatureVerified bool      `json:"signature_verified"`
-	SignatureAlg      string    `json:"signature_alg"`
-	ServerTime        time.Time `json:"server_time"`
+	ProcessedCount    int                `json:"processed_count"`
+	AcknowledgedIDs   []string           `json:"acknowledged_ids"`
+	Rejected          []SyncRejectionDto `json:"rejected"`
+	Status            string             `json:"status"` // SUCCESS, PARTIAL, ERROR
+	SignatureVerified bool               `json:"signature_verified"`
+	SignatureAlg      string             `json:"signature_alg"`
+	ServerTime        time.Time          `json:"server_time"`
 }

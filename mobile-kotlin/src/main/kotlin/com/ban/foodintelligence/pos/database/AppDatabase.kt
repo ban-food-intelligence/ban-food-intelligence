@@ -38,7 +38,9 @@ data class StockMovementRecord(
     val outboxUuidV7: String,
     val ecdsaSignaturePreview: String,
     val syncStatus: String,
-    val createdAtMs: Long
+    val createdAtMs: Long,
+    /** Server rejection reason (status REJECTED), e.g. "This lot is recalled. Sale blocked." */
+    val syncReason: String? = null
 )
 
 /**
@@ -179,6 +181,12 @@ abstract class AppDatabase : RoomDatabase() {
     /** Quantity sold locally per lot that the server has not acknowledged yet. */
     open suspend fun pendingSaleQtyByLot(): Map<String, Double> = emptyMap()
 
+    /** Marks outbox items the server refused for good (id -> localised reason); they stop retrying. */
+    open suspend fun markRejected(reasons: Map<String, String>) = Unit
+
+    /** Puts rejected/failed items back into the queue. Returns how many were reset. */
+    open suspend fun retryRejected(): Int = 0
+
     companion object {
         private const val TAG = "AppDatabase"
         private const val DATABASE_NAME = "ban_avatar_pos_offline_outbox.db"
@@ -223,12 +231,15 @@ abstract class AppDatabase : RoomDatabase() {
  * guaranteeing full SQLite persistence (`sync_outbox_queue`, `pos_outbox`, `local_stock_movements`)
  * even without KAPT/KSP code generation.
  */
+/** Outbox status for items the server refused permanently (stock, recall, invalid data). */
+const val STATUS_REJECTED = "REJECTED"
+
 internal class SqliteBackedAppDatabase(
     context: Context,
     dbName: String
 ) : AppDatabase() {
 
-    private val sqliteHelper = object : SQLiteOpenHelper(context, dbName, null, 2) {
+    private val sqliteHelper = object : SQLiteOpenHelper(context, dbName, null, 3) {
         override fun onConfigure(db: SQLiteDatabase) {
             super.onConfigure(db)
             db.enableWriteAheadLogging()
@@ -282,7 +293,8 @@ internal class SqliteBackedAppDatabase(
                     outbox_uuid_v7 TEXT NOT NULL,
                     ecdsa_signature_preview TEXT NOT NULL,
                     sync_status TEXT NOT NULL DEFAULT 'PENDING',
-                    created_at_ms INTEGER NOT NULL
+                    created_at_ms INTEGER NOT NULL,
+                    sync_reason TEXT
                 )
                 """.trimIndent()
             )
@@ -290,6 +302,10 @@ internal class SqliteBackedAppDatabase(
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
             onCreate(db)
+            if (oldVersion < 3) {
+                // v3: reason shown on the Sync tab when the server rejects a sale
+                runCatching { db.execSQL("ALTER TABLE local_stock_movements ADD COLUMN sync_reason TEXT") }
+            }
         }
     }
 
@@ -449,7 +465,7 @@ internal class SqliteBackedAppDatabase(
                 """
                 SELECT movement_id, lot_no, product_name, movement_type, qty_delta, uom,
                        unit_price_eur, total_eur, outbox_uuid_v7, ecdsa_signature_preview,
-                       sync_status, created_at_ms
+                       sync_status, created_at_ms, sync_reason
                 FROM local_stock_movements
                 ORDER BY created_at_ms DESC
                 LIMIT ?
@@ -470,7 +486,8 @@ internal class SqliteBackedAppDatabase(
                             outboxUuidV7 = cursor.getString(8),
                             ecdsaSignaturePreview = cursor.getString(9),
                             syncStatus = cursor.getString(10),
-                            createdAtMs = cursor.getLong(11)
+                            createdAtMs = cursor.getLong(11),
+                            syncReason = if (cursor.isNull(12)) null else cursor.getString(12)
                         )
                     )
                 }
@@ -485,15 +502,46 @@ internal class SqliteBackedAppDatabase(
                 """
                 SELECT lot_no, -SUM(qty_delta)
                 FROM local_stock_movements
-                WHERE movement_type = 'SALE' AND sync_status <> ?
+                WHERE movement_type = 'SALE' AND sync_status NOT IN (?, ?)
                 GROUP BY lot_no
                 """.trimIndent(),
-                arrayOf(SyncOutboxQueue.STATUS_SYNCED)
+                arrayOf(SyncOutboxQueue.STATUS_SYNCED, STATUS_REJECTED)
             ).use { c ->
                 while (c.moveToNext()) result[c.getString(0)] = c.getDouble(1)
             }
             result
         }
+
+    override suspend fun markRejected(reasons: Map<String, String>) = withContext(Dispatchers.IO) {
+        if (reasons.isEmpty()) return@withContext
+        val db = sqliteHelper.writableDatabase
+        db.beginTransactionNonExclusive()
+        try {
+            reasons.forEach { (id, reason) ->
+                db.execSQL("UPDATE sync_outbox_queue SET status = ? WHERE timestamp = ?", arrayOf(STATUS_REJECTED, id))
+                db.execSQL(
+                    "UPDATE local_stock_movements SET sync_status = ?, sync_reason = ? WHERE outbox_uuid_v7 = ?",
+                    arrayOf(STATUS_REJECTED, reason, id)
+                )
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        daoImpl.refreshFlows()
+    }
+
+    override suspend fun retryRejected(): Int = withContext(Dispatchers.IO) {
+        val db = sqliteHelper.writableDatabase
+        val n = db.compileStatement(
+            "UPDATE sync_outbox_queue SET status = 'PENDING', retry_count = 0 WHERE status IN ('$STATUS_REJECTED', '${SyncOutboxQueue.STATUS_FAILED}')"
+        ).executeUpdateDelete()
+        db.execSQL(
+            "UPDATE local_stock_movements SET sync_status = 'PENDING', sync_reason = NULL WHERE sync_status IN ('$STATUS_REJECTED', '${SyncOutboxQueue.STATUS_FAILED}')"
+        )
+        daoImpl.refreshFlows()
+        n
+    }
 
     override fun createOpenHelper(config: androidx.room.DatabaseConfiguration): SupportSQLiteOpenHelper {
         throw UnsupportedOperationException("Direct SQLiteOpenHelper used")
