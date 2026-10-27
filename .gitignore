@@ -12,3 +12,5 @@ ml-engine/artifacts/**/*.joblib
 catboost_info/
 *.npy
 ml-engine/data/train_task4_retail.csv
+.venv/
+.venv-ml/
