@@ -14,6 +14,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -210,25 +211,24 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 		payloadHashHex := hex.EncodeToString(payloadHash[:])
 
 		if c.db != nil {
-			_, dbErr := c.db.Exec(
-				`INSERT IGNORE INTO sync_inbox (event_uuid, device_id, entity, payload_hash)
-				 VALUES (?, ?, 'sale_yield_sync', ?)`,
-				item.Timestamp,
-				deviceID,
-				payloadHashHex,
-			)
-			if dbErr != nil {
-				log.Printf("[WARN] [SYNC-MYSQL] sync_inbox insert warning for %s: %v", item.Timestamp, dbErr)
+			if dbErr := c.applyOutboxItem(r, item, deviceID, payloadHashHex); dbErr != nil {
+				// Not acknowledged: the POS keeps the item and retries it.
+				log.Printf("[WARN] [SYNC-MYSQL] item %s not applied: %v", item.Timestamp, dbErr)
+				continue
 			}
 		}
 
 		ackIDs = append(ackIDs, item.Timestamp)
 	}
 
+	status := "SUCCESS"
+	if len(ackIDs) < len(req.OutboxItems) {
+		status = "PARTIAL"
+	}
 	resp := models.SyncBatchResponse{
 		ProcessedCount:    len(ackIDs),
 		AcknowledgedIDs:   ackIDs,
-		Status:            "SUCCESS",
+		Status:            status,
 		SignatureVerified: true,
 		SignatureAlg:      "ECDSA-P256-SHA256",
 		ServerTime:        time.Now().UTC(),
@@ -236,6 +236,87 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// applyOutboxItem records one verified outbox item in MySQL in a single transaction.
+// If batch_id is a known lot, the item is a POS sale: sync_inbox + sale + sale_line
+// (trg_sl_before_insert posts the SALE stock movement). Otherwise it is a yield
+// prediction and only sync_inbox is written. A UUIDv7 already in sync_inbox is a
+// replay and is acknowledged without inserting anything.
+func (c *SyncController) applyOutboxItem(r *http.Request, item models.OutboxItemDto, deviceID, payloadHash string) error {
+	ctx := r.Context()
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var lotID int64
+	var salePrice sql.NullFloat64
+	err = tx.QueryRowContext(ctx,
+		`SELECT l.id, p.sale_price FROM lot l JOIN product p ON p.id = l.product_id WHERE l.lot_no = ?`,
+		item.BatchID,
+	).Scan(&lotID, &salePrice)
+	isSale := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+
+	entity := "yield_prediction"
+	if isSale {
+		entity = "sale"
+	}
+	res, err := tx.ExecContext(ctx,
+		`INSERT IGNORE INTO sync_inbox (event_uuid, device_id, entity, payload_hash) VALUES (?, ?, ?, ?)`,
+		item.Timestamp, deviceID, entity, payloadHash,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 || !isSale {
+		return tx.Commit()
+	}
+
+	if item.PredictedYield <= 0 {
+		return fmt.Errorf("sale qty must be > 0, got %v", item.PredictedYield)
+	}
+	if !salePrice.Valid {
+		return fmt.Errorf("lot %s has no sale_price", item.BatchID)
+	}
+
+	res, err = tx.ExecContext(ctx,
+		`INSERT INTO sale (sale_uuid, device_id, warehouse_id, sold_at)
+		 SELECT ?, ?, w.id, ? FROM warehouse w WHERE w.code = 'MAGAZA-01'`,
+		item.Timestamp, deviceID, uuidV7Time(item.Timestamp),
+	)
+	if err != nil {
+		return err
+	}
+	saleID, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx,
+		`INSERT INTO sale_line (sale_id, line_no, lot_id, qty, unit_price) VALUES (?, 1, ?, ?, ?)`,
+		saleID, lotID, item.PredictedYield, salePrice.Float64,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// uuidV7Time returns the creation time embedded in a UUIDv7 (first 48 bits = Unix ms),
+// falling back to now for malformed input.
+func uuidV7Time(uuid string) time.Time {
+	hexPart := strings.ReplaceAll(uuid, "-", "")
+	if len(hexPart) < 12 {
+		return time.Now().UTC()
+	}
+	ms, err := strconv.ParseInt(hexPart[:12], 16, 64)
+	if err != nil {
+		return time.Now().UTC()
+	}
+	return time.UnixMilli(ms).UTC()
 }
 
 // parseP256PublicKeyBase64 parses a Base64-encoded X.509 SPKI public key from
