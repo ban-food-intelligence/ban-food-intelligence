@@ -305,6 +305,7 @@ class RedRecallLockActivity : ComponentActivity() {
         var isSupervisorConsoleVisible by remember { mutableStateOf(true) }
         var pinInput by remember { mutableStateOf("") }
         var authFeedbackMessage by remember { mutableStateOf<String?>(null) }
+        var isQuickGuideOpen by remember { mutableStateOf(false) }
 
         val activeLocaleTag = Locale.getDefault().language.uppercase(Locale.ROOT)
 
@@ -390,20 +391,27 @@ class RedRecallLockActivity : ComponentActivity() {
                                 }
                             }
 
-                            Surface(
-                                shape = CircleShape,
-                                color = SoftPosColors.BackgroundOffWhite,
-                                border = BorderStroke(1.dp, SoftPosColors.OutlineSubtle)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text(
-                                    text = activeLocaleTag,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        color = SoftPosColors.TextSecondaryMuted,
-                                        fontWeight = FontWeight.SemiBold
-                                    ),
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                    maxLines = 1
-                                )
+                                QuickGuideHelpButton(onClick = { isQuickGuideOpen = true })
+
+                                Surface(
+                                    shape = CircleShape,
+                                    color = SoftPosColors.BackgroundOffWhite,
+                                    border = BorderStroke(1.dp, SoftPosColors.OutlineSubtle)
+                                ) {
+                                    Text(
+                                        text = activeLocaleTag,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = SoftPosColors.TextSecondaryMuted,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
 
@@ -621,6 +629,10 @@ class RedRecallLockActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+
+            if (isQuickGuideOpen) {
+                QuickGuideBottomSheet(onDismiss = { isQuickGuideOpen = false })
             }
         }
     }
