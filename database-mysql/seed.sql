@@ -3,6 +3,10 @@
 -- Bölümler: (1) zorunlu senaryo  (2) demo ilişkileri  (3) KI tahmin örnekleri
 -- =====================================================================
 
+-- docker-entrypoint loads each file in its own session: without this the
+-- Turkish names would be stored double-encoded ("Ã–rnek" instead of "Örnek").
+SET NAMES utf8mb4;
+
 -- =====================================================================
 -- Zorunlu senaryo seed'i (şartname Görev 1 + Görev 3)
 --   ET-2026-001 (100 kg et) -> URT-2026-045 -> SUC-2026-045 (85 paket)
