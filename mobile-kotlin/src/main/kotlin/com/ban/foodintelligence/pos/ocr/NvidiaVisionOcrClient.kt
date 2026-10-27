@@ -85,12 +85,20 @@ object NvidiaVisionOcrClient {
             .build()
     }
 
+    /** Sent as the system message: the output contract the model must follow. */
+    private val SYSTEM_PROMPT = """
+        You are a strict JSON API. Return ONLY valid JSON. No markdown, no ```json, no backticks,
+        no code fences, no explanations, no reasoning text. The first character of your reply
+        must be { and the last character must be }.
+    """.trimIndent()
+
     private val EXTRACTION_PROMPT = """
         You are an invoice data-extraction engine for a food-business ERP.
         Read the attached supplier invoice image and extract every product line.
         For each line return: Product Name, Quantity, Lot Number, and Unit Cost.
 
-        Respond with ONLY a single JSON object, no markdown, no commentary, in exactly this shape:
+        Return ONLY valid JSON. No markdown, no ```json, no backticks, no commentary.
+        Reply with a single JSON object in exactly this shape:
         {
           "supplier": string or null,
           "invoice_number": string or null,
@@ -136,6 +144,8 @@ object NvidiaVisionOcrClient {
             put(
                 "messages",
                 JSONArray().put(
+                    JSONObject().put("role", "system").put("content", SYSTEM_PROMPT)
+                ).put(
                     JSONObject().apply {
                         put("role", "user")
                         put(
@@ -180,17 +190,18 @@ object NvidiaVisionOcrClient {
 
         val latencyMs = System.currentTimeMillis() - startedAt
 
-        val content = try {
-            JSONObject(responseBody)
-                .getJSONArray("choices")
-                .getJSONObject(0)
-                .getJSONObject("message")
-                .getString("content")
+        val choice = try {
+            JSONObject(responseBody).getJSONArray("choices").getJSONObject(0)
         } catch (e: JSONException) {
             throw InvoiceOcrException("Unexpected NVIDIA NIM response format.", cause = e)
         }
+        val content = choice.optJSONObject("message")?.optString("content").orEmpty()
 
-        Log.i(TAG, "OCR completed in ${latencyMs} ms")
+        Log.i(
+            TAG,
+            "OCR completed in ${latencyMs} ms (finish_reason=${choice.optString("finish_reason")}, " +
+                "content=${content.length} chars): ${content.take(400).replace('\n', ' ')}"
+        )
         parseModelContent(content, latencyMs = latencyMs, isDemo = false)
     }
 
