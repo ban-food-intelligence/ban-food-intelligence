@@ -832,10 +832,12 @@ BEFORE INSERT ON sale_line
 FOR EACH ROW
 BEGIN
   DECLARE v_wh INT UNSIGNED;
+  DECLARE v_sold_at DATETIME(3);
   IF NEW.stock_movement_id IS NULL THEN
-    SELECT warehouse_id INTO v_wh FROM sale WHERE id = NEW.sale_id;
-    INSERT INTO stock_movement (lot_id, warehouse_id, movement_type, qty, unit_cost, ref_type, ref_id, created_by)
-    SELECT NEW.lot_id, v_wh, 'SALE', -NEW.qty, l.unit_cost, 'sale', NEW.sale_id, COALESCE(@app_user, 'pos')
+    -- hareket zamanı = satış zamanı (çevrimdışı satışlar sonradan senkronize olur)
+    SELECT warehouse_id, sold_at INTO v_wh, v_sold_at FROM sale WHERE id = NEW.sale_id;
+    INSERT INTO stock_movement (lot_id, warehouse_id, movement_type, qty, unit_cost, ref_type, ref_id, moved_at, created_by)
+    SELECT NEW.lot_id, v_wh, 'SALE', -NEW.qty, l.unit_cost, 'sale', NEW.sale_id, v_sold_at, COALESCE(@app_user, 'pos')
     FROM lot l WHERE l.id = NEW.lot_id;
     SET NEW.stock_movement_id = LAST_INSERT_ID();
   END IF;
