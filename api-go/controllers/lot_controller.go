@@ -29,9 +29,11 @@ func (c *LotController) TraceLot(w http.ResponseWriter, r *http.Request) {
 func (c *LotController) ListStockByLot(w http.ResponseWriter, r *http.Request) {
 	rows, err := c.db.QueryContext(
 		r.Context(),
-		`SELECT lot_no, sku, product_name, warehouse_code, qty, uom_code, unit_cost, stock_value, status
-		 FROM v_stock_by_lot
-		 ORDER BY lot_no ASC, warehouse_code ASC`,
+		`SELECT v.lot_no, v.sku, v.product_name, v.warehouse_code, v.qty, v.uom_code, v.unit_cost, v.stock_value, v.status,
+		        p.sale_price
+		 FROM v_stock_by_lot v
+		 JOIN product p ON p.sku = v.sku
+		 ORDER BY v.lot_no ASC, v.warehouse_code ASC`,
 	)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"failed to query v_stock_by_lot: %s"}`, err.Error()), http.StatusInternalServerError)
@@ -40,24 +42,29 @@ func (c *LotController) ListStockByLot(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type StockLotDto struct {
-		LotNo         string  `json:"lot_no"`
-		SKU           string  `json:"sku"`
-		ProductName   string  `json:"product_name"`
-		WarehouseCode string  `json:"warehouse_code"`
-		Qty           float64 `json:"qty"`
-		UomCode       string  `json:"uom_code"`
-		UnitCost      float64 `json:"unit_cost"`
-		StockValue    float64 `json:"stock_value"`
-		Status        string  `json:"status"`
+		LotNo         string   `json:"lot_no"`
+		SKU           string   `json:"sku"`
+		ProductName   string   `json:"product_name"`
+		WarehouseCode string   `json:"warehouse_code"`
+		Qty           float64  `json:"qty"`
+		UomCode       string   `json:"uom_code"`
+		UnitCost      float64  `json:"unit_cost"`
+		StockValue    float64  `json:"stock_value"`
+		Status        string   `json:"status"`
+		SalePrice     *float64 `json:"sale_price"` // VKP; null when the product is not sold
 	}
 
 	var list []StockLotDto
 	for rows.Next() {
 		var s StockLotDto
+		var salePrice sql.NullFloat64
 		if err := rows.Scan(
 			&s.LotNo, &s.SKU, &s.ProductName, &s.WarehouseCode,
-			&s.Qty, &s.UomCode, &s.UnitCost, &s.StockValue, &s.Status,
+			&s.Qty, &s.UomCode, &s.UnitCost, &s.StockValue, &s.Status, &salePrice,
 		); err == nil {
+			if salePrice.Valid {
+				s.SalePrice = &salePrice.Float64
+			}
 			list = append(list, s)
 		}
 	}
