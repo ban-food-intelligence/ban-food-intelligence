@@ -158,16 +158,20 @@ func (c *RecallController) loadRecallEventFromDB(r *http.Request, recallNo strin
 	var ev RecallEventDto
 	ev.RecallCode = recallNo
 	ev.TriggerLot = fallbackLot
-	ev.LockEnforced = true
 
+	// lock_enforced comes from the DB: the recall is OPEN and every lot in its
+	// recall_lot set is still RECALLED (so trg_sm_before_insert rejects SALE/SHIPMENT).
 	err := c.db.QueryRowContext(
 		r.Context(),
-		`SELECT rc.recall_no, rc.status, rc.severity, rc.reason, l.lot_no, rc.initiated_by, rc.initiated_at
+		`SELECT rc.recall_no, rc.status, rc.severity, rc.reason, l.lot_no, rc.initiated_by, rc.initiated_at,
+		        (rc.status = 'OPEN' AND NOT EXISTS (
+		           SELECT 1 FROM recall_lot rl JOIN lot rlt ON rlt.id = rl.lot_id
+		            WHERE rl.recall_id = rc.id AND rlt.status <> 'RECALLED')) AS lock_enforced
 		 FROM recall rc
 		 JOIN lot l ON l.id = rc.root_lot_id
 		 WHERE rc.recall_no = ?`,
 		recallNo,
-	).Scan(&ev.RecallCode, &ev.Status, &ev.Severity, &ev.Reason, &ev.TriggerLot, &ev.InitiatedBy, &ev.Timestamp)
+	).Scan(&ev.RecallCode, &ev.Status, &ev.Severity, &ev.Reason, &ev.TriggerLot, &ev.InitiatedBy, &ev.Timestamp, &ev.LockEnforced)
 	if err != nil {
 		return ev, err
 	}
