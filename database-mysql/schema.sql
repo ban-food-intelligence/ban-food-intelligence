@@ -431,6 +431,22 @@ CREATE TABLE ml_prediction (
   INDEX ix_mlp_ref (ref_type, ref_id)
 ) ENGINE=InnoDB;
 
+-- KI doğruluk ölçümü: model ve basit referans (geçmiş ortalama oran) aynı zaman-bölmeli test
+-- döneminde karşılaştırılır (ml-engine/export_ai_report.py üretir). Veri sentetiktir.
+CREATE TABLE ml_model_metric (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  task         ENUM('PRODUCTION','BUTCHERY') NOT NULL,
+  target_name  VARCHAR(30)  NOT NULL,                     -- actual_qty, ekp, part_kg, fire_kg
+  unit         VARCHAR(10)  NOT NULL,
+  model_name   VARCHAR(50)  NOT NULL,
+  role         ENUM('MODEL','BASELINE') NOT NULL,
+  eval_split   VARCHAR(30)  NOT NULL,
+  n_rows       INT UNSIGNED NOT NULL,
+  mae          DECIMAL(12,4) NOT NULL,
+  mape_pct     DECIMAL(8,4)  NOT NULL,
+  UNIQUE KEY uq_mmm (task, target_name, model_name, eval_split)
+) ENGINE=InnoDB;
+
 -- KI anomali uyarıları (ml-engine/anomaly_ali.py): tahmin edilen ile gerçek arasındaki açıklanamayan sapma.
 -- Berke'nin API'si v_ml_anomaly_alert'ten okur, status'ü günceller; FALSE_ALARM/RESOLVED geri bildirimi
 -- v_ml_anomaly_feedback ile gerçek işletmedeki precision'ı ölçer.

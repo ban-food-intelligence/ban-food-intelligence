@@ -66,6 +66,7 @@ func main() {
 	reportsCtrl := controllers.NewReportsController(db)
 	authCtrl := controllers.NewSupervisorAuthController(db)
 	movementsCtrl := controllers.NewMovementsController(db)
+	aiCtrl := controllers.NewAIController(db)
 
 	mux := http.NewServeMux()
 
@@ -122,6 +123,7 @@ func main() {
 
 	// Task 4: ML Yield Predictions & Deviation Telemetry
 	mux.HandleFunc("/yield", yieldCtrl.PredictYield)
+	mux.HandleFunc("/ai/summary", aiCtrl.Summary)
 	mux.HandleFunc("/api/v1/yield/predict", yieldCtrl.PredictYield)
 
 	// Offline Edge POS Synchronization (Hardware ECDSA P-256 + UUIDv7 Idempotency)
