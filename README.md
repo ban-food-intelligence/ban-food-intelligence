@@ -62,6 +62,10 @@ docker compose up -d --build        # or: make up   (Podman: make up COMPOSE="po
 
 ### Android app
 
+Gradle needs to find the Android SDK: set `ANDROID_HOME` (e.g. `%LOCALAPPDATA%\Android\Sdk` on
+Windows, `~/Android/Sdk` on Linux) or put `sdk.dir=...` into `mobile-kotlin/local.properties`
+(Android Studio does this when it opens the project).
+
 ```bash
 cd mobile-kotlin
 ./gradlew assembleDebug             # build/outputs/apk/debug/*.apk
