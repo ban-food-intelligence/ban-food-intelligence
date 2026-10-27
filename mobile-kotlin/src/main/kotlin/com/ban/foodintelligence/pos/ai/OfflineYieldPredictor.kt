@@ -4,9 +4,7 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
-import android.content.Intent
 import android.util.Log
-import com.ban.foodintelligence.pos.ui.RedRecallLockActivity
 import java.io.Closeable
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -59,7 +57,6 @@ class OfflineYieldPredictor(
     private val modelAssetName: String = DEFAULT_CONSORTIUM_ONNX_ASSET,
     private val minVarianceFloor: Float = MIN_UNCERTAINTY_VARIANCE_FLOOR,
     private val uncertaintyThreshold: Float = CRITICAL_UNCERTAINTY_VARIANCE_THRESHOLD,
-    private val autoTriggerLockdownOnAnomaly: Boolean = true
 ) : Closeable {
 
     companion object {
@@ -380,26 +377,13 @@ class OfflineYieldPredictor(
         }
     }
 
-    fun triggerEmergencyRecallLockdown(
-        anomaly: AnomalyDetectedException,
-        affectedLot: String = "SUC-2026-045",
-        rootLot: String = "ET-2026-001"
-    ) {
-        val lockIntent = Intent(appContext, RedRecallLockActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            putExtra(RedRecallLockActivity.EXTRA_RECALL_CODE, anomaly.anomalyCode)
-            putExtra(RedRecallLockActivity.EXTRA_AFFECTED_LOT, affectedLot)
-            putExtra(RedRecallLockActivity.EXTRA_ROOT_LOT, rootLot)
-            putExtra(RedRecallLockActivity.EXTRA_OOD_METRIC, anomaly.offendingMetric)
-            putExtra(RedRecallLockActivity.EXTRA_OOD_VALUE, anomaly.observedValue)
-        }
-        appContext.startActivity(lockIntent)
-    }
-
+    /**
+     * An implausible model input/output is only logged. It never locks the terminal or
+     * blocks a lot: recall and traceability come from recorded lot relations in MySQL,
+     * not from AI predictions (spec, section 4).
+     */
     private fun handleAnomalyLockdown(anomaly: AnomalyDetectedException) {
-        if (autoTriggerLockdownOnAnomaly) {
-            runCatching { triggerEmergencyRecallLockdown(anomaly) }
-        }
+        android.util.Log.w("OfflineYieldPredictor", "Prediction rejected: ${anomaly.anomalyCode} (${anomaly.offendingMetric}=${anomaly.observedValue})")
     }
 
     override fun close() {

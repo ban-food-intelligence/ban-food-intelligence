@@ -5,10 +5,9 @@
 
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
     <string name="lockdown_hazard_banner">/// SINIF-I BİYOTEHLİKE VE UÇ YAPAY ZEKA OOD KİLİDİ AKTİF ///</string>
-    <string name="lockdown_title">KRİTİK İADE</string>
-    <string name="lockdown_subtitle">KARANTİNA KİOSK KİLİTLEMESİ // DONANIM MÜHÜRLENDİ</string>
-    <string name="lockdown_body">KRİTİK UYARI: Biyolojik Olarak İmkansız Sensör Verisi veya Kontamine Parti Tespit Edildi. Terminal Kilitlendi.</string>
-
+    <string name="lockdown_title">Satış durduruldu</string>
+    <string name="lockdown_subtitle">Ürün geri çağırma</string>
+    <string name="lockdown_body">Bu mağazadaki ürünleri etkileyen bir geri çağırma var. Aşağıdaki lotları raftan kaldırın. Satışa devam etmek için bir yetkilinin onay vermesi gerekir.</string>
     <!-- Telemetry & Forensics Readout Labels -->
     <string name="telemetry_header">TELEMETRİ VE ADLİ BİLİŞİM ÇIKTISI</string>
     <string name="telemetry_incident_code">OLAY KODU       : %1$s</string>
@@ -140,4 +139,23 @@
     <string name="action_open_settings">Ayarları aç</string>
     <string name="action_retry">Tekrar dene</string>
     <string name="action_done">Tamam</string>
+    <string name="lock_recall">Geri çağırma</string>
+    <string name="lock_lots">Etkilenen lotlar</string>
+    <string name="lock_root">Kaynak lot</string>
+    <string name="lock_since">Durdurulma zamanı</string>
+    <string name="lock_unlock_button">Yetkili kilidi açsın</string>
+    <string name="lock_pin_title">Yetkili PIN\'i</string>
+    <string name="lock_pin_message">Geri çağrılan lotların raftan kaldırıldığını onaylayın.</string>
+    <string name="lock_pin_hint">PIN</string>
+    <string name="lock_pin_confirm">Kilidi aç</string>
+    <string name="lock_pin_cancel">Vazgeç</string>
+    <string name="lock_checking">Kontrol ediliyor…</string>
+    <string name="lock_pin_locked">Çok fazla hatalı deneme. %1$d dk sonra tekrar deneyin.</string>
+    <string name="lock_offline_unavailable">Sunucuya ulaşılamıyor ve bu cihazda çevrimdışı kilit açma ayarlı değil. Sunucuya bağlanıp tekrar deneyin.</string>
+    <string name="lock_unlocked_toast">%1$s tarafından açıldı</string>
+    <string name="lock_unlocked_offline">Çevrimdışı açıldı</string>
+    <plurals name="lock_pin_wrong">
+        <item quantity="one">PIN hatalı. %d deneme hakkınız kaldı.</item>
+        <item quantity="other">PIN hatalı. %d deneme hakkınız kaldı.</item>
+    </plurals>
 </resources>

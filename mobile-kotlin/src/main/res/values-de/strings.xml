@@ -5,10 +5,9 @@
 
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
     <string name="lockdown_hazard_banner">/// KLASSE-I BIOGEFAHR &amp; EDGE-KI OOD-SPERRE AKTIVIERT ///</string>
-    <string name="lockdown_title">KRITISCHER RÜCKRUF</string>
-    <string name="lockdown_subtitle">QUARANTÄNE-KIOSK-SPERRE // HARDWARE VERSIEGELT</string>
-    <string name="lockdown_body">KRITISCHER ALARM: Biologisch unmögliche Sensordaten oder kontaminierte Charge erkannt. Terminal gesperrt.</string>
-
+    <string name="lockdown_title">Verkauf angehalten</string>
+    <string name="lockdown_subtitle">Produktrückruf</string>
+    <string name="lockdown_body">Ein Rückruf betrifft Produkte in diesem Geschäft. Nehmen Sie die unten genannten Chargen aus dem Regal. Erst nach Bestätigung durch eine Aufsichtsperson kann weiter verkauft werden.</string>
     <!-- Telemetry & Forensics Readout Labels -->
     <string name="telemetry_header">TELEMETRIE- &amp; FORENSIK-PROTOKOLL</string>
     <string name="telemetry_incident_code">VORFALLSCODE    : %1$s</string>
@@ -140,4 +139,23 @@
     <string name="action_open_settings">Einstellungen öffnen</string>
     <string name="action_retry">Erneut versuchen</string>
     <string name="action_done">Fertig</string>
+    <string name="lock_recall">Rückruf</string>
+    <string name="lock_lots">Betroffene Chargen</string>
+    <string name="lock_root">Ursprungscharge</string>
+    <string name="lock_since">Angehalten seit</string>
+    <string name="lock_unlock_button">Entsperren durch Aufsicht</string>
+    <string name="lock_pin_title">PIN der Aufsicht</string>
+    <string name="lock_pin_message">Bestätigen Sie, dass die zurückgerufenen Chargen aus dem Regal genommen wurden.</string>
+    <string name="lock_pin_hint">PIN</string>
+    <string name="lock_pin_confirm">Entsperren</string>
+    <string name="lock_pin_cancel">Abbrechen</string>
+    <string name="lock_checking">Wird geprüft …</string>
+    <string name="lock_pin_locked">Zu viele Fehlversuche. In %1$d Min. erneut versuchen.</string>
+    <string name="lock_offline_unavailable">Der Server ist nicht erreichbar und Offline-Entsperren ist auf diesem Gerät nicht eingerichtet. Mit dem Server verbinden und erneut versuchen.</string>
+    <string name="lock_unlocked_toast">Entsperrt von %1$s</string>
+    <string name="lock_unlocked_offline">Offline entsperrt</string>
+    <plurals name="lock_pin_wrong">
+        <item quantity="one">Falsche PIN. Noch 1 Versuch.</item>
+        <item quantity="other">Falsche PIN. Noch %d Versuche.</item>
+    </plurals>
 </resources>

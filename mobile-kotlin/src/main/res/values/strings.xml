@@ -5,10 +5,9 @@
 
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
     <string name="lockdown_hazard_banner">/// CLASS-I BIOHAZARD &amp; EDGE AI OOD INTERLOCK ENGAGED ///</string>
-    <string name="lockdown_title">CRITICAL RECALL</string>
-    <string name="lockdown_subtitle">QUARANTINE KIOSK LOCKDOWN // HARDWARE SEALED</string>
-    <string name="lockdown_body">CRITICAL ALERT: Biologically Impossible Sensor Data or Contaminated Lot Detected. Terminal Locked.</string>
-
+    <string name="lockdown_title">Sales paused</string>
+    <string name="lockdown_subtitle">Product recall</string>
+    <string name="lockdown_body">A recall affects products in this shop. Take the lots below off the shelf. A supervisor has to confirm before you can sell again.</string>
     <!-- Telemetry & Forensics Readout Labels -->
     <string name="telemetry_header">TELEMETRY &amp; FORENSICS READOUT</string>
     <string name="telemetry_incident_code">INCIDENT CODE   : %1$s</string>
@@ -140,4 +139,23 @@
     <string name="action_open_settings">Open Settings</string>
     <string name="action_retry">Try again</string>
     <string name="action_done">Done</string>
+    <string name="lock_recall">Recall</string>
+    <string name="lock_lots">Affected lots</string>
+    <string name="lock_root">Source lot</string>
+    <string name="lock_since">Paused since</string>
+    <string name="lock_unlock_button">Supervisor unlock</string>
+    <string name="lock_pin_title">Supervisor PIN</string>
+    <string name="lock_pin_message">Confirm that the recalled lots are off the shelf.</string>
+    <string name="lock_pin_hint">PIN</string>
+    <string name="lock_pin_confirm">Unlock</string>
+    <string name="lock_pin_cancel">Cancel</string>
+    <string name="lock_checking">Checking…</string>
+    <string name="lock_pin_locked">Too many wrong attempts. Try again in %1$d min.</string>
+    <string name="lock_offline_unavailable">The server can\'t be reached and offline unlock is not set up on this device. Connect to the server and try again.</string>
+    <string name="lock_unlocked_toast">Unlocked by %1$s</string>
+    <string name="lock_unlocked_offline">Unlocked offline</string>
+    <plurals name="lock_pin_wrong">
+        <item quantity="one">Wrong PIN. 1 attempt left.</item>
+        <item quantity="other">Wrong PIN. %d attempts left.</item>
+    </plurals>
 </resources>
