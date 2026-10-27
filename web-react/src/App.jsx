@@ -1,94 +1,76 @@
-import React, { useState } from 'react';
-import RecallWarRoom from './components/RecallWarRoom';
-import LotGenealogy from './components/LotGenealogy';
-import ButcheryCostTable from './components/ButcheryCostTable';
-import MLPredictionsTable from './components/MLPredictionsTable';
+import React, { useEffect, useState } from 'react';
+import { LangProvider, useLang } from './lib/i18n';
+import Overview from './views/Overview';
+import { Movements, Purchases, Sales } from './views/Reports';
+import Production from './views/Production';
+import Butchery from './views/Butchery';
+import TraceRecall from './views/TraceRecall';
+import AI from './views/AI';
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('butchery');
+const TABS = [
+  { id: 'overview', view: Overview },
+  { id: 'purchases', view: Purchases },
+  { id: 'production', view: Production },
+  { id: 'butchery', view: Butchery },
+  { id: 'movements', view: Movements },
+  { id: 'sales', view: Sales },
+  { id: 'trace', view: TraceRecall },
+  { id: 'ai', view: AI },
+];
+
+function readTab() {
+  const h = window.location.hash.replace('#', '');
+  return TABS.some((t) => t.id === h) ? h : 'overview';
+}
+
+function Shell() {
+  const { t, lang, setLang } = useLang();
+  const [tab, setTab] = useState(readTab);
+  useEffect(() => {
+    const onHash = () => setTab(readTab());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+  const open = (id) => {
+    window.location.hash = id;
+    setTab(id);
+  };
+  const View = TABS.find((x) => x.id === tab).view;
 
   return (
-    <div className="dashboard-container">
-      <header className="header-banner">
-        <div className="title-tagline">
-          <h1>BAN Food Intelligence &bull; AVATAR ERP</h1>
-          <p>Fason üretim maliyeti (EKP), kuzu parçalama mutabakatı, lot izlenebilirliği ve yapay zeka tahminleri: canlı Go API + MySQL verisi</p>
+    <div className="app">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-name">{t('appName')}</div>
+          <div className="brand-sub">{t('appSub')}</div>
         </div>
-        <div className="badge-team">
-          Ali (MySQL/ML) &bull; Berke (Go/React) &bull; Nuri (Kotlin POS/ECDSA/Stacking)
+        <nav className="nav" aria-label="Sections">
+          {TABS.map((x) => (
+            <button key={x.id} className={x.id === tab ? 'active' : ''} aria-current={x.id === tab ? 'page' : undefined} onClick={() => open(x.id)}>
+              {t(`tab_${x.id}`)}
+            </button>
+          ))}
+        </nav>
+        <div className="lang" role="group" aria-label="Language">
+          {['tr', 'en'].map((l) => (
+            <button key={l} className={l === lang ? 'active' : ''} onClick={() => setLang(l)}>{l.toUpperCase()}</button>
+          ))}
         </div>
-      </header>
-
-      {/* Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid #232d42', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setActiveTab('butchery')}
-          style={{
-            background: activeTab === 'butchery' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
-            color: activeTab === 'butchery' ? '#34d399' : '#94a3b8',
-            border: activeTab === 'butchery' ? '1px solid #10b981' : '1px solid transparent',
-            borderRadius: '6px',
-            padding: '0.6rem 1.2rem',
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-          }}
-        >
-          Görev 1 & 2: Üretim Maliyeti ve Kuzu Parçalama
-        </button>
-        <button
-          onClick={() => setActiveTab('recall')}
-          style={{
-            background: activeTab === 'recall' ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
-            color: activeTab === 'recall' ? '#f87171' : '#94a3b8',
-            border: activeTab === 'recall' ? '1px solid #ef4444' : '1px solid transparent',
-            borderRadius: '6px',
-            padding: '0.6rem 1.2rem',
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-          }}
-        >
-          Görev 3: Geri Çağırma
-        </button>
-        <button
-          onClick={() => setActiveTab('genealogy')}
-          style={{
-            background: activeTab === 'genealogy' ? 'rgba(6, 182, 212, 0.2)' : 'transparent',
-            color: activeTab === 'genealogy' ? '#38bdf8' : '#94a3b8',
-            border: activeTab === 'genealogy' ? '1px solid #06b6d4' : '1px solid transparent',
-            borderRadius: '6px',
-            padding: '0.6rem 1.2rem',
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-          }}
-        >
-          Görev 3: İleri ve Geri Lot İzlenebilirliği
-        </button>
-        <button
-          onClick={() => setActiveTab('ml')}
-          style={{
-            background: activeTab === 'ml' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
-            color: activeTab === 'ml' ? '#c4b5fd' : '#94a3b8',
-            border: activeTab === 'ml' ? '1px solid #8b5cf6' : '1px solid transparent',
-            borderRadius: '6px',
-            padding: '0.6rem 1.2rem',
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-          }}
-        >
-          Görev 4A & 4B: Yapay Zeka Tahmin ve Sapma Raporu
-        </button>
-      </div>
-
-      <main>
-        {activeTab === 'butchery' && <ButcheryCostTable />}
-        {activeTab === 'recall' && <RecallWarRoom />}
-        {activeTab === 'genealogy' && <LotGenealogy />}
-        {activeTab === 'ml' && <MLPredictionsTable />}
+      </aside>
+      <main className="main">
+        <View onOpen={open} />
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <LangProvider>
+      <Shell />
+    </LangProvider>
   );
 }
