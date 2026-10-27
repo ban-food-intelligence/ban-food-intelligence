@@ -103,4 +103,12 @@
     <string name="pos_catalog_empty">No lots in stock at %1$s.</string>
     <string name="pos_catalog_loading">Loading lots from Go API...</string>
     <string name="pos_btn_refresh">Refresh</string>
+
+    <!-- OCR camera capture -->
+    <string name="ocr_btn_take_photo">Take photo of invoice</string>
+    <string name="ocr_btn_sample">Sample invoice</string>
+    <string name="ocr_processing_title">Processing...</string>
+    <string name="ocr_processing_body">Reading the invoice with %1$s. This can take up to a minute.</string>
+    <string name="ocr_camera_unavailable">No camera app found. Using the sample invoice instead.</string>
+    <string name="ocr_capture_failed">The photo could not be read. Please try again.</string>
 </resources>

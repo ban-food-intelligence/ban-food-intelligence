@@ -43,6 +43,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AdminPanelSettings
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -113,6 +119,10 @@ class RedRecallLockActivity : ComponentActivity() {
 
         // Master Supervisor PIN (also verified via salted PBKDF2-HMAC-SHA256 in SupervisorAuth)
         private const val SUPERVISOR_MASTER_PIN = "590314"
+    }
+
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -373,11 +383,11 @@ class RedRecallLockActivity : ComponentActivity() {
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(7.dp)
-                                                .clip(CircleShape)
-                                                .background(SoftPosColors.RecallCrimsonAccent)
+                                        Icon(
+                                            imageVector = Icons.Rounded.Lock,
+                                            contentDescription = null,
+                                            tint = SoftPosColors.RecallCrimsonAccent,
+                                            modifier = Modifier.size(14.dp)
                                         )
                                         Text(
                                             text = "KIOSK ACTIVE",
@@ -467,6 +477,13 @@ class RedRecallLockActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Icon(
+                                imageVector = Icons.Rounded.WarningAmber,
+                                contentDescription = null,
+                                tint = SoftPosColors.RecallCrimsonAccent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = stringResource(R.string.telemetry_header),
                                 style = MaterialTheme.typography.titleMedium.copy(
@@ -526,6 +543,20 @@ class RedRecallLockActivity : ComponentActivity() {
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = SoftPosColors.PastelRedContainer,
+                                    modifier = Modifier.size(44.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.AdminPanelSettings,
+                                            contentDescription = null,
+                                            tint = SoftPosColors.RecallCrimsonAccent,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
                                 Text(
                                     text = stringResource(R.string.supervisor_console_header),
                                     style = MaterialTheme.typography.titleLarge.copy(
@@ -617,6 +648,12 @@ class RedRecallLockActivity : ComponentActivity() {
                                         pressedElevation = 1.dp
                                     )
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.LockOpen,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = stringResource(R.string.btn_unlock),
                                         style = MaterialTheme.typography.labelLarge.copy(
