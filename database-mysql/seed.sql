@@ -31,6 +31,11 @@ INSERT INTO supplier (code, name, supplier_type, contact_person, phone, email, a
   ('FAS-01',     'Örnek Fason Sucuk Üretim',     'SUBCONTRACTOR', 'Üretim Müdürü',    '+90 212 000 00 04', 'uretim@fason.example',        'Afyon'),
   ('TED-HAY-01', 'Örnek Besi Çiftliği',          'LIVESTOCK',     'Çiftlik Sahibi',   '+90 212 000 00 05', 'ciftlik@besi.example',        'Balıkesir');
 
+-- POS kilit açma yetkilisi (yalnızca demo). PIN yalnızca bcrypt özeti olarak saklanır;
+-- demo PIN'i README.md "Demo credentials" bölümündedir.
+INSERT INTO supervisor (username, display_name, pin_hash) VALUES
+  ('kalite_muduru', 'Kalite Müdürü (demo)', '$2a$12$63SzM09Iqm1GeXxrWgoRJ.NDhh31OV2JaNWWY2fKHi0nzfBmdD3E2');
+
 INSERT INTO customer (code, name, customer_type, contact_person, phone, email, address) VALUES
   ('MKT-A', 'Market A', 'MARKET', 'Şube Müdürü A', '+90 216 000 00 0A', 'market-a@musteri.example', 'Kadıköy'),
   ('MKT-B', 'Market B', 'MARKET', 'Şube Müdürü B', '+90 216 000 00 0B', 'market-b@musteri.example', 'Üsküdar'),

@@ -64,6 +64,7 @@ func main() {
 	lotCtrl := controllers.NewLotController(db)
 	yieldCtrl := controllers.NewYieldController(db)
 	reportsCtrl := controllers.NewReportsController(db)
+	authCtrl := controllers.NewSupervisorAuthController(db)
 
 	mux := http.NewServeMux()
 
@@ -100,6 +101,10 @@ func main() {
 	mux.HandleFunc("/api/v1/trace/", traceCtrl.TraceHandler)
 	mux.HandleFunc("/lots", lotCtrl.ListStockByLot)
 	mux.HandleFunc("/api/v1/lots/trace/", lotCtrl.TraceLot)
+
+	// Supervisor unlock of a recalled POS terminal (bcrypt, lockout, audit)
+	mux.HandleFunc("/auth/supervisor/verify", authCtrl.Verify)
+	mux.HandleFunc("/auth/supervisor/audit", authCtrl.Audit)
 
 	// Reports: purchases, lot movement ledger, POS sales
 	mux.HandleFunc("/purchases", reportsCtrl.Purchases)

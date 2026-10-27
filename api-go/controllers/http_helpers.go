@@ -3,7 +3,88 @@ package controllers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 )
+
+// APIError is the single error body every endpoint returns:
+// {"code": "LOT_NOT_FOUND", "message": "<localised>", "details": "<technical>"}.
+// Clients branch on Code; Message is chosen from Accept-Language (tr, de, en).
+type APIError struct {
+	Code    string      `json:"code"`
+	Message string      `json:"message"`
+	Details interface{} `json:"details,omitempty"`
+}
+
+var errorMessages = map[string]map[string]string{
+	"INVALID_INPUT":      {"en": "The request is not valid.", "tr": "İstek geçersiz.", "de": "Die Anfrage ist ungültig."},
+	"NOT_FOUND":          {"en": "Record not found.", "tr": "Kayıt bulunamadı.", "de": "Datensatz nicht gefunden."},
+	"LOT_NOT_FOUND":      {"en": "Lot not found.", "tr": "Lot bulunamadı.", "de": "Charge nicht gefunden."},
+	"METHOD_NOT_ALLOWED": {"en": "This method is not allowed here.", "tr": "Bu işlem burada kullanılamaz.", "de": "Diese Methode ist hier nicht erlaubt."},
+	"CONFLICT":           {"en": "The record already exists or was changed.", "tr": "Kayıt zaten var veya değiştirilmiş.", "de": "Der Datensatz existiert bereits oder wurde geändert."},
+	"INSUFFICIENT_STOCK": {"en": "Not enough stock for this lot.", "tr": "Bu lot için yeterli stok yok.", "de": "Nicht genügend Bestand für diese Charge."},
+	"LOT_BLOCKED":        {"en": "This lot is recalled or blocked. Sale blocked.", "tr": "Bu lot geri çağrıldı veya bloke. Satış engellendi.", "de": "Diese Charge ist zurückgerufen oder gesperrt. Verkauf gesperrt."},
+	"ORDER_STATE":        {"en": "The production order is not in the right state for this step.", "tr": "Üretim emri bu adım için uygun durumda değil.", "de": "Der Fertigungsauftrag ist für diesen Schritt nicht im richtigen Status."},
+	"INVALID_PIN":        {"en": "Wrong PIN.", "tr": "PIN hatalı.", "de": "Falsche PIN."},
+	"LOCKED_OUT":         {"en": "Too many wrong attempts. Try again later.", "tr": "Çok fazla hatalı deneme. Daha sonra tekrar deneyin.", "de": "Zu viele Fehlversuche. Bitte später erneut versuchen."},
+	"DB_ERROR":           {"en": "The database could not complete the request.", "tr": "Veritabanı isteği tamamlayamadı.", "de": "Die Datenbank konnte die Anfrage nicht ausführen."},
+}
+
+// lang picks tr / de / en from the Accept-Language header (default en).
+func lang(r *http.Request) string {
+	if r == nil {
+		return "en"
+	}
+	al := strings.ToLower(r.Header.Get("Accept-Language"))
+	switch {
+	case strings.HasPrefix(al, "tr"):
+		return "tr"
+	case strings.HasPrefix(al, "de"):
+		return "de"
+	default:
+		return "en"
+	}
+}
+
+func messageFor(code string, r *http.Request) string {
+	if m, ok := errorMessages[code]; ok {
+		return m[lang(r)]
+	}
+	return code
+}
+
+// writeAPIError writes the standard error body with a localised message.
+func writeAPIError(w http.ResponseWriter, r *http.Request, status int, code string, details interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(APIError{Code: code, Message: messageFor(code, r), Details: details})
+}
+
+// writeDBError maps a MySQL error (SIGNAL texts from schema.sql triggers/procedures)
+// to the right HTTP status and error code.
+func writeDBError(w http.ResponseWriter, r *http.Request, err error) {
+	status, code := classifyDBError(err)
+	writeAPIError(w, r, status, code, err.Error())
+}
+
+func classifyDBError(err error) (int, string) {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "LOT_NOT_FOUND"):
+		return http.StatusNotFound, "LOT_NOT_FOUND"
+	case strings.Contains(msg, "INSUFFICIENT_STOCK"):
+		return http.StatusConflict, "INSUFFICIENT_STOCK"
+	case strings.Contains(msg, "LOT_BLOCKED"):
+		return http.StatusConflict, "LOT_BLOCKED"
+	case strings.Contains(msg, "ORDER_STATE"):
+		return http.StatusConflict, "ORDER_STATE"
+	case strings.Contains(msg, "ACTUAL_QTY"), strings.Contains(msg, "MOVEMENT_SIGN"), strings.Contains(msg, "Check constraint"):
+		return http.StatusUnprocessableEntity, "INVALID_INPUT"
+	case strings.Contains(msg, "Duplicate entry"):
+		return http.StatusConflict, "CONFLICT"
+	default:
+		return http.StatusInternalServerError, "DB_ERROR"
+	}
+}
 
 // writeJSON encodes v as a JSON response body.
 func writeJSON(w http.ResponseWriter, v interface{}) {
@@ -11,9 +92,18 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// writeJSONError writes {"error": message} with the given status; the message is JSON-escaped.
+// writeJSONError keeps older call sites working: the code is derived from the status.
 func writeJSONError(w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+	code := "DB_ERROR"
+	switch status {
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
+		code = "INVALID_INPUT"
+	case http.StatusNotFound:
+		code = "NOT_FOUND"
+	case http.StatusMethodNotAllowed:
+		code = "METHOD_NOT_ALLOWED"
+	case http.StatusConflict:
+		code = "CONFLICT"
+	}
+	writeAPIError(w, nil, status, code, message)
 }

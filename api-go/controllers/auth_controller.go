@@ -1,0 +1,208 @@
+package controllers
+
+import (
+	"database/sql"
+	"encoding/json"
+	"log"
+	"net/http"
+	"sync"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
+)
+
+const (
+	supervisorMaxFailures = 5
+	supervisorLockout     = 5 * time.Minute
+)
+
+// SupervisorAuthController verifies the supervisor PIN that releases a POS recall lock.
+// The PIN is only ever compared against bcrypt hashes in the `supervisor` table.
+type SupervisorAuthController struct {
+	db       *sql.DB
+	mu       sync.Mutex
+	attempts map[string]*pinAttempts
+	now      func() time.Time
+}
+
+type pinAttempts struct {
+	failures    int
+	lockedUntil time.Time
+}
+
+type SupervisorVerifyRequest struct {
+	PIN        string `json:"pin"`
+	DeviceID   string `json:"device_id"`
+	LotNo      string `json:"lot_no"`
+	RecallCode string `json:"recall_code"`
+}
+
+type SupervisorVerifyResponse struct {
+	OK          bool      `json:"ok"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name"`
+	UnlockedAt  time.Time `json:"unlocked_at"`
+}
+
+type UnlockAuditEntryDto struct {
+	At      time.Time       `json:"at"`
+	Action  string          `json:"action"`
+	By      string          `json:"by"`
+	Details json.RawMessage `json:"details"`
+}
+
+func NewSupervisorAuthController(db *sql.DB) *SupervisorAuthController {
+	return &SupervisorAuthController{db: db, attempts: map[string]*pinAttempts{}, now: time.Now}
+}
+
+// Verify handles POST /auth/supervisor/verify.
+//
+//	200 {ok, username, display_name, unlocked_at}
+//	400 INVALID_INPUT   pin missing / not 4-12 digits
+//	401 INVALID_PIN     details: {attempts_left}
+//	429 LOCKED_OUT      details: {retry_after_seconds}; after 5 wrong PINs per device for 5 minutes
+func (c *SupervisorAuthController) Verify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
+		return
+	}
+	var req SupervisorVerifyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !validPIN(req.PIN) {
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "pin must be 4-12 digits")
+		return
+	}
+	key := req.DeviceID
+	if key == "" {
+		key = r.RemoteAddr
+	}
+
+	if wait := c.lockedFor(key); wait > 0 {
+		w.Header().Set("Retry-After", itoa(int(wait.Seconds())))
+		writeAPIError(w, r, http.StatusTooManyRequests, "LOCKED_OUT", map[string]int{"retry_after_seconds": int(wait.Seconds())})
+		return
+	}
+
+	rows, err := c.db.QueryContext(r.Context(),
+		`SELECT id, username, display_name, pin_hash FROM supervisor WHERE is_active = TRUE`)
+	if err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	var matchID int64
+	var username, display string
+	for rows.Next() {
+		var id int64
+		var u, d, hash string
+		if err := rows.Scan(&id, &u, &d, &hash); err != nil {
+			continue
+		}
+		if matchID == 0 && bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.PIN)) == nil {
+			matchID, username, display = id, u, d
+		}
+	}
+	rows.Close()
+
+	details, _ := json.Marshal(map[string]string{
+		"device_id": req.DeviceID, "lot_no": req.LotNo, "recall_code": req.RecallCode,
+	})
+
+	if matchID == 0 {
+		left := c.recordFailure(key)
+		c.audit(r, 0, "SUPERVISOR_UNLOCK_DENIED", details, "unknown")
+		if left <= 0 {
+			writeAPIError(w, r, http.StatusTooManyRequests, "LOCKED_OUT",
+				map[string]int{"retry_after_seconds": int(supervisorLockout.Seconds())})
+			return
+		}
+		writeAPIError(w, r, http.StatusUnauthorized, "INVALID_PIN", map[string]int{"attempts_left": left})
+		return
+	}
+
+	c.reset(key)
+	c.audit(r, matchID, "SUPERVISOR_UNLOCK", details, username)
+	log.Printf("[INFO] [AUTH] supervisor=%s unlocked device=%s lot=%s recall=%s", username, req.DeviceID, req.LotNo, req.RecallCode)
+	writeJSON(w, SupervisorVerifyResponse{OK: true, Username: username, DisplayName: display, UnlockedAt: c.now().UTC()})
+}
+
+// Audit handles GET /auth/supervisor/audit: the latest unlock attempts (who, when, which lot).
+func (c *SupervisorAuthController) Audit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
+		return
+	}
+	rows, err := c.db.QueryContext(r.Context(),
+		`SELECT changed_at, action, COALESCE(changed_by, ''), COALESCE(new_value, JSON_OBJECT())
+		 FROM audit_log WHERE table_name = 'terminal_lock' ORDER BY id DESC LIMIT 50`)
+	if err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	defer rows.Close()
+	list := []UnlockAuditEntryDto{}
+	for rows.Next() {
+		var e UnlockAuditEntryDto
+		var raw []byte
+		if err := rows.Scan(&e.At, &e.Action, &e.By, &raw); err == nil {
+			e.Details = json.RawMessage(raw)
+			list = append(list, e)
+		}
+	}
+	writeJSON(w, list)
+}
+
+func (c *SupervisorAuthController) audit(r *http.Request, supervisorID int64, action string, details []byte, by string) {
+	if _, err := c.db.ExecContext(r.Context(),
+		`INSERT INTO audit_log (table_name, row_id, action, new_value, changed_by) VALUES ('terminal_lock', ?, ?, ?, ?)`,
+		supervisorID, action, string(details), by); err != nil {
+		log.Printf("[WARN] [AUTH] audit insert failed: %v", err)
+	}
+}
+
+func (c *SupervisorAuthController) lockedFor(key string) time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if a, ok := c.attempts[key]; ok && c.now().Before(a.lockedUntil) {
+		return a.lockedUntil.Sub(c.now()).Round(time.Second)
+	}
+	return 0
+}
+
+// recordFailure counts a wrong PIN and returns the attempts left before lockout.
+func (c *SupervisorAuthController) recordFailure(key string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	a, ok := c.attempts[key]
+	if !ok || (!a.lockedUntil.IsZero() && c.now().After(a.lockedUntil)) {
+		a = &pinAttempts{}
+		c.attempts[key] = a
+	}
+	a.failures++
+	left := supervisorMaxFailures - a.failures
+	if left <= 0 {
+		a.lockedUntil = c.now().Add(supervisorLockout)
+	}
+	return left
+}
+
+func (c *SupervisorAuthController) reset(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.attempts, key)
+}
+
+func validPIN(pin string) bool {
+	if len(pin) < 4 || len(pin) > 12 {
+		return false
+	}
+	for _, ch := range pin {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func itoa(n int) string {
+	b, _ := json.Marshal(n)
+	return string(b)
+}
