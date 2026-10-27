@@ -1062,7 +1062,7 @@ BEGIN
   SELECT t.depth, l.lot_no, p.sku, p.name AS product_name, l.origin_type,
          l.lot_date, l.expiry_date, l.initial_qty, l.uom_code, l.unit_cost,
          s.code AS supplier_code, s.name AS supplier_name, l.supplier_lot_no,
-         s.contact_person AS supplier_contact, s.phone AS supplier_phone, t.path
+         s.contact_person AS supplier_contact, s.phone AS supplier_phone, t.path, l.status
     FROM tmp_trace_lot t
     JOIN lot l ON l.id = t.lot_id
     JOIN product p ON p.id = l.product_id
@@ -1144,6 +1144,9 @@ BEGIN
   )
   SELECT u.tier, c.code AS customer_code, c.name AS customer_name, c.contact_person, c.phone, c.email,
          vc.name AS received_via,
+         c.address,
+         -- 2. kademe: yalnızca kayıtlı ileri sevk varsa kesin; yoksa "kayıtlı değil"
+         EXISTS (SELECT 1 FROM shipment s2 WHERE s2.from_customer_id = c.id) AS onward_recorded,
          GROUP_CONCAT(DISTINCT l.lot_no ORDER BY l.lot_no) AS lots,
          SUM(u.qty) AS qty_shipped,
          COALESCE((SELECT SUM(sm.qty) FROM stock_movement sm
@@ -1154,7 +1157,7 @@ BEGIN
     JOIN customer c ON c.id = u.customer_id
     LEFT JOIN customer vc ON vc.id = u.via_customer_id
     JOIN lot l ON l.id = u.lot_id
-   GROUP BY u.tier, c.id, c.code, c.name, c.contact_person, c.phone, c.email, vc.name
+   GROUP BY u.tier, c.id, c.code, c.name, c.contact_person, c.phone, c.email, vc.name, c.address
    ORDER BY u.tier, c.code;
 
   SELECT l.lot_no, w.code AS warehouse_code, sb.qty, l.uom_code, l.status

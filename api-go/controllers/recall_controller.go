@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,16 +21,20 @@ type RecallTriggerRequest struct {
 }
 
 type RecallMarketLineDto struct {
-	Tier          int     `json:"tier"`
-	CustomerCode  string  `json:"customer_code"`
-	CustomerName  string  `json:"customer_name"`
-	ContactPerson string  `json:"contact_person"`
-	Phone         string  `json:"phone"`
-	Email         string  `json:"email"`
-	ReceivedVia   string  `json:"received_via,omitempty"`
-	Lots          string  `json:"lots"`
-	QtyShipped    float64 `json:"qty_shipped"`
-	QtyReturned   float64 `json:"qty_returned"`
+	Tier          int    `json:"tier"`
+	CustomerCode  string `json:"customer_code"`
+	CustomerName  string `json:"customer_name"`
+	ContactPerson string `json:"contact_person"`
+	Phone         string `json:"phone"`
+	Email         string `json:"email"`
+	ReceivedVia   string `json:"received_via,omitempty"`
+	Address       string `json:"address"`
+	// SecondTier: RECORDED when this customer's onward shipments are recorded (they are listed
+	// as tier-2 rows), NOT_RECORDED otherwise (spec: show tier 2 only when recorded).
+	SecondTier  string  `json:"second_tier"`
+	Lots        string  `json:"lots"`
+	QtyShipped  float64 `json:"qty_shipped"`
+	QtyReturned float64 `json:"qty_returned"`
 }
 
 type RecallEventDto struct {
@@ -145,17 +150,11 @@ func (c *RecallController) GetActiveRecalls(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	// If no recall row has been inserted yet, query forward trace of ET-2026-001 so the dashboard
-	// can preview the exact affected lots and Market A/B/C (30/25/30 packages) from MySQL.
-	if len(events) == 0 {
-		preview, err := c.buildPreviewRecallFromForwardTrace(r, "ET-2026-001")
-		if err == nil {
-			events = append(events, preview)
-		}
+	// No recall yet -> empty list. What a recall would affect comes from GET /trace.
+	if events == nil {
+		events = []RecallEventDto{}
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(events)
+	writeJSON(w, events)
 }
 
 func (c *RecallController) loadRecallEventFromDB(r *http.Request, recallNo string, fallbackLot string) (RecallEventDto, error) {
@@ -206,16 +205,22 @@ func (c *RecallController) loadRecallEventFromDB(r *http.Request, recallNo strin
 	if err == nil {
 		for repRows.Next() {
 			var m RecallMarketLineDto
-			var contact, phone, email, via sql.NullString
+			var contact, phone, email, via, address sql.NullString
+			var onward bool
 			if err := repRows.Scan(
 				&m.Tier, &m.CustomerCode, &m.CustomerName,
-				&contact, &phone, &email, &via,
+				&contact, &phone, &email, &via, &address, &onward,
 				&m.Lots, &m.QtyShipped, &m.QtyReturned,
 			); err == nil {
 				m.ContactPerson = contact.String
 				m.Phone = phone.String
 				m.Email = email.String
 				m.ReceivedVia = via.String
+				m.Address = address.String
+				m.SecondTier = "NOT_RECORDED"
+				if onward {
+					m.SecondTier = "RECORDED"
+				}
 				ev.AffectedMarkets = append(ev.AffectedMarkets, m)
 				ev.TargetMarkets = append(ev.TargetMarkets, fmt.Sprintf("%s (%s) - %.0f PAKET", m.CustomerName, m.CustomerCode, m.QtyShipped))
 			}
@@ -226,69 +231,30 @@ func (c *RecallController) loadRecallEventFromDB(r *http.Request, recallNo strin
 	return ev, nil
 }
 
-func (c *RecallController) buildPreviewRecallFromForwardTrace(r *http.Request, lotNo string) (RecallEventDto, error) {
-	ev := RecallEventDto{
-		RecallCode:   "RCL-2026-001",
-		Status:       "READY_TO_LOCK",
-		Severity:     "CLASS_I",
-		Reason:       "ET-2026-001 kalite sorunu senaryosu (sp_trace_forward)",
-		TriggerLot:   lotNo,
-		LockEnforced: false,
-		InitiatedBy:  "system",
-		Timestamp:    time.Now().UTC(),
+// ContactsCSV handles GET /recall/contacts.csv?recall_code=...: the customer contact list of
+// a recall (tier, contact, phone, email, address, lots, quantities) for the call-down.
+func (c *RecallController) ContactsCSV(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("recall_code")
+	if code == "" {
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "recall_code is required")
+		return
 	}
-
-	rows, err := c.db.QueryContext(r.Context(), `CALL sp_trace_forward(?)`, lotNo)
+	ev, err := c.loadRecallEventFromDB(r, code, "")
 	if err != nil {
-		return ev, err
+		writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "recall "+code)
+		return
 	}
-	defer rows.Close()
-
-	// Result set 1: affected lots
-	for rows.Next() {
-		var depth int
-		var lNo, sku, prodName, origin, uom, status, path string
-		var initQty float64
-		var exp sql.NullTime
-		if err := rows.Scan(&depth, &lNo, &sku, &prodName, &origin, &initQty, &uom, &status, &exp, &path); err == nil {
-			ev.AffectedLots = append(ev.AffectedLots, lNo)
-		}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-contacts.csv"`, code))
+	cw := csv.NewWriter(w)
+	_, _ = w.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM so Excel shows Turkish characters
+	_ = cw.Write([]string{"recall_code", "root_lot", "tier", "customer_code", "customer_name", "contact_person", "phone", "email", "address", "received_via", "lots", "qty_shipped", "qty_returned", "second_tier"})
+	for _, m := range ev.AffectedMarkets {
+		_ = cw.Write([]string{
+			ev.RecallCode, ev.TriggerLot, fmt.Sprint(m.Tier), m.CustomerCode, m.CustomerName, m.ContactPerson,
+			m.Phone, m.Email, m.Address, m.ReceivedVia, m.Lots,
+			fmt.Sprintf("%.3f", m.QtyShipped), fmt.Sprintf("%.3f", m.QtyReturned), m.SecondTier,
+		})
 	}
-
-	// Result set 2: warehouse balances (skip)
-	if rows.NextResultSet() {
-		for rows.Next() {
-		}
-	}
-
-	// Result set 3: affected market shipments (Market A: 30, Market B: 25, Market C: 30)
-	if rows.NextResultSet() {
-		for rows.Next() {
-			var tier int
-			var custCode, custName, lNo, shipNo, uom string
-			var contact, phone, email, via, delivNote sql.NullString
-			var shipDate sql.NullTime
-			var qty float64
-			if err := rows.Scan(
-				&tier, &custCode, &custName, &contact, &phone, &email,
-				&via, &lNo, &shipNo, &shipDate, &delivNote, &qty, &uom,
-			); err == nil {
-				m := RecallMarketLineDto{
-					Tier:          tier,
-					CustomerCode:  custCode,
-					CustomerName:  custName,
-					ContactPerson: contact.String,
-					Phone:         phone.String,
-					Email:         email.String,
-					ReceivedVia:   via.String,
-					Lots:          lNo,
-					QtyShipped:    qty,
-				}
-				ev.AffectedMarkets = append(ev.AffectedMarkets, m)
-				ev.TargetMarkets = append(ev.TargetMarkets, fmt.Sprintf("%s (%s) - %.0f %s", custName, custCode, qty, uom))
-			}
-		}
-	}
-
-	return ev, nil
+	cw.Flush()
 }

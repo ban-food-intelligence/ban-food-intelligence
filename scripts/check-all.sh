@@ -18,6 +18,11 @@ else
     sh -c "go vet ./... && go test ./..."
 fi
 
+echo "== go integration tests (real MySQL, compose network)"
+./scripts/demo-reset.sh >/dev/null
+NET=$(docker network ls --format '{{.Name}}' | grep -m1 ban-food-intelligence)
+docker run --rm --network "$NET"   -e MYSQL_TEST_DSN='root:ban@tcp(mysql:3306)/food_intel?parseTime=true&multiStatements=true'   -v "$(cd api-go && pwd -W 2>/dev/null || pwd):/src" -w /src golang:1.22-alpine go test ./controllers/ -run Integration
+
 echo "== pytest database-mysql"
 $PY -m pytest database-mysql -q
 
