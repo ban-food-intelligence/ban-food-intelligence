@@ -31,7 +31,7 @@ echo "== ./gradlew assembleDebug testDebugUnitTest"
 (cd mobile-kotlin && ./gradlew assembleDebug testDebugUnitTest --console=plain -q)
 
 echo "== npm run build"
-(cd web-react && npm run build --silent)
+(cd web-react && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npm run build --silent)
 
 echo "== restore clean seed"
 ./scripts/demo-reset.sh
