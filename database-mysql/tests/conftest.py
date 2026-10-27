@@ -2,7 +2,7 @@
 
 Bağlantı ortam değişkenlerinden okunur (CI ve yerel için aynı):
   MYSQL_HOST (127.0.0.1), MYSQL_PORT (3306), MYSQL_USER (root),
-  MYSQL_PASSWORD (boş), MYSQL_SOCKET (opsiyonel)
+  MYSQL_PASSWORD (ban), MYSQL_SOCKET (opsiyonel)
 Şema + seed her test modülü için sıfırdan yüklenir (load.sh ile aynı sıra).
 """
 import os
@@ -17,9 +17,10 @@ SQL_FILES = [DB_DIR / "schema.sql", DB_DIR / "seed.sql"]
 
 
 def _cli_args():
+    password = os.getenv("MYSQL_PASSWORD", "ban")
     args = ["mysql", "--default-character-set=utf8mb4", "-u", os.getenv("MYSQL_USER", "root")]
-    if os.getenv("MYSQL_PASSWORD"):
-        args.append(f"-p{os.environ['MYSQL_PASSWORD']}")
+    if password:
+        args.append(f"-p{password}")
     if os.getenv("MYSQL_SOCKET"):
         args += ["-S", os.environ["MYSQL_SOCKET"]]
     else:
@@ -42,7 +43,8 @@ def run_sql_file(path):
 
 
 def connect():
-    kwargs = dict(user=os.getenv("MYSQL_USER", "root"), password=os.getenv("MYSQL_PASSWORD", ""),
+    password = os.getenv("MYSQL_PASSWORD", "ban")
+    kwargs = dict(user=os.getenv("MYSQL_USER", "root"), password=password,
                   database="food_intel", charset="utf8mb4", autocommit=True,
                   cursorclass=pymysql.cursors.DictCursor)
     if os.getenv("MYSQL_SOCKET"):
