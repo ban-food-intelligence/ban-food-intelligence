@@ -60,6 +60,7 @@ func main() {
 	traceCtrl := controllers.NewTraceController(db)
 	lotCtrl := controllers.NewLotController(db)
 	yieldCtrl := controllers.NewYieldController(db)
+	reportsCtrl := controllers.NewReportsController(db)
 
 	mux := http.NewServeMux()
 
@@ -95,6 +96,11 @@ func main() {
 	mux.HandleFunc("/api/v1/trace/", traceCtrl.TraceHandler)
 	mux.HandleFunc("/lots", lotCtrl.ListStockByLot)
 	mux.HandleFunc("/api/v1/lots/trace/", lotCtrl.TraceLot)
+
+	// Reports: purchases, lot movement ledger, POS sales
+	mux.HandleFunc("/purchases", reportsCtrl.Purchases)
+	mux.HandleFunc("/movements", reportsCtrl.Movements)
+	mux.HandleFunc("/sales", reportsCtrl.Sales)
 
 	// Task 4: ML Yield Predictions & Deviation Telemetry
 	mux.HandleFunc("/yield", yieldCtrl.PredictYield)
