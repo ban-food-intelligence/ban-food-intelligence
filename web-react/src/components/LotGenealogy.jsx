@@ -123,7 +123,7 @@ export default function LotGenealogy() {
               fontSize: '0.85rem',
             }}
           >
-            ➡️ İleriye İzleme (ET-2026-001 → Marketler)
+            İleriye İzleme (ET-2026-001 → Marketler)
           </button>
           <button
             onClick={() => setDirection('backward')}
@@ -138,7 +138,7 @@ export default function LotGenealogy() {
               fontSize: '0.85rem',
             }}
           >
-            ⬅️ Geriye İzleme (SUC-2026-045 → Tedarikçiler)
+            Geriye İzleme (SUC-2026-045 → Tedarikçiler)
           </button>
         </div>
       </div>

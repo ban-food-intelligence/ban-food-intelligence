@@ -52,7 +52,7 @@ export default function MLPredictionsTable() {
   const [dbDeviations, setDbDeviations] = useState([]);
 
   useEffect(() => {
-    console.log('⚛️ Wiring React MLPredictionsTable to Go API (GET /yield)...');
+    console.log('Wiring React MLPredictionsTable to Go API (GET /yield)...');
     fetch('http://localhost:8080/yield')
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
@@ -79,6 +79,7 @@ export default function MLPredictionsTable() {
           </p>
         </div>
 
+        <div className="table-scroll">
         <table className="data-table">
           <thead>
             <tr>
@@ -109,6 +110,7 @@ export default function MLPredictionsTable() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* GÖREV 4B: BÜTÜN KUZU PARÇALAMA VERİMİ TAHMİNİ (SIMPLEX KORUNUMLU) */}
@@ -125,6 +127,7 @@ export default function MLPredictionsTable() {
           </p>
         </div>
 
+        <div className="table-scroll">
         <table className="data-table">
           <thead>
             <tr>
@@ -159,10 +162,11 @@ export default function MLPredictionsTable() {
             })}
           </tbody>
         </table>
+        </div>
 
         {dbDeviations.length > 0 && (
           <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#34d399' }}>
-            🟢 MySQL <code>v_ml_prediction_deviation</code> görünümünden {dbDeviations.length} adet canlı tahmin kaydı doğrulandı.
+            MySQL <code>v_ml_prediction_deviation</code> görünümünden {dbDeviations.length} adet canlı tahmin kaydı doğrulandı.
           </div>
         )}
 
