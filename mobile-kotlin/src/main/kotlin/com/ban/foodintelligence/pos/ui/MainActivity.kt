@@ -56,6 +56,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ban.foodintelligence.pos.R
@@ -243,29 +244,29 @@ private fun PosSalesCheckoutScreen(
                 .padding(horizontal = 20.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. Top Terminal Attestation & Sync Status Card
-            ElevatedCard(
+            // 1. Top Terminal Attestation & Sync Status Card (Apple HIG Card)
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = SoftPosColors.SurfacePureWhite
-                ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = SoftPosDimens.CardElevationStandard)
+                shape = RoundedCornerShape(SoftPosDimens.CardCornerRadius),
+                color = SoftPosColors.SurfacePureWhite,
+                border = BorderStroke(SoftPosDimens.CardBorderWidth, SoftPosColors.OutlineSubtle),
+                shadowElevation = SoftPosDimens.CardElevationStandard
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(SoftPosDimens.CardPaddingStandard),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Surface(
                             shape = CircleShape,
                             color = SoftPosColors.EmeraldVerifiedBg,
-                            modifier = Modifier.size(42.dp)
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
@@ -280,21 +281,26 @@ private fun PosSalesCheckoutScreen(
                             Text(
                                 text = stringResource(R.string.pos_terminal_header),
                                 style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold
-                                )
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = stringResource(R.string.pos_keystore_status_ready),
-                                style = MaterialTheme.typography.bodySmall.copy(
+                                style = MaterialTheme.typography.bodyMedium.copy(
                                     color = SoftPosColors.EmeraldVerifiedText
-                                )
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = SoftPosColors.BackgroundOffWhite,
+                        border = BorderStroke(1.dp, SoftPosColors.OutlineSubtle),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -310,18 +316,23 @@ private fun PosSalesCheckoutScreen(
                                 } else {
                                     stringResource(R.string.sync_status_idle)
                                 },
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.weight(1f)
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            Spacer(modifier = Modifier.size(10.dp))
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = SoftPosColors.SurfacePureWhite
+                                color = SoftPosColors.SurfacePureWhite,
+                                border = BorderStroke(1.dp, SoftPosColors.OutlineSubtle)
                             ) {
                                 Text(
-                                    text = "ECDSA: ${pubKeyFingerprint.take(12)}...",
+                                    text = "ECDSA: ${pubKeyFingerprint.take(10)}...",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontFamily = FontFamily.Monospace
                                     ),
+                                    maxLines = 1,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
@@ -335,15 +346,15 @@ private fun PosSalesCheckoutScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp),
+                            .height(50.dp),
                         shape = RoundedCornerShape(50),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = SoftPosColors.PrimaryIndigo,
                             contentColor = SoftPosColors.SurfacePureWhite
                         ),
                         elevation = ButtonDefaults.buttonElevation(
-                            defaultElevation = 3.dp,
+                            defaultElevation = 2.dp,
                             pressedElevation = 1.dp
                         )
                     ) {
@@ -355,20 +366,19 @@ private fun PosSalesCheckoutScreen(
                 }
             }
 
-            // 2. POS Lot-Tracked Sales & Stock Dispatch Card
-            ElevatedCard(
+            // 2. POS Lot-Tracked Sales & Stock Dispatch Card (Apple HIG Card)
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = SoftPosColors.SurfacePureWhite
-                ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = SoftPosDimens.CardElevationStandard)
+                shape = RoundedCornerShape(SoftPosDimens.CardCornerRadius),
+                color = SoftPosColors.SurfacePureWhite,
+                border = BorderStroke(SoftPosDimens.CardBorderWidth, SoftPosColors.OutlineSubtle),
+                shadowElevation = SoftPosDimens.CardElevationStandard
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .padding(SoftPosDimens.CardPaddingStandard),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
                         text = stringResource(R.string.pos_sales_section_title),
@@ -622,20 +632,19 @@ private fun PosSalesCheckoutScreen(
                 }
             }
 
-            // 3. Live Local SQLite WAL Stock Movements & Outbox Queue Ledger
-            ElevatedCard(
+            // 3. Live Local SQLite WAL Stock Movements & Outbox Queue Ledger (Apple HIG Card)
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = SoftPosColors.SurfacePureWhite
-                ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = SoftPosDimens.CardElevationStandard)
+                shape = RoundedCornerShape(SoftPosDimens.CardCornerRadius),
+                color = SoftPosColors.SurfacePureWhite,
+                border = BorderStroke(SoftPosDimens.CardBorderWidth, SoftPosColors.OutlineSubtle),
+                shadowElevation = SoftPosDimens.CardElevationStandard
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(SoftPosDimens.CardPaddingStandard),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -644,19 +653,25 @@ private fun PosSalesCheckoutScreen(
                     ) {
                         Text(
                             text = stringResource(R.string.pos_sqlite_ledger_title),
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Bold
-                            )
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        Spacer(modifier = Modifier.size(10.dp))
                         Surface(
                             shape = RoundedCornerShape(50),
-                            color = SoftPosColors.BackgroundOffWhite
+                            color = SoftPosColors.BackgroundOffWhite,
+                            border = BorderStroke(1.dp, SoftPosColors.OutlineSubtle)
                         ) {
                             Text(
-                                text = "${recentMovements.size} SQLite Rows",
+                                text = "${recentMovements.size} Rows",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontFamily = FontFamily.Monospace
                                 ),
+                                maxLines = 1,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
