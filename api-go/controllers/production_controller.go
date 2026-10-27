@@ -151,11 +151,12 @@ func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWrit
 		if req.ExpiryDate == "" {
 			req.ExpiryDate = time.Now().AddDate(0, 6, 0).Format("2006-01-02")
 		}
+		// Warehouse codes from seed.sql: subcontractor stock and main cold store.
 		if req.SubWarehouse == "" {
-			req.SubWarehouse = "WH-FASON"
+			req.SubWarehouse = "FASON-01"
 		}
 		if req.TargetWh == "" {
-			req.TargetWh = "WH-ANA"
+			req.TargetWh = "ANA-DEPO"
 		}
 		_, err := c.db.ExecContext(
 			r.Context(),
@@ -164,7 +165,10 @@ func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWrit
 			req.SubWarehouse, req.TargetWh, req.InvoiceNo,
 		)
 		if err != nil {
-			log.Printf("[INFO] [MYSQL-SP] sp_production_complete note for %s: %v", req.OrderNo, err)
+			// e.g. ORDER_STATE (already received), INSUFFICIENT_STOCK, duplicate lot number
+			log.Printf("[WARN] [MYSQL-SP] sp_production_complete failed for %s: %v", req.OrderNo, err)
+			writeJSONError(w, http.StatusUnprocessableEntity, "sp_production_complete failed: "+err.Error())
+			return
 		}
 	}
 
