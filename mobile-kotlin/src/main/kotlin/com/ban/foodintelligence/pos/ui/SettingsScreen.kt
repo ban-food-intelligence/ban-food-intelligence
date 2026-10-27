@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,7 +39,7 @@ import com.ban.foodintelligence.pos.net.ApiConfig
 import com.ban.foodintelligence.pos.net.HealthCheck
 import com.ban.foodintelligence.pos.ui.design.CheckRow
 import com.ban.foodintelligence.pos.ui.design.InsetGroup
-import com.ban.foodintelligence.pos.ui.design.LargeTitle
+import com.ban.foodintelligence.pos.ui.design.PosScreen
 import com.ban.foodintelligence.pos.ui.design.ListRow
 import com.ban.foodintelligence.pos.ui.design.PosType
 import com.ban.foodintelligence.pos.ui.design.Shapes
@@ -85,8 +86,8 @@ fun SettingsScreen(
         onServerChanged()
     }
 
-    Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(bottom = Space.xl)) {
-        LargeTitle(stringResource(R.string.settings_title))
+    var showHelp by remember { mutableStateOf(false) }
+    PosScreen(title = stringResource(R.string.settings_title), modifier = modifier) { item(key = "settings") { Column {
 
         InsetGroup(
             header = stringResource(R.string.settings_server_header),
@@ -206,16 +207,27 @@ fun SettingsScreen(
         InsetGroup(header = stringResource(R.string.settings_about_header)) {
             row(dividerInset = 56.dp) {
                 ListRow(
+                    title = stringResource(R.string.settings_help),
+                    icon = Icons.AutoMirrored.Rounded.HelpOutline,
+                    chevron = true,
+                    onClick = { showHelp = true }
+                )
+            }
+            row(dividerInset = 56.dp) {
+                ListRow(
                     title = stringResource(R.string.settings_version),
                     icon = Icons.Rounded.Info,
                     value = BuildConfig.VERSION_NAME
                 )
             }
         }
-    }
+    } } }
+
+    if (showHelp) QuickGuideBottomSheet(onDismiss = { showHelp = false })
 
     if (showSecurity) {
         ModalBottomSheet(
+            tonalElevation = 0.dp,
             onDismissRequest = { showSecurity = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = palette.background,

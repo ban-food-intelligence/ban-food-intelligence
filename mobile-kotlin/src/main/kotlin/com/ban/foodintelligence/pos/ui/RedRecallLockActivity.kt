@@ -250,6 +250,7 @@ private fun LockScreen(incident: LockIncident, onUnlocked: (LockIncident, String
 
     if (showPin) {
         ModalBottomSheet(
+            tonalElevation = 0.dp,
             onDismissRequest = { if (state != UnlockState.Checking) showPin = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = palette.group,

@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Application Identity -->
-    <string name="app_name">BAN GIDA POS // UÇ TERMİNALİ</string>
-
+    <string name="app_name">BAN Mağaza</string>
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
     <string name="lockdown_hazard_banner">/// SINIF-I BİYOTEHLİKE VE UÇ YAPAY ZEKA OOD KİLİDİ AKTİF ///</string>
     <string name="lockdown_title">Satış durduruldu</string>
@@ -157,5 +156,96 @@
     <plurals name="lock_pin_wrong">
         <item quantity="one">PIN hatalı. %d deneme hakkınız kaldı.</item>
         <item quantity="other">PIN hatalı. %d deneme hakkınız kaldı.</item>
+    </plurals>
+    <string name="tab_sell">Satış</string>
+    <string name="tab_lots">Lotlar</string>
+    <string name="tab_recall">Geri çağırma</string>
+    <string name="tab_sync">Senkron</string>
+    <string name="tab_settings">Ayarlar</string>
+    <string name="status_synced">Gönderildi</string>
+    <string name="status_pending">%1$d bekliyor</string>
+    <string name="status_offline">Çevrimdışı</string>
+    <string name="catalog_offline_banner">Çevrimdışı. %1$s tarihli liste gösteriliyor.</string>
+    <string name="action_cancel">Vazgeç</string>
+    <string name="action_close">Kapat</string>
+    <string name="sell_title">Satış</string>
+    <string name="sell_search_hint">Ürün veya lot ara</string>
+    <string name="sell_section_available">Bu mağazada satışta</string>
+    <string name="sell_section_blocked">Geri çağrıldı, satış engellendi</string>
+    <string name="sell_empty">Bu mağazada stokta lot yok.</string>
+    <string name="sell_no_match">“%1$s” ile eşleşen lot yok.</string>
+    <string name="lot_expiry">SKT %1$s</string>
+    <string name="lot_recalled_pill">Geri çağrıldı</string>
+    <string name="lot_recalled_reason">%2$s kaynak lotundan %1$s geri çağırması. Satış engellendi.</string>
+    <string name="lot_blocked_reason">Bu lot bloke. Satış engellendi.</string>
+    <string name="sell_sheet_quantity">Miktar</string>
+    <string name="sell_sheet_price">Fiyat</string>
+    <string name="sell_sheet_total">Toplam</string>
+    <string name="sell_sheet_in_stock">Stokta</string>
+    <string name="sell_confirm">Satışı onayla</string>
+    <string name="sell_done_title">Satış kaydedildi</string>
+    <string name="sell_done_body">%2$s ürününden %1$s satıldı. Sunucuya otomatik olarak gönderilecek.</string>
+    <string name="sell_next">Yeni satış</string>
+    <string name="sell_decrease">Miktarı azalt</string>
+    <string name="sell_increase">Miktarı artır</string>
+    <string name="lots_title">Lotlar</string>
+    <string name="lots_section_shop">Bu mağazada</string>
+    <string name="lots_section_tools">Diğer</string>
+    <string name="lots_receive_invoice">Faturadan mal kabulü</string>
+    <string name="lots_forecasts">Verim tahminleri</string>
+    <string name="lots_forecasts_sub">Yapay zekâ tahmini ve gerçekleşen sonuç</string>
+    <string name="trace_backward">Nereden geldi</string>
+    <string name="trace_forward">Nereye gitti</string>
+    <string name="trace_loading">İzleme yükleniyor…</string>
+    <string name="trace_empty">Bu lot için kayıtlı bir ilişki yok.</string>
+    <string name="trace_doc_production">Üretim emri %1$s</string>
+    <string name="trace_doc_butchery">Parçalama %1$s</string>
+    <string name="trace_doc_rework">Yeniden işleme %1$s</string>
+    <string name="trace_used">%1$s kullanıldı, %2$s üretildi</string>
+    <string name="trace_supplier">Tedarikçi: %1$s</string>
+    <string name="trace_shipments">Sevkiyatlar</string>
+    <string name="trace_tier2">ileri sevk (kayıtlı)</string>
+    <string name="ai_title">Verim tahminleri</string>
+    <string name="ai_actual">Gerçekleşen</string>
+    <string name="ai_model">Model</string>
+    <string name="ai_baseline">Referans</string>
+    <string name="ai_note">Sentetik veriyle eğitildi. Sapma = gerçekleşen eksi tahmin. Geri çağırma ve izlenebilirlik bu tahminleri asla kullanmaz.</string>
+    <string name="ai_section_production">Üretim emri %1$s</string>
+    <string name="ai_section_butchery">Parçalama %1$s</string>
+    <string name="ai_error_header">Test dönemi hatası (MAPE, düşük olan daha iyi)</string>
+    <string name="ai_metric_value">Model %1$s · referans %2$s</string>
+    <string name="ai_target_actual_qty">Paket</string>
+    <string name="ai_target_ekp">Birim maliyet (EKP)</string>
+    <string name="ai_target_but_kg">But</string>
+    <string name="ai_target_sirt_kg">Sırt</string>
+    <string name="ai_target_omuz_kg">Omuz</string>
+    <string name="ai_target_kaburga_kg">Kaburga</string>
+    <string name="ai_target_kiyma_kg">Kıyma</string>
+    <string name="ai_target_fire_kg">Fire</string>
+    <string name="ai_target_part_kg">Parça ağırlıkları</string>
+    <string name="recall_title">Geri çağırma</string>
+    <string name="recall_none">Aktif geri çağırma yok.</string>
+    <string name="recall_none_sub">Geri çağrılan lotlar burada otomatik olarak engellenir, çevrimdışıyken de.</string>
+    <string name="recall_active_header">Aktif geri çağırmalar</string>
+    <string name="recall_source_lot">Kaynak lot %1$s</string>
+    <string name="recall_local_header">Bu mağazadaki etkilenen lotlar</string>
+    <string name="recall_unlock_history">Bu cihazdaki yetkili kilit açmaları</string>
+    <string name="recall_unlock_offline">çevrimdışı</string>
+    <string name="sync_title">Senkronizasyon</string>
+    <string name="sync_last">Sunucuyla son bağlantı</string>
+    <string name="sync_never">Henüz yok</string>
+    <string name="sync_send_now">Şimdi gönder</string>
+    <string name="sync_retry_rejected">Reddedilen satışları tekrar gönder</string>
+    <string name="sync_queue_header">Bu cihazdaki satışlar</string>
+    <string name="sync_empty">Bu cihazda henüz satış yok.</string>
+    <string name="sync_state_pending">Gönderilmeyi bekliyor</string>
+    <string name="sync_state_synced">Gönderildi</string>
+    <string name="sync_state_rejected">Reddedildi</string>
+    <string name="sync_state_failed">Başarısız</string>
+    <string name="sync_footer">Satışlar bu cihazda imzalanır ve arka planda gönderilir. Bir satış iki kez gönderilse bile yalnızca bir kez kaydedilir.</string>
+    <string name="settings_help">Uygulama nasıl çalışır</string>
+    <plurals name="recall_banner">
+        <item quantity="one">Bu mağazada %d geri çağrılan lot var. Raftan kaldırın.</item>
+        <item quantity="other">Bu mağazada %d geri çağrılan lot var. Raftan kaldırın.</item>
     </plurals>
 </resources>
