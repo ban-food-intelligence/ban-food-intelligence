@@ -9,6 +9,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY=${PY:-python}
+# Git Bash on Windows would rewrite "-w /src" into a Windows path.
+export MSYS_NO_PATHCONV=1
 
 echo "== go test ./..."
 if command -v go >/dev/null 2>&1; then
