@@ -133,14 +133,16 @@ export default function RecallWarRoom() {
       {/* Zorunlu Senaryo Özeti: ET-2026-001 (100 kg) -> URT-2026-045 -> SUC-2026-045 (85 Paket) -> Market A/B/C (30/25/30) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         <div style={{ background: '#121826', padding: '1rem', borderRadius: '8px', border: '1px solid #232d42' }}>
-          <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Sorunlu Hammadde Lotu</div>
-          <div style={{ color: '#f87171', fontSize: '1.25rem', fontWeight: 800, fontFamily: 'monospace' }}>ET-2026-001</div>
-          <small style={{ color: '#cbd5e1' }}>100,00 KG Dana Karkas Et (Tedarikçi: TD-ET-01)</small>
+          <div style={{ color: '#94a3b8', fontSize: '0.8rem', marginBottom: '0.35rem' }}>Sorunlu Hammadde Lotu</div>
+          <div>
+            <span className="recall-pulse-badge" style={{ fontSize: '1.1rem' }}>ET-2026-001</span>
+          </div>
+          <small style={{ color: '#cbd5e1', display: 'block', marginTop: '0.35rem' }}>100.00 KG Dana Karkas Et (Tedarikçi: TD-ET-01)</small>
         </div>
         <div style={{ background: '#121826', padding: '1rem', borderRadius: '8px', border: '1px solid #232d42' }}>
           <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Üretim Emri & Mamul Lotu</div>
           <div style={{ color: '#fbbf24', fontSize: '1.25rem', fontWeight: 800, fontFamily: 'monospace' }}>URT-2026-045 → SUC-2026-045</div>
-          <small style={{ color: '#cbd5e1' }}>85 Paket (1 kg Narin Kangal Sucuk) • EKP: 18,16 €</small>
+          <small style={{ color: '#cbd5e1' }}>85 Paket (1 kg Narin Kangal Sucuk) • EKP: 18.16 €</small>
         </div>
         <div style={{ background: '#121826', padding: '1rem', borderRadius: '8px', border: '1px solid #232d42' }}>
           <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Market Sevkiyat Dağılımı (Toplam 85 Paket)</div>
@@ -152,49 +154,45 @@ export default function RecallWarRoom() {
       <h4 style={{ color: '#e2e8f0', marginBottom: '0.75rem' }}>
         Etkilenen Müşteri / Market Bazlı Miktar, Sevkiyat ve İletişim Listesi ({affectedLots.join(' → ')})
       </h4>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-        {markets.map((m, idx) => (
-          <div
-            key={idx}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '0.9rem 1.1rem',
-              background: '#121826',
-              borderRadius: '8px',
-              border: '1px solid rgba(239, 68, 68, 0.35)',
-              flexWrap: 'wrap',
-              gap: '0.75rem',
-            }}
-          >
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ background: '#1e293b', color: '#38bdf8', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                  {m.customer_code} (Kademe {m.tier || 1})
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th className="col-text">Müşteri Kodu & Kademe</th>
+            <th className="col-text">Müşteri / Market Adı</th>
+            <th className="col-text">Yetkili & İletişim</th>
+            <th className="col-text">Etkilenen Lot</th>
+            <th className="col-num">Bloke Edilen Miktar</th>
+          </tr>
+        </thead>
+        <tbody>
+          {markets.map((m, idx) => (
+            <tr key={idx}>
+              <td className="col-text" style={{ fontFamily: 'monospace', color: '#38bdf8' }}>
+                {m.customer_code} (Kademe {m.tier || 1})
+              </td>
+              <td className="col-text">
+                <strong style={{ color: '#f1f5f9' }}>{m.customer_name}</strong>
+                {m.second_tier_note && (
+                  <div style={{ fontSize: '0.76rem', color: '#fbbf24', marginTop: '0.2rem' }}>
+                    {m.second_tier_note}
+                  </div>
+                )}
+              </td>
+              <td className="col-text" style={{ color: '#cbd5e1', fontSize: '0.82rem' }}>
+                {m.contact_person || 'Kalite Sorumlusu'} &bull; {m.phone || '+49 30 555 0100'} &bull; {m.email || 'info@market.de'}
+              </td>
+              <td className="col-text">
+                <span className="recall-pulse-badge" style={{ fontSize: '0.75rem', padding: '0.15rem 0.45rem' }}>
+                  {m.lots || 'SUC-2026-045'}
                 </span>
-                <strong style={{ color: '#f1f5f9', fontSize: '1rem' }}>{m.customer_name}</strong>
-              </div>
-              <div style={{ fontSize: '0.82rem', color: '#cbd5e1', marginTop: '0.3rem' }}>
-                👤 Yetkili: <strong>{m.contact_person || 'Kalite Sorumlusu'}</strong> &bull; 📞 {m.phone || '+49 30 555 0100'} &bull; ✉️ {m.email || 'info@market.de'}
-              </div>
-              {m.second_tier_note && (
-                <div style={{ fontSize: '0.78rem', color: '#fbbf24', marginTop: '0.25rem' }}>
-                  ↳ {m.second_tier_note}
-                </div>
-              )}
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f87171' }}>
-                {Number(m.qty_shipped).toFixed(0)} PAKET BLOKE EDİLDİ
-              </div>
-              <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontFamily: 'monospace' }}>
-                Lot: {m.lots || 'SUC-2026-045'} • POS Kiosk Kilidi: AKTİF
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+              </td>
+              <td className="col-num" style={{ fontWeight: 800, color: '#f87171' }}>
+                {Number(m.qty_shipped).toFixed(0)} PAKET
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

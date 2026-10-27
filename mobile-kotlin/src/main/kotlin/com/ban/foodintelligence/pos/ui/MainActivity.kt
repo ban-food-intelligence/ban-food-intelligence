@@ -5,6 +5,13 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -85,16 +92,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        println("📱 Building Soft Material POS Checkout...")
-        println("🎨 Applying Soft Minimalist Material 3...")
-        println("✨ Smoothing edges and removing brutalist artifacts...")
-        println("🌍 Provisioning DE/EN/TR i18n...")
+        println("[INFO] Building Soft Material POS Checkout...")
+        println("[INFO] Applying Soft Minimalist Material 3...")
+        println("[INFO] Provisioning DE/EN/TR i18n...")
 
         val pubKeyFingerprint = try {
-            println("🔐 Provisioning ECDSA P-256 Keypair...")
+            println("[INFO] Provisioning ECDSA P-256 Keypair...")
             KeystoreManager.ensureKeyPairProvisioned(this)
             val pubKeyB64 = KeystoreManager.exportPublicKeyBase64(this)
-            println("📤 [POS-ENROLLMENT] Exported ECDSA P-256 Public Key for Go Backend: ${pubKeyB64.take(28)}...")
+            println("[INFO] [POS-ENROLLMENT] Exported ECDSA P-256 Public Key for Go Backend: ${pubKeyB64.take(28)}...")
             KeystoreManager.publicKeyFingerprintHex().take(20)
         } catch (e: FatalSecurityException) {
             "HARDWARE-LOCKED"
@@ -109,7 +115,7 @@ class MainActivity : ComponentActivity() {
                     pubKeyFingerprint = pubKeyFingerprint,
                     appDb = appDb,
                     onTriggerRecallQuarantine = { recalledLot ->
-                        println("🚨 [POS-RECALL-INTERLOCK] Blocked sale attempt on RECALLED lot ${recalledLot.lotNo} (Root: ${recalledLot.rootLotNo})! Triggering RedRecallLockActivity...")
+                        println("[WARN] [POS-RECALL-INTERLOCK] Blocked sale attempt on RECALLED lot ${recalledLot.lotNo} (Root: ${recalledLot.rootLotNo}). Triggering RedRecallLockActivity...")
                         val lockIntent = Intent(this@MainActivity, RedRecallLockActivity::class.java).apply {
                             putExtra(RedRecallLockActivity.EXTRA_RECALL_CODE, "RCL-POS-SALE-BLOCKED-CONTAMINATED-LOT")
                             putExtra(RedRecallLockActivity.EXTRA_AFFECTED_LOT, recalledLot.lotNo)
@@ -118,6 +124,8 @@ class MainActivity : ComponentActivity() {
                             putExtra(RedRecallLockActivity.EXTRA_OOD_VALUE, 1.0000f)
                         }
                         startActivity(lockIntent)
+                        @Suppress("DEPRECATION")
+                        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                     }
                 )
             }
@@ -135,11 +143,13 @@ class MainActivity : ComponentActivity() {
         if (TerminalLockStore.isLocked(this)) {
             window?.decorView?.post {
                 if (!isFinishing && TerminalLockStore.isLocked(this)) {
-                    println("🧱 [MAIN-LOCK-GUARD] ${getString(R.string.pos_kiosk_guard_redirect)}")
+                    println("[WARN] [MAIN-LOCK-GUARD] ${getString(R.string.pos_kiosk_guard_redirect)}")
                     val lockIntent = Intent(this, RedRecallLockActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     }
                     startActivity(lockIntent)
+                    @Suppress("DEPRECATION")
+                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                 }
             }
         }
@@ -240,7 +250,7 @@ private fun PosSalesCheckoutScreen(
                 colors = CardDefaults.elevatedCardColors(
                     containerColor = SoftPosColors.SurfacePureWhite
                 ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 5.dp)
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = SoftPosDimens.CardElevationStandard)
             ) {
                 Column(
                     modifier = Modifier
@@ -352,7 +362,7 @@ private fun PosSalesCheckoutScreen(
                 colors = CardDefaults.elevatedCardColors(
                     containerColor = SoftPosColors.SurfacePureWhite
                 ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = SoftPosDimens.CardElevationStandard)
             ) {
                 Column(
                     modifier = Modifier
@@ -619,7 +629,7 @@ private fun PosSalesCheckoutScreen(
                 colors = CardDefaults.elevatedCardColors(
                     containerColor = SoftPosColors.SurfacePureWhite
                 ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = SoftPosDimens.CardElevationStandard)
             ) {
                 Column(
                     modifier = Modifier

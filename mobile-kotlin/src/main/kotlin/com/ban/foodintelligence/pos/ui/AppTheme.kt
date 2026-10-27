@@ -51,6 +51,17 @@ object SoftPosColors {
     val RecallSoftBorder = PastelRedBorder
 }
 
+/**
+ * Standard Material 3 spacing and elevation tokens (16dp-24dp card padding, 8dp elevation).
+ */
+object SoftPosDimens {
+    val ScreenPadding = 20.dp
+    val CardPaddingMin = 16.dp
+    val CardPaddingStandard = 20.dp
+    val CardPaddingMax = 24.dp
+    val CardElevationStandard = 8.dp
+}
+
 val SoftPosShapes = Shapes(
     extraSmall = RoundedCornerShape(12.dp),
     small = RoundedCornerShape(16.dp),
@@ -149,8 +160,7 @@ private val SoftPosLightColorScheme = lightColorScheme(
 fun AppTheme(
     content: @Composable () -> Unit
 ) {
-    println("🎨 Applying Soft Minimalist Material 3...")
-    println("✨ Smoothing edges and removing brutalist artifacts...")
+    println("[INFO] Applying Soft Minimalist Material 3 theme (cardPadding=16dp-24dp, elevation=8dp)")
     MaterialTheme(
         colorScheme = SoftPosLightColorScheme,
         typography = SoftPosTypography,

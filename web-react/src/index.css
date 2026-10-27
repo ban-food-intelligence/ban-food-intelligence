@@ -96,3 +96,80 @@ body {
   font-weight: 700;
   color: var(--text-main);
 }
+
+/* Standard Enterprise Data Table Formatting */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.7rem 0.75rem;
+}
+
+.data-table thead tr {
+  border-bottom: 1px solid #334155;
+  color: var(--text-muted);
+}
+
+.data-table tbody tr {
+  border-bottom: 1px solid #1e293b;
+  transition: background-color 0.15s ease;
+}
+
+.data-table tbody tr:hover {
+  background-color: rgba(148, 163, 184, 0.07);
+}
+
+.col-text {
+  text-align: left;
+}
+
+.col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Semantic Coloring for Task 2 Discrepancy Analysis */
+.discrepancy-warning {
+  background: rgba(245, 158, 11, 0.11);
+  border: 1px solid #f59e0b;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.discrepancy-match {
+  background: rgba(16, 185, 129, 0.10);
+  border: 1px solid rgba(16, 185, 129, 0.55);
+  border-left: 4px solid #10b981;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+/* Standard CSS Pulse Effect for ET-2026-001 Recall Badge */
+@keyframes recallPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.65);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.recall-pulse-badge {
+  display: inline-block;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid #ef4444;
+  color: #f87171;
+  font-family: monospace;
+  font-weight: 800;
+  animation: recallPulse 2s infinite;
+}
