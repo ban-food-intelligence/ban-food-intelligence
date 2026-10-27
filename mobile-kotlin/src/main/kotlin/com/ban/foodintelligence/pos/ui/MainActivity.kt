@@ -224,6 +224,7 @@ private fun PosSalesCheckoutScreen(
     var recentMovements by remember { mutableStateOf<List<StockMovementRecord>>(emptyList()) }
     var pendingOutboxCount by remember { mutableStateOf(0) }
     var lastActionBanner by remember { mutableStateOf<String?>(null) }
+    var isQuickGuideOpen by remember { mutableStateOf(false) }
 
     val saleRecordedToastMsg = stringResource(R.string.pos_sale_recorded_toast)
 
@@ -295,6 +296,7 @@ private fun PosSalesCheckoutScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                        QuickGuideHelpButton(onClick = { isQuickGuideOpen = true })
                     }
 
                     Surface(
@@ -729,6 +731,10 @@ private fun PosSalesCheckoutScreen(
                     }
                 }
             }
+        }
+
+        if (isQuickGuideOpen) {
+            QuickGuideBottomSheet(onDismiss = { isQuickGuideOpen = false })
         }
     }
 }

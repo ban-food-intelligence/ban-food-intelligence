@@ -73,4 +73,16 @@
     <string name="ocr_raw_json">Raw JSON</string>
     <string name="ocr_meta">Supplier: %1$s · Invoice: %2$s</string>
     <string name="ocr_back">Back</string>
+
+    <!-- Quick Guide / How to Use BottomSheet (EN) -->
+    <string name="quick_guide_button_label">Quick Guide</string>
+    <string name="quick_guide_title">Quick Guide — How to Use</string>
+    <string name="quick_guide_subtitle">3-step operational guide for warehouse and POS personnel</string>
+    <string name="quick_guide_step1_title">Making a Sale</string>
+    <string name="quick_guide_step1_desc">Select a lot, enter the quantity, and press the Complete Sale button.</string>
+    <string name="quick_guide_step2_title">Recall Lock Status</string>
+    <string name="quick_guide_step2_desc">Recalled high-risk lots are automatically blocked by the system.</string>
+    <string name="quick_guide_step3_title">Supervisor Unlock</string>
+    <string name="quick_guide_step3_desc">To exit the locked screen, quickly tap the top header 5 times and enter the supervisor PIN.</string>
+    <string name="quick_guide_btn_close">Got It, Close</string>
 </resources>

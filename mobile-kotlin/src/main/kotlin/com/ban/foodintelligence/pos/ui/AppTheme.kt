@@ -54,6 +54,8 @@ object SoftPosColors {
 
     // Primary Action Accent (iOS System Blue / Stripe Indigo)
     val PrimaryIndigo = Color(0xFF007AFF)
+    val PrimaryAccentBlue = PrimaryIndigo
+    val TextPrimaryCharcoal = TextPrimarySlate
     val TextSecondarySlate = TextSecondaryMuted
     val RecallPastelBackground = PastelRedContainer
     val RecallSoftBorder = PastelRedBorder
