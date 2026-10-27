@@ -30,8 +30,9 @@ android {
         resourceConfigurations += listOf("en", "tr", "de")
 
         buildConfigField("String", "NVIDIA_API_KEY", "\"${localProp("NVIDIA_API_KEY")}\"")
-        // 10.0.2.2 is the host machine from the Android emulator; override for a real device.
-        buildConfigField("String", "POS_API_BASE_URL", "\"${localProp("POS_API_BASE_URL", "http://10.0.2.2:8080")}\"")
+        // Default server: 127.0.0.1 works on a USB phone with `adb reverse tcp:8080 tcp:8080`.
+        // The cashier can switch to the emulator host or a LAN IP in Settings at runtime.
+        buildConfigField("String", "POS_API_BASE_URL", "\"${localProp("POS_API_BASE_URL", "http://127.0.0.1:8080")}\"")
     }
 
     buildFeatures {
@@ -87,4 +88,7 @@ dependencies {
 
     // Edge AI Inference: ONNX Runtime for Offline Yield Prediction (Zero-Network MITM Protection)
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.16.0")
+
+    // Unit tests (pure Kotlin logic: validation, formatting, config)
+    testImplementation("junit:junit:4.13.2")
 }

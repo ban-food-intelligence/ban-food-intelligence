@@ -11,7 +11,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.ban.foodintelligence.pos.BuildConfig
+import com.ban.foodintelligence.pos.net.ApiConfig
 import com.ban.foodintelligence.pos.R
 import com.ban.foodintelligence.pos.database.AppDatabase
 import com.ban.foodintelligence.pos.model.SyncOutboxQueue
@@ -186,7 +186,7 @@ class SyncWorker(
             return BatchOutcome.Fatal("Cannot sign envelope: ${e.message}")
         }
 
-        val syncUrl = inputData.getString(KEY_GO_API_SYNC_URL) ?: DEFAULT_GO_API_SYNC_URL
+        val syncUrl = inputData.getString(KEY_GO_API_SYNC_URL) ?: (ApiConfig.baseUrl(applicationContext) + "/sync")
         val request = Request.Builder()
             .url(syncUrl)
             .header("X-Signature", envelopeSignature)
@@ -300,7 +300,6 @@ class SyncWorker(
 
         const val UNIQUE_WORK_NAME = "ban_avatar_pos_outbox_sync_worker"
         const val KEY_GO_API_SYNC_URL = "GO_API_SYNC_URL"
-        val DEFAULT_GO_API_SYNC_URL = "${BuildConfig.POS_API_BASE_URL}/sync"
 
         const val BATCH_SIZE = 50
         const val BATCH_THROTTLE_DELAY_MS = 500L
