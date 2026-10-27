@@ -209,7 +209,7 @@ fun LotRow(lot: PosInventoryLot, onClick: () -> Unit) {
         } else {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "${Fmt.money(lot.unitPriceEur)} / ${lot.uom.lowercase(Locale.ROOT)}",
+                    "${Fmt.money(lot.unitPriceEur)} / ${Fmt.unit(lot.uom)}",
                     style = PosType.subhead.copy(fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"),
                     color = palette.label
                 )
@@ -255,7 +255,7 @@ private fun SellSheet(lot: PosInventoryLot, state: PosAppState, onDismiss: () ->
                 Text(lot.lotNo, style = PosType.subhead, color = palette.secondaryLabel)
             }
             InsetGroup {
-                row { ListRow(stringResource(R.string.sell_sheet_price), value = "${Fmt.money(lot.unitPriceEur)} / ${lot.uom.lowercase(Locale.ROOT)}") }
+                row { ListRow(stringResource(R.string.sell_sheet_price), value = "${Fmt.money(lot.unitPriceEur)} / ${Fmt.unit(lot.uom)}") }
                 row { ListRow(stringResource(R.string.sell_sheet_in_stock), value = Fmt.qty(lot.availableQty, lot.uom)) }
                 if (lot.expiryDate.isNotBlank()) row { ListRow(stringResource(R.string.lot_expiry, "").trim(), value = expiryLabel(lot.expiryDate)) }
             }
@@ -274,7 +274,7 @@ private fun SellSheet(lot: PosInventoryLot, state: PosAppState, onDismiss: () ->
                             isError = check is QtyCheck.Invalid && input.isNotBlank(),
                             keyboardOptions = KeyboardOptions(keyboardType = if (isKg) KeyboardType.Decimal else KeyboardType.Number),
                             textStyle = PosType.title.copy(textAlign = TextAlign.Center, fontFeatureSettings = "tnum"),
-                            suffix = { Text(lot.uom.lowercase(Locale.ROOT), style = PosType.body, color = palette.secondaryLabel) },
+                            suffix = { Text(Fmt.unit(lot.uom), style = PosType.body, color = palette.secondaryLabel) },
                             shape = Shapes.button,
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = palette.accent, unfocusedBorderColor = palette.separator),
                             modifier = Modifier.weight(1f)

@@ -3,110 +3,61 @@
     <!-- Application Identity -->
     <string name="app_name">BAN Shop</string>
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->
-    <string name="lockdown_hazard_banner">/// CLASS-I BIOHAZARD &amp; EDGE AI OOD INTERLOCK ENGAGED ///</string>
     <string name="lockdown_title">Sales paused</string>
     <string name="lockdown_subtitle">Product recall</string>
     <string name="lockdown_body">A recall affects products in this shop. Take the lots below off the shelf. A supervisor has to confirm before you can sell again.</string>
-    <!-- Telemetry & Forensics Readout Labels -->
-    <string name="telemetry_header">TELEMETRY &amp; FORENSICS READOUT</string>
-    <string name="telemetry_incident_code">INCIDENT CODE   : %1$s</string>
-    <string name="telemetry_quarantined_lot">QUARANTINED LOT : %1$s (ROOT: %2$s)</string>
-    <string name="telemetry_ood_metric">OOD TELEMETRY   : %1$s = %2$.4f</string>
-    <string name="telemetry_kiosk_mode">KIOSK LOCK MODE : [ACTIVE / startLockTask() ENGAGED]</string>
-    <string name="telemetry_persistent_flag">PERSISTENT FLAG : [IS_TERMINAL_LOCKED = true]</string>
-    <string name="telemetry_supervisor_hint">SUPERVISOR EXIT : [5-TAP HAZARD HEADER -&gt; HSM PIN]</string>
 
-    <!-- Supervisor Auth & PIN Override Console -->
-    <string name="supervisor_console_header">SUPERVISOR HSM OVERRIDE CONSOLE</string>
-    <string name="supervisor_pin_prompt">ENTER SUPERVISOR HSM PIN TO RELEASE KIOSK LOCK:</string>
-    <string name="supervisor_pin_hint">SUPERVISOR 6-DIGIT PIN</string>
-    <string name="btn_unlock">UNLOCK</string>
-    <string name="auth_status_unlocked">KIOSK LOCK RELEASED BY SUPERVISOR.</string>
-    <string name="error_invalid_pin">INVALID SUPERVISOR PIN (%1$d ATTEMPTS REMAINING).</string>
-    <string name="error_invalid_pin_generic">INVALID SUPERVISOR PIN. ACCESS DENIED.</string>
-    <string name="error_lockout_throttled">BRUTE-FORCE LOCKOUT: RETRY IN %1$d SECONDS.</string>
 
-    <!-- Main POS Checkout & Hardware Attestation Strings -->
-    <string name="pos_terminal_header">BAN FOOD INTELLIGENCE // INDUSTRIAL POS</string>
-    <string name="pos_keystore_status_ready">HARDWARE STRONGBOX/TEE ECDSA P-256: VERIFIED</string>
-    <string name="pos_kiosk_guard_redirect">TERMINAL LOCKED — REDIRECTING TO RED RECALL INTERLOCK</string>
 
     <!-- Offline Outbox & SyncWorker Status Strings -->
-    <string name="sync_status_syncing">OUTBOX SYNC ACTIVE: DRAINING BATCH (%1$d PENDING)...</string>
-    <string name="sync_status_idle">OUTBOX SYNC IDLE: ALL RECORDS SYNCHRONIZED</string>
-    <string name="sync_status_throttling">THERMAL &amp; WAL RELIEF: YIELDING 500MS BETWEEN BATCHES</string>
-    <string name="sync_status_batch_ack">BATCH ACKNOWLEDGED BY GO BACKEND (%1$d RECORDS PURGED)</string>
-    <string name="sync_status_network_retry">TRANSIENT NETWORK PARTITION: EXPONENTIAL BACKOFF SCHEDULED</string>
-    <string name="sync_status_signature_rejected">SECURITY ALERT: ECDSA SIGNATURE REJECTED BY SERVER</string>
-
-    <!-- POS Sales & Lot-Tracked Stock Movement Strings (Phase 3) -->
-    <string name="pos_sales_section_title">LOT-TRACKED POS SALES &amp; STOCK DISPATCH</string>
-    <string name="pos_select_lot_label">Select Lot-Tracked Inventory Batch:</string>
-    <string name="pos_quantity_hint">Sale Quantity</string>
-    <string name="pos_btn_execute_sale">COMPLETE SALE &amp; SIGN OUTBOX</string>
-    <string name="pos_btn_recall_block">BLOCKED LOT — TRIGGER RECALL QUARANTINE</string>
-    <string name="pos_sqlite_ledger_title">LOCAL SQLITE WAL STOCK MOVEMENTS &amp; OUTBOX</string>
-    <string name="pos_sqlite_empty">No local sales recorded yet. Select a lot above to execute a sale.</string>
-    <string name="pos_sale_recorded_toast">Sale recorded in SQLite WAL &amp; signed with ECDSA P-256!</string>
-    <string name="pos_recall_blocked_toast">RECALL INTERLOCK: Sale of contaminated lot %1$s blocked!</string>
+    <string name="sync_status_syncing">Sending %1$d sales</string>
+    <string name="sync_status_idle">All sales sent</string>
+    <string name="sync_status_throttling">Short pause between batches</string>
+    <string name="sync_status_batch_ack">Server confirmed %1$d sales</string>
+    <string name="sync_status_network_retry">No connection. Will try again soon.</string>
+    <string name="sync_status_signature_rejected">The server rejected this device\'s signature.</string>
 
     <!-- Task 5: Invoice OCR (NVIDIA NIM Vision-Language) -->
-    <string name="ocr_open_scanner">Scan Supplier Invoice (OCR)</string>
-    <string name="ocr_screen_title">Invoice OCR</string>
-    <string name="ocr_screen_subtitle">Capture a supplier invoice and let the vision model propose stock entries.</string>
-    <string name="ocr_btn_capture">Capture Invoice</string>
-    <string name="ocr_btn_recapture">Capture Again</string>
-    <string name="ocr_btn_extract">Extract with NVIDIA Nemotron VL</string>
-    <string name="ocr_loading">Reading invoice with %1$s…</string>
-    <string name="ocr_suggestions_title">Suggestions</string>
-    <string name="ocr_suggestions_hint">Review each line before saving. Values are model suggestions, not verified data.</string>
-    <string name="ocr_btn_confirm_save">Confirm &amp; Save to Stock</string>
+    <string name="ocr_screen_title">Receive from invoice</string>
+    <string name="ocr_screen_subtitle">Take a photo of the supplier invoice. The app suggests the lines; you check them before anything is saved.</string>
+    <string name="ocr_btn_recapture">Take another photo</string>
+    <string name="ocr_btn_extract">Read invoice again</string>
+    <string name="ocr_loading">Reading the invoice with %1$s…</string>
+    <string name="ocr_suggestions_title">Suggested lines</string>
+    <string name="ocr_suggestions_hint">Check each line before saving. These are suggestions, not verified data.</string>
+    <string name="ocr_btn_confirm_save">Confirm and add to stock</string>
     <string name="ocr_btn_discard">Discard</string>
-    <string name="ocr_btn_use_demo">Use Sample Response (Demo)</string>
-    <string name="ocr_demo_badge">DEMO RESPONSE — NOT FROM LIVE MODEL</string>
-    <string name="ocr_error_title">Extraction failed</string>
-    <string name="ocr_error_no_key">NVIDIA API key is not configured. Set NVIDIA_API_KEY in local.properties or route the request through the backend.</string>
-    <string name="ocr_saved_success">%1$d stock receipts saved and queued for sync.</string>
-    <string name="ocr_missing_lot">No lot number on invoice — will be rejected</string>
-    <string name="ocr_raw_json">Raw JSON</string>
+    <string name="ocr_error_title">The invoice could not be read</string>
+    <string name="ocr_error_no_key">Invoice reading is not set up on this device (missing API key). Enter the lines by hand.</string>
+    <string name="ocr_saved_success">%1$d goods receipts saved. They will be sent to the server automatically.</string>
+    <string name="ocr_missing_lot">No lot number on the invoice. This line cannot be saved.</string>
+    <string name="ocr_raw_json">Model output</string>
     <string name="ocr_meta">Supplier: %1$s · Invoice: %2$s</string>
     <string name="ocr_back">Back</string>
-
     <!-- Quick Guide / How to Use BottomSheet (EN) -->
-    <string name="quick_guide_button_label">Quick Guide</string>
-    <string name="quick_guide_title">Quick Guide — How to Use</string>
-    <string name="quick_guide_subtitle">3-step operational guide for warehouse and POS personnel</string>
-    <string name="quick_guide_step1_title">Making a Sale</string>
-    <string name="quick_guide_step1_desc">Select a lot, enter the quantity, and press the Complete Sale button.</string>
-    <string name="quick_guide_step2_title">Recall Lock Status</string>
-    <string name="quick_guide_step2_desc">Recalled high-risk lots are automatically blocked by the system.</string>
-    <string name="quick_guide_step3_title">Supervisor Unlock</string>
-    <string name="quick_guide_step3_desc">To exit the locked screen, quickly tap the top header 5 times and enter the supervisor PIN.</string>
-    <string name="quick_guide_btn_close">Got It, Close</string>
-
+    <string name="quick_guide_button_label">How it works</string>
+    <string name="quick_guide_title">How the app works</string>
+    <string name="quick_guide_subtitle">Three things every cashier needs to know</string>
+    <string name="quick_guide_step1_title">Selling</string>
+    <string name="quick_guide_step1_desc">Tap a lot on the Sell tab, set the quantity and tap Confirm sale. Weights can have decimals; packs are whole numbers.</string>
+    <string name="quick_guide_step2_title">Recalls</string>
+    <string name="quick_guide_step2_desc">Recalled lots are marked red and cannot be sold, even offline. When a new recall reaches this shop, sales pause until the lots are off the shelf.</string>
+    <string name="quick_guide_step3_title">Supervisor unlock</string>
+    <string name="quick_guide_step3_desc">A supervisor taps Supervisor unlock on the paused screen and enters their PIN. Every unlock is recorded.</string>
+    <string name="quick_guide_btn_close">Got it</string>
     <!-- POS catalog and sale validation -->
     <string name="pos_qty_error_empty">Enter a quantity.</string>
-    <string name="pos_qty_error_not_number">Quantity must be a number.</string>
-    <string name="pos_qty_error_not_positive">Quantity must be greater than 0.</string>
-    <string name="pos_qty_error_kg_precision">KG allows at most 3 decimals.</string>
-    <string name="pos_qty_error_whole_number">%1$s must be a whole number.</string>
+    <string name="pos_qty_error_not_number">Enter a number, for example 1.5.</string>
+    <string name="pos_qty_error_not_positive">The quantity must be more than 0.</string>
+    <string name="pos_qty_error_kg_precision">Weights can have at most 3 decimals.</string>
+    <string name="pos_qty_error_whole_number">Enter a whole number.</string>
     <string name="pos_qty_error_exceeds_stock">Only %1$s in stock.</string>
-    <string name="pos_total_label">TOTAL</string>
-    <string name="pos_available_label">Available: %1$s</string>
-    <string name="pos_rows_count">%1$d rows</string>
-    <string name="pos_recall_tag">Recall %1$s (root %2$s)</string>
-    <string name="pos_catalog_live">Live stock from Go API</string>
-    <string name="pos_catalog_cached">Offline: last lot and recall list from %1$s</string>
-    <string name="pos_catalog_none">No lot data. Go API unreachable: %1$s</string>
-    <string name="pos_catalog_empty">No lots in stock at %1$s.</string>
-    <string name="pos_catalog_loading">Loading lots from Go API...</string>
-    <string name="pos_btn_refresh">Refresh</string>
 
     <!-- OCR camera capture -->
     <string name="ocr_btn_take_photo">Take photo of invoice</string>
-    <string name="ocr_btn_sample">Sample invoice</string>
-    <string name="ocr_processing_title">Processing...</string>
-    <string name="ocr_processing_body">Reading the invoice with %1$s. This can take up to a minute.</string>
+    <string name="ocr_btn_sample">Use sample invoice</string>
+    <string name="ocr_processing_title">Reading invoice…</string>
+    <string name="ocr_processing_body">Using %1$s. This can take up to a minute.</string>
     <string name="ocr_camera_unavailable">No camera app found. Using the sample invoice instead.</string>
     <string name="ocr_capture_failed">The photo could not be read. Please try again.</string>
     <string name="settings_title">Settings</string>
@@ -135,7 +86,6 @@
     <string name="settings_version">Version</string>
     <string name="error_server_unreachable">Can\'t reach the server. Check the connection in Settings.</string>
     <string name="error_details">Technical details</string>
-    <string name="action_open_settings">Open Settings</string>
     <string name="action_retry">Try again</string>
     <string name="action_done">Done</string>
     <string name="lock_recall">Recall</string>
@@ -196,7 +146,6 @@
     <string name="lots_forecasts_sub">AI prediction compared with the actual result</string>
     <string name="trace_backward">Where it came from</string>
     <string name="trace_forward">Where it went</string>
-    <string name="trace_loading">Loading trace…</string>
     <string name="trace_empty">No recorded relations for this lot.</string>
     <string name="trace_doc_production">Production order %1$s</string>
     <string name="trace_doc_butchery">Butchery %1$s</string>
@@ -248,4 +197,5 @@
         <item quantity="one">1 recalled lot is in this shop. Take it off the shelf.</item>
         <item quantity="other">%d recalled lots are in this shop. Take them off the shelf.</item>
     </plurals>
+    <string name="ocr_unavailable">Invoice reading is not available right now. Enter the lines by hand.</string>
 </resources>
