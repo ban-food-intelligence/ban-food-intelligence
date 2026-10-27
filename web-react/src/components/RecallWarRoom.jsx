@@ -52,7 +52,7 @@ export default function RecallWarRoom() {
   const [statusMessage, setStatusMessage] = useState('MySQL sp_recall_by_lot & sp_trace_forward hazır.');
 
   useEffect(() => {
-    console.log('⚛️ Wiring React RecallWarRoom to Go API (GET /recall)...');
+    console.log('Wiring React RecallWarRoom to Go API (GET /recall)...');
     fetch('http://localhost:8080/recall')
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
@@ -66,7 +66,7 @@ export default function RecallWarRoom() {
           if (Array.isArray(ev.affected_markets) && ev.affected_markets.length > 0) {
             setMarkets(ev.affected_markets);
           }
-          setStatusMessage('🟢 Go API /recall üzerinden canlı MySQL geri çağırma verisi yüklendi.');
+          setStatusMessage('Go API /recall üzerinden canlı MySQL geri çağırma verisi yüklendi.');
         }
       })
       .catch(() => {});
@@ -91,10 +91,10 @@ export default function RecallWarRoom() {
         if (resp.recall_summary && Array.isArray(resp.recall_summary.affected_markets) && resp.recall_summary.affected_markets.length > 0) {
           setMarkets(resp.recall_summary.affected_markets);
         }
-        setStatusMessage('✅ CALL sp_recall_by_lot(ET-2026-001) çalıştırıldı! Tüm etkilenen lotlar RECALLED olarak bloke edildi.');
+        setStatusMessage('CALL sp_recall_by_lot(ET-2026-001) çalıştırıldı! Tüm etkilenen lotlar RECALLED olarak bloke edildi.');
       })
       .catch(() => {
-        setStatusMessage('🚨 Karantina Kiosk Kilidi Aktif: ET-2026-001 → SUC-2026-045 (85 Paket: 30 / 25 / 30) bloke edildi.');
+        setStatusMessage('Karantina Kiosk Kilidi Aktif: ET-2026-001 → SUC-2026-045 (85 Paket: 30 / 25 / 30) bloke edildi.');
       });
   };
 
@@ -126,7 +126,7 @@ export default function RecallWarRoom() {
             cursor: 'pointer',
           }}
         >
-          🚨 GERİ ÇAĞIRMAYI TETİKLE & POS SATIŞINI BLOKE ET
+          GERİ ÇAĞIRMAYI TETİKLE & POS SATIŞINI BLOKE ET
         </button>
       </div>
 
@@ -154,6 +154,7 @@ export default function RecallWarRoom() {
       <h4 style={{ color: '#e2e8f0', marginBottom: '0.75rem' }}>
         Etkilenen Müşteri / Market Bazlı Miktar, Sevkiyat ve İletişim Listesi ({affectedLots.join(' → ')})
       </h4>
+      <div className="table-scroll">
       <table className="data-table">
         <thead>
           <tr>
@@ -193,6 +194,7 @@ export default function RecallWarRoom() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

@@ -12,7 +12,7 @@ export default function App() {
       <header className="header-banner">
         <div className="title-tagline">
           <h1>BAN Food Intelligence &bull; AVATAR ERP</h1>
-          <p>Üretim (EKP = 18,16 €), 25 KG Kuzu Parçalama Mutabakatı, Lot İzlenebilirliği (ET-2026-001) ve Yapay Zeka Tahmin Sistemi</p>
+          <p>Fason üretim maliyeti (EKP), kuzu parçalama mutabakatı, lot izlenebilirliği ve yapay zeka tahminleri: canlı Go API + MySQL verisi</p>
         </div>
         <div className="badge-team">
           Ali (MySQL/ML) &bull; Berke (Go/React) &bull; Nuri (Kotlin POS/ECDSA/Stacking)
@@ -34,7 +34,7 @@ export default function App() {
             fontSize: '0.9rem',
           }}
         >
-          🥩 Görev 1 & 2: Üretim (18,16 € EKP) & 25 KG Kuzu Parçalama
+          Görev 1 & 2: Üretim Maliyeti ve Kuzu Parçalama
         </button>
         <button
           onClick={() => setActiveTab('recall')}
@@ -49,7 +49,7 @@ export default function App() {
             fontSize: '0.9rem',
           }}
         >
-          🚨 Görev 3: Geri Çağırma (ET-2026-001 → 30/25/30 Paket)
+          Görev 3: Geri Çağırma
         </button>
         <button
           onClick={() => setActiveTab('genealogy')}
@@ -64,7 +64,7 @@ export default function App() {
             fontSize: '0.9rem',
           }}
         >
-          🌿 Görev 3: İleri & Geri Lot İzlenebilirliği
+          Görev 3: İleri ve Geri Lot İzlenebilirliği
         </button>
         <button
           onClick={() => setActiveTab('ml')}
@@ -79,7 +79,7 @@ export default function App() {
             fontSize: '0.9rem',
           }}
         >
-          🧠 Görev 4A & 4B: Yapay Zeka Tahmin & Sapma Raporu
+          Görev 4A & 4B: Yapay Zeka Tahmin ve Sapma Raporu
         </button>
       </div>
 
