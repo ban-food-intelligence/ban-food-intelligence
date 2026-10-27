@@ -3,10 +3,13 @@
 Bağlantı ortam değişkenlerinden okunur (CI ve yerel için aynı):
   MYSQL_HOST (127.0.0.1), MYSQL_PORT (3306), MYSQL_USER (root),
   MYSQL_PASSWORD (ban), MYSQL_SOCKET (opsiyonel)
+  MYSQL_CLI (opsiyonel): mysql istemci komutu, ör. "docker compose exec -T mysql mysql"
+  (bilgisayarda mysql istemcisi yoksa compose konteynerindeki kullanılır)
 Şema + seed her test modülü için sıfırdan yüklenir (load.sh ile aynı sıra).
 """
 import os
 import pathlib
+import shlex
 import subprocess
 
 import pymysql
@@ -18,7 +21,8 @@ SQL_FILES = [DB_DIR / "schema.sql", DB_DIR / "seed.sql"]
 
 def _cli_args():
     password = os.getenv("MYSQL_PASSWORD", "ban")
-    args = ["mysql", "--default-character-set=utf8mb4", "-u", os.getenv("MYSQL_USER", "root")]
+    args = shlex.split(os.getenv("MYSQL_CLI", "mysql")) + [
+        "--default-character-set=utf8mb4", "-u", os.getenv("MYSQL_USER", "root")]
     if password:
         args.append(f"-p{password}")
     if os.getenv("MYSQL_SOCKET"):
