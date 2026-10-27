@@ -3,7 +3,6 @@ package controllers
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"ban-food-intelligence/api-go/models"
@@ -25,13 +24,13 @@ func (c *YieldController) PredictYield(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
 		return
 	}
 
 	var req models.YieldPredictionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request payload"}`, http.StatusBadRequest)
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "invalid request payload")
 		return
 	}
 
@@ -96,7 +95,7 @@ func (c *YieldController) ListPredictionsAndAnomalies(w http.ResponseWriter, r *
 		 ORDER BY id ASC`,
 	)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"failed to query v_ml_prediction_deviation: %s"}`, err.Error()), http.StatusInternalServerError)
+		writeDBError(w, r, err)
 		return
 	}
 	defer rows.Close()

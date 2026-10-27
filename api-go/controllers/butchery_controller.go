@@ -3,7 +3,6 @@ package controllers
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 )
@@ -82,13 +81,13 @@ func (c *ButcheryController) ReconcileButchery(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
 		return
 	}
 
 	var req ButcheryReconcileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "invalid request body")
 		return
 	}
 
@@ -110,7 +109,7 @@ func (c *ButcheryController) ReconcileButchery(w http.ResponseWriter, r *http.Re
 	rows, err := c.db.QueryContext(r.Context(), `CALL sp_execute_butchery(?, ?)`, opNo, allocMethod)
 	if err != nil {
 		log.Printf("[ERROR] [MYSQL-BUTCHERY] sp_execute_butchery error: %v", err)
-		http.Error(w, fmt.Sprintf(`{"error":"sp_execute_butchery failed: %s"}`, err.Error()), http.StatusInternalServerError)
+		writeDBError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -128,7 +127,7 @@ func (c *ButcheryController) ReconcileButchery(w http.ResponseWriter, r *http.Re
 			&summary.AllocatedTotal, &summary.AllocationDiff,
 			&summary.WeightOk, &summary.DeclaredCostOk, &summary.AllocationOk,
 		); err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":"scan sp_execute_butchery failed: %s"}`, err.Error()), http.StatusInternalServerError)
+			writeDBError(w, r, err)
 			return
 		}
 		if declaredCost.Valid {
@@ -165,7 +164,7 @@ func (c *ButcheryController) ListButcheryOperations(w http.ResponseWriter, r *ht
 		 ORDER BY op_no ASC`,
 	)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"query v_butchery_reconciliation failed: %s"}`, err.Error()), http.StatusInternalServerError)
+		writeDBError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -182,7 +181,7 @@ func (c *ButcheryController) ListButcheryOperations(w http.ResponseWriter, r *ht
 			&declaredCost, &declaredDiff, &s.AllocatedTotal, &s.AllocationDiff,
 			&s.WeightOk, &s.DeclaredCostOk, &s.AllocationOk,
 		); err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":"scan v_butchery_reconciliation failed: %s"}`, err.Error()), http.StatusInternalServerError)
+			writeDBError(w, r, err)
 			return
 		}
 		if declaredCost.Valid {

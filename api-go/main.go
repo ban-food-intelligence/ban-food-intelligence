@@ -7,7 +7,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -145,10 +149,23 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	logInfo("HTTP", "Go HTTP Server listening on http://localhost:%s", port)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logError("HTTP", "Server fatal error: %v", err)
-		os.Exit(1)
+	// Graceful shutdown: on SIGINT/SIGTERM stop accepting requests and let running
+	// ones finish (up to 10 s) before closing the DB pool.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		logInfo("HTTP", "Go HTTP Server listening on :%s (all interfaces)", port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logError("HTTP", "Server fatal error: %v", err)
+			os.Exit(1)
+		}
+	}()
+	<-ctx.Done()
+	logInfo("HTTP", "Shutting down...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logError("HTTP", "Graceful shutdown failed: %v", err)
 	}
 }
 
@@ -241,19 +258,58 @@ func ensureStoredProcedureAliases(db *sql.DB) {
 	logInfo("MYSQL-SP", "Verified MySQL Stored Procedures: sp_calculate_production_cost, sp_execute_butchery, sp_recall_by_lot.")
 }
 
+// allowedOrigin reports whether a browser origin may call the API: the React dashboard
+// (dev 5173, compose 3000, preview 4173) on any host, so a LAN IP works too, or an
+// explicit list in CORS_ALLOWED_ORIGINS (comma separated).
+func allowedOrigin(origin string) bool {
+	if origin == "" {
+		return false
+	}
+	if list := os.Getenv("CORS_ALLOWED_ORIGINS"); list != "" {
+		for _, o := range strings.Split(list, ",") {
+			if strings.TrimSpace(o) == origin {
+				return true
+			}
+		}
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	switch u.Port() {
+	case "5173", "3000", "4173":
+		return true
+	}
+	return false
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
 func withCORSAndLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tenant-ID, X-Device-ID, X-Actor-Role, X-Signature, X-Signature-Alg, X-Key-Fingerprint, X-Idempotency-UUIDv7, X-POS-Public-Key")
-
+		if origin := r.Header.Get("Origin"); allowedOrigin(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept-Language, Authorization, X-Tenant-ID, X-Device-ID, X-Actor-Role, X-Signature, X-Signature-Alg, X-Key-Fingerprint, X-Idempotency-UUIDv7, X-POS-Public-Key")
+			w.Header().Add("Vary", "Origin")
+		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		logInfo("HTTP", "%s %s (%s)", r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond))
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		logInfo("HTTP", "%s %s -> %d (%s)", r.Method, r.URL.RequestURI(), rec.status, time.Since(start).Round(time.Millisecond))
 	})
 }

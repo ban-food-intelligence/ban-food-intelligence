@@ -1,0 +1,164 @@
+# REST API (Go, `api-go`)
+
+Base URL: `http://localhost:8080` (docker compose). All responses are JSON unless stated.
+Money values are EUR, quantities are in the lot's unit (`KG`, `PAKET`).
+
+## Conventions
+
+**Errors.** Every error has the same body and a meaningful status code:
+
+```json
+{ "code": "LOT_NOT_FOUND", "message": "Lot bulunamadı.", "details": "Error 1644 (45000): LOT_NOT_FOUND" }
+```
+
+`message` is chosen from `Accept-Language` (`tr`, `de`, otherwise `en`); clients branch on `code`.
+
+| Status | Codes |
+|---|---|
+| 400 | `INVALID_INPUT` (missing/invalid fields) |
+| 401 | `INVALID_PIN` |
+| 403 | `SIGNATURE_REJECTED` (sync signature checks) |
+| 404 | `NOT_FOUND`, `LOT_NOT_FOUND` |
+| 405 | `METHOD_NOT_ALLOWED` |
+| 409 | `INSUFFICIENT_STOCK`, `LOT_BLOCKED` (recalled/blocked lot), `ORDER_STATE`, `CONFLICT` |
+| 422 | `INVALID_INPUT` (rejected by a database rule) |
+| 429 | `LOCKED_OUT` (too many wrong PINs) |
+| 500 | `DB_ERROR` |
+
+**CORS.** Allowed for the dashboard origins (ports 5173, 3000, 4173 on any host) or the list in
+`CORS_ALLOWED_ORIGINS`. **Logging:** one line per request with status and duration.
+**Shutdown:** SIGINT/SIGTERM drain in-flight requests (10 s).
+
+## Health
+
+`GET /health`
+```json
+{"service":"ban-food-intelligence-api-go","version":"1.2.0","status":"UP","mysql_status":"CONNECTED","server_time":"2026-10-27T20:21:52Z"}
+```
+
+## Task 1: production and real cost (EKP)
+
+`GET /production[?order_no=URT-2026-045]` - orders with EKP, VKP, gross profit, margin, quantity
+variance and the cost breakdown (from `v_production_cost`, `v_production_cost_breakdown`).
+```json
+{"order_no":"URT-2026-045","status":"RECEIVED","planned_qty":85,"actual_qty":85,"qty_variance":0,
+ "material_cost":1076,"service_cost":467.5,"total_cost":1543.5,"ekp":18.1588,"ekp_display":18.16,
+ "vkp":24.9,"gross_profit_per_unit":6.74,"gross_profit_total":573,"margin_pct":27.07,
+ "output_lot_number":"SUC-2026-045",
+ "breakdown":[{"lot_no":"ET-2026-001","cost_element":"Dana et (sucukluk)","qty":100,"uom_code":"KG","unit_cost":9.7,"amount":970}, "..."]}
+```
+
+`POST /production` - complete an order whose material was sent (`sp_production_complete`):
+```json
+{"order_no":"URT-2026-099","actual_qty":1,"output_lot_no":"SUC-2026-099","invoice_no":"FAS-FTR-099",
+ "sub_warehouse":"FASON-01","target_wh":"ANA-DEPO"}
+```
+Returns the computed order (as above). `409 ORDER_STATE` if already received,
+`409 INSUFFICIENT_STOCK` if the material is not at the subcontractor.
+
+## Task 2: butchery
+
+`GET /butchery` - every operation with weight balance, findings and the posted allocation.
+```json
+{"op_no":"PRC-2026-000","status":"REJECTED","input_weight_kg":25,"cut_weight_kg":22,"waste_weight_kg":0,
+ "total_cost":287.5,"declared_total_cost":351,"declared_cost_diff":63.5,"allocated_total":0,
+ "weight_check":{"input_kg":25,"cuts_kg":22,"by_product_kg":0,"waste_kg":0,"unrecorded_kg":3,"tolerance_kg":0.01,"status":"UNRECORDED_LOSS"},
+ "findings":[
+   {"code":"DECLARED_COST_MISMATCH","severity":"ERROR","message":"Declared cost 351.00 EUR does not match 25.00 kg x 11.50 EUR = 287.50 EUR. ...",
+    "values":{"declared_total_cost":351,"computed_total_cost":287.5,"difference":63.5}},
+   {"code":"WEIGHT_IMBALANCE","severity":"ERROR","message":"Input 25.00 kg, but parts 22.00 kg and recorded waste 0.00 kg leave 3.00 kg unrecorded. ...",
+    "values":{"input_kg":25,"outputs_kg":22,"waste_kg":0,"unrecorded_kg":3}}],
+ "allocated_cuts":[...]}
+```
+`PRC-2026-001` (posted) returns `WEIGHT_BALANCED` and `ALLOCATION_BALANCED` and the cut list with
+`allocated_cost`, `allocated_unit_cost_per_kg`, `margin_percentage`.
+
+`GET /butchery/allocation?op_no=PRC-2026-001&method=QUANTITY|VALUE` - cost split computed with the
+largest-remainder method; the cents always sum to the total cost.
+```json
+{"op_no":"PRC-2026-001","method":"QUANTITY","total_cost":287.5,"allocated_total":287.5,"sums_exactly":true,
+ "lines":[{"cut_sku":"KZ-BUT","weight_kg":6.5,"basis":6.5,"share_pct":29.55,"allocated_cost":84.94,"unit_cost_per_kg":13.0677}, "..."]}
+```
+
+## Task 3: traceability and recall
+
+`GET /trace/{lot_no}?direction=forward|backward` - recursive trace over `lot_link` (no AI).
+Forward: every lot made from the root, the many-to-many links with quantities, stock, shipments to
+buyers (tier 1 and recorded tier 2) and POS sales. Backward: input lots, suppliers, documents.
+```json
+{"root_lot_number":"ET-2026-001","direction":"forward",
+ "lots":[{"depth":0,"lot_no":"ET-2026-001","origin_type":"PURCHASE","qty":100,"uom_code":"KG","status":"ACTIVE"},
+         {"depth":1,"lot_no":"SUC-2026-045","origin_type":"PRODUCTION","qty":85,"uom_code":"PAKET","status":"ACTIVE"}],
+ "links":[{"link_type":"PRODUCTION","document_no":"URT-2026-045","input_lot_no":"ET-2026-001","qty_consumed":100,
+           "output_lot_no":"SUC-2026-045","qty_produced":85}],
+ "shipments":[{"tier":1,"customer_code":"MKT-A","customer_name":"Market A","contact_person":"...","phone":"...","qty":30}, "...",
+              {"tier":2,"customer_code":"REST-01","received_via":"Market C","qty":10}]}
+```
+
+`GET /recall` - recalls with affected lots and the per-customer call-down list (address,
+`second_tier` = `RECORDED` / `NOT_RECORDED`). `lock_enforced` is true while the recall is OPEN and
+its lots are RECALLED. Empty list when there is no recall.
+
+`POST /recall` - start a recall (blocks the root and every lot made from it in one transaction):
+```json
+{"recall_code":"RCL-2026-001","trigger_lot":"ET-2026-001","reason":"Quality problem","initiator":"quality"}
+```
+`201` with `recall_summary`; `404 LOT_NOT_FOUND` for an unknown lot.
+
+`GET /recall/contacts.csv?recall_code=RCL-2026-001` - the contact list as CSV (UTF-8 with BOM).
+
+`GET /lots` - stock per lot and warehouse with status, sale price (VKP) and expiry date.
+
+## Reports and lot movements
+
+| Endpoint | Content |
+|---|---|
+| `GET /purchases` | receipt, date, supplier, lot, supplier lot, qty, unit price, line total, expiry |
+| `GET /movements[?lot_no=]` | stock ledger with `balance_after` per lot and warehouse; 404 for a lot without movements |
+| `GET /sales` | POS sale lines with revenue, lot cost and gross profit |
+
+Example `GET /movements?lot_no=KZB-2026-001` row:
+```json
+{"moved_at":"2026-10-13T09:45:00Z","lot_no":"KZB-2026-001","warehouse_code":"ANA-DEPO","movement_type":"BUTCHERY_OUTPUT",
+ "qty":6.5,"uom_code":"KG","unit_cost":14.7092,"balance_after":6.5,"ref_type":"butchery_operation","note":"PRC-2026-001"}
+```
+
+Recording movements (all go through the ledger triggers: sign check, no negative stock, recalled
+lots cannot be consumed). Each returns `201` with the balances after the movement.
+
+| Endpoint | Body |
+|---|---|
+| `POST /movements/transfer` | `{"lot_no","from_warehouse","to_warehouse","qty","note"}` |
+| `POST /movements/return` | `{"lot_no","warehouse","customer_code","qty","note"}` (counted as returned in the recall report) |
+| `POST /movements/waste` | `{"lot_no","warehouse","qty","reason"}` |
+| `POST /rework` | `{"input_lot_no","warehouse","qty_consumed","output_lot_no","output_qty","note"}` (new REWORK lot linked in `lot_link`) |
+
+## POS sync (SQLite -> MySQL)
+
+`POST /sync` - signed outbox batch from the Android POS. Each item is verified (ECDSA P-256), then
+applied once: `sync_inbox` (UUIDv7 primary key) + `sale` + `sale_line` in one transaction; the
+sale line trigger writes the SALE stock movement. Replays are acknowledged without inserting.
+```json
+{"processed_count":1,"acknowledged_ids":["019a3000-..."],"rejected":[
+  {"id":"019a3000-...","code":"LOT_BLOCKED","message":"Bu lot geri çağrıldı veya bloke. Satış engellendi."}],
+ "status":"PARTIAL","signature_verified":true}
+```
+Only acknowledged ids are removed from the device queue. `rejected` codes `INSUFFICIENT_STOCK`,
+`LOT_BLOCKED`, `INVALID_INPUT`, `CONFLICT` are permanent (the POS stops retrying and shows the reason);
+`DB_ERROR` is retried. `POST /sync/register-key` enrols a device public key.
+
+## Supervisor unlock
+
+`POST /auth/supervisor/verify` - `{"pin","device_id","lot_no","recall_code"}`. bcrypt check against
+`supervisor.pin_hash`; `401 INVALID_PIN` with `details.attempts_left`; after 5 wrong PINs per
+device `429 LOCKED_OUT` for 5 minutes. Every attempt is written to `audit_log`.
+
+`GET /auth/supervisor/audit` - the latest unlock attempts (who, when, device, lot, recall).
+
+## AI (spec section 4)
+
+`GET /ai/summary` - metrics (MAE, MAPE on the time-split test period for the model and the
+baselines) and, per demo record and target, the actual value, model and baseline predictions and
+their deviations (abs and %). See [AI.md](AI.md).
+
+`GET /yield` - raw `v_ml_prediction_deviation` rows (kept for compatibility).

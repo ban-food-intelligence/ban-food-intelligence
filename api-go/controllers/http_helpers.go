@@ -26,6 +26,7 @@ var errorMessages = map[string]map[string]string{
 	"ORDER_STATE":        {"en": "The production order is not in the right state for this step.", "tr": "Üretim emri bu adım için uygun durumda değil.", "de": "Der Fertigungsauftrag ist für diesen Schritt nicht im richtigen Status."},
 	"INVALID_PIN":        {"en": "Wrong PIN.", "tr": "PIN hatalı.", "de": "Falsche PIN."},
 	"LOCKED_OUT":         {"en": "Too many wrong attempts. Try again later.", "tr": "Çok fazla hatalı deneme. Daha sonra tekrar deneyin.", "de": "Zu viele Fehlversuche. Bitte später erneut versuchen."},
+	"SIGNATURE_REJECTED": {"en": "The device signature was rejected.", "tr": "Cihaz imzası reddedildi.", "de": "Die Gerätesignatur wurde abgelehnt."},
 	"DB_ERROR":           {"en": "The database could not complete the request.", "tr": "Veritabanı isteği tamamlayamadı.", "de": "Die Datenbank konnte die Anfrage nicht ausführen."},
 }
 
