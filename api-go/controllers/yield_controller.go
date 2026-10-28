@@ -4,8 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
-
-	"ban-food-intelligence/api-go/models"
 )
 
 type YieldController struct {
@@ -16,74 +14,15 @@ func NewYieldController(db *sql.DB) *YieldController {
 	return &YieldController{db: db}
 }
 
-// PredictYield handles GET /yield (returns stored ML predictions vs actuals from `v_ml_prediction_deviation`)
-// and POST /api/v1/yield/predict (persists & returns yield prediction from MySQL).
+// PredictYield handles GET /yield (stored predictions with actuals and deviation).
+// Live predictions are produced by ml-engine and served from MySQL via GET /ai/summary; the
+// API does not invent a prediction or a confidence value on request.
 func (c *YieldController) PredictYield(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		c.ListPredictionsAndAnomalies(w, r)
+	if r.Method != http.MethodGet {
+		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "use GET /yield or GET /ai/summary")
 		return
 	}
-	if r.Method != http.MethodPost {
-		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
-		return
-	}
-
-	var req models.YieldPredictionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "invalid request payload")
-		return
-	}
-
-	// Query MySQL `v_ml_prediction_deviation` for historical / reference predictions
-	var scores []models.ModelIndividualScore
-	rows, err := c.db.QueryContext(
-		r.Context(),
-		`SELECT model_name, predicted_value
-		 FROM v_ml_prediction_deviation
-		 WHERE task = 'PRODUCTION_YIELD'
-		 ORDER BY id DESC LIMIT 4`,
-	)
-	if err == nil {
-		for rows.Next() {
-			var mName string
-			var predVal float64
-			if err := rows.Scan(&mName, &predVal); err == nil {
-				scores = append(scores, models.ModelIndividualScore{
-					ModelName:      mName,
-					PredictedYield: predVal,
-					Confidence:     0.97,
-				})
-			}
-		}
-		rows.Close()
-	}
-
-	ensembleYield := 85.0
-	if len(scores) > 0 {
-		sum := 0.0
-		for _, s := range scores {
-			sum += s.PredictedYield
-		}
-		ensembleYield = sum / float64(len(scores))
-	}
-
-	inputWeight := req.InputWeightKg
-	if inputWeight <= 0 {
-		inputWeight = 100.0
-	}
-	expectedWeight := inputWeight * (ensembleYield / 100.0)
-
-	resp := models.YieldPredictionResponse{
-		BatchID:              req.BatchID,
-		EnsembleYieldPct:     ensembleYield,
-		ExpectedOutputWeight: expectedWeight,
-		ConfidenceScore:      0.985,
-		AnomalyDetected:      false,
-		IndividualScores:     scores,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	c.ListPredictionsAndAnomalies(w, r)
 }
 
 func (c *YieldController) ListPredictionsAndAnomalies(w http.ResponseWriter, r *http.Request) {

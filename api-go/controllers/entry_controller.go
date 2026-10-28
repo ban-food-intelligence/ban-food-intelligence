@@ -350,7 +350,6 @@ func validateButchery(req *ButcheryOperationRequest) fieldErrors {
 	return fe
 }
 
-
 // ButcheryOperation handles POST /butchery/operations: records a carcass breakdown with
 // actual weights. The weight balance (input = cuts + by-products + waste, 10 g tolerance)
 // must hold, otherwise 422 WEIGHT_IMBALANCE and nothing is written. The total cost
