@@ -2,7 +2,7 @@ import React, { createContext, useContext, useMemo, useState } from 'react';
 import { setApiLanguage } from './api';
 
 // Terms follow docs/GLOSSARY.md.
-const DICT = {
+export const DICT = {
   tr: {
     appName: 'BAN Food Intelligence',
     appSub: 'Üretim, maliyet, satış ve lot izlenebilirliği',
@@ -50,7 +50,7 @@ const DICT = {
     consumed: 'Kullanılan', produced: 'Üretilen', shipments: 'Sevkiyatlar ve alıcılar', tier: 'Kademe', via: 'Üzerinden',
     contact: 'Yetkili', phone: 'Telefon', email: 'E-posta', address: 'Adres', stockNow: 'Depolardaki stok', posSales: 'Mağaza satışları',
     recallTitle: 'Geri çağırma', startRecall: '{0} için geri çağırma başlat', confirmRecall: '{0} ve ondan üretilen tüm lotlar bloke edilecek. Emin misiniz?',
-    confirm: 'Evet, başlat', cancel: 'Vazgeç', recallStarted: '{0} başlatıldı. {1} lot bloke edildi.', recallFailed: 'Geri çağırma başlatılamadı.',
+    confirm: 'Evet, başlat', cancel: 'Vazgeç', recallStarted: '{0} başlatıldı. {1} lot bloke edildi.', recallFailed: 'Geri çağırma başlatılamadı.', supervisorPin: 'Yetkili PIN', pinHint: 'Geri çağırmayı yalnızca yetkili başlatabilir. İşlem adınızla kaydedilir.',
     activeRecalls: 'Geri çağırmalar', noRecall: 'Henüz geri çağırma yok.', exportCsv: 'İletişim listesi (CSV)', print: 'Yazdır',
     secondTierRecorded: 'İleri sevk kayıtlı', secondTierNotRecorded: 'İleri sevk kayıtlı değil', shipped: 'Sevk edilen', returned: 'İade',
     affectedLots: 'Etkilenen lotlar', reason: 'Neden', recallReason: 'Hammadde lotunda kalite sorunu', lockEnforced: 'Satış engelli',
@@ -112,7 +112,7 @@ const DICT = {
     consumed: 'Used', produced: 'Produced', shipments: 'Shipments and buyers', tier: 'Tier', via: 'Via',
     contact: 'Contact', phone: 'Phone', email: 'Email', address: 'Address', stockNow: 'Stock in warehouses', posSales: 'Shop sales',
     recallTitle: 'Recall', startRecall: 'Start recall for {0}', confirmRecall: '{0} and every lot made from it will be blocked. Are you sure?',
-    confirm: 'Yes, start', cancel: 'Cancel', recallStarted: '{0} started. {1} lots blocked.', recallFailed: 'The recall could not be started.',
+    confirm: 'Yes, start', cancel: 'Cancel', recallStarted: '{0} started. {1} lots blocked.', recallFailed: 'The recall could not be started.', supervisorPin: 'Supervisor PIN', pinHint: 'Only a supervisor can start a recall. It is recorded under your name.',
     activeRecalls: 'Recalls', noRecall: 'No recall yet.', exportCsv: 'Contact list (CSV)', print: 'Print',
     secondTierRecorded: 'Onward delivery recorded', secondTierNotRecorded: 'Onward delivery not recorded', shipped: 'Shipped', returned: 'Returned',
     affectedLots: 'Affected lots', reason: 'Reason', recallReason: 'Quality problem in the raw material lot', lockEnforced: 'Sale blocked',
