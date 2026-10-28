@@ -63,6 +63,30 @@ GET /lots  Origin: http://evil.example:5173 -> no Access-Control-Allow-Origin
 POST /recall with token, "initiator":"spoofed" -> recall.initiated_by = kalite_muduru
 ```
 
+## Dependency & scanning status
+
+Checked 2026-10-28 with `gh api repos/<repo>/dependabot/alerts` and `.../code-scanning/alerts`.
+
+| Source | Open before | Action | Open after |
+|---|---|---|---|
+| Dependabot, Go (`api-go/go.mod`) | 19 (9 critical, 3 high, 6 medium, 1 low) | Upgraded `golang.org/x/crypto` v0.28.0 -> v0.55.0 and `filippo.io/edwards25519` v1.1.0 -> v1.2.0. Go toolchain 1.22 -> 1.25, because x/crypto >= v0.52 requires it (Dockerfile, CI, check-all). | 0 expected after re-scan |
+| Dependabot, npm (`web-react/package-lock.json`) | 14 (2 critical, 1 high, 10 medium, 1 low) | Upgraded `vite` 5.4 -> 6.4.5 and `vitest` 2.1 -> 4.1.12 (pulls `esbuild` 0.25.12 and `@vitest/mocker` 4.1.12; `tinypool` is no longer a dependency). Lockfile regenerated; `npm audit`: 0 vulnerabilities. | 0 expected after re-scan |
+| Code scanning | none: no analysis is configured (API returns "no analysis found") | - | - |
+| Secret scanning | disabled for this repository | - | - |
+
+Notes:
+- No alert was dismissed: every one had a patched version, so all were fixed by upgrading.
+- Reachability: the API uses only `golang.org/x/crypto/bcrypt`; all 19 Go advisories are in the
+  `ssh` / `ssh/agent` packages, which are not compiled into the binary. The npm advisories affect the
+  dev server and test runner only (Vite dev middleware, Vitest UI/mocker, Tinypool workers); the
+  production dashboard is a static `vite build` output. They were upgraded anyway so the advisory
+  list stays clean.
+- Android lint (`lintDebug`) runs in CI and fails the build on errors. The two existing errors were
+  fixed: `AppDatabase` no longer subclasses `RoomDatabase` (it called the restricted
+  `InvalidationTracker` constructor; Room's generated implementation never existed, so the direct
+  SQLite engine was always the one in use), and `MainActivity` loads its start-up state with
+  `LaunchedEffect` instead of `produceState`.
+
 ## Known limitations (prototype)
 
 - **Demo PIN** `246813` is published in the README for the judges; one PIN unlocks everything
