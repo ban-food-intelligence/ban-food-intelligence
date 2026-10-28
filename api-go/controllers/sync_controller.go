@@ -14,6 +14,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,7 +27,16 @@ import (
 // using Hardware ECDSA P-256 (SHA256withECDSA) verification and MySQL `sync_inbox` persistence.
 type SyncController struct {
 	db         *sql.DB
-	deviceKeys sync.Map // map[deviceID]*ecdsa.PublicKey (X.509 SPKI P-256)
+	deviceKeys sync.Map // deviceID -> pinnedKey; cache of pos_device_key (the only store when db is nil)
+}
+
+// maxOutboxItems caps one sync request (the POS sends batches of 50).
+const maxOutboxItems = 500
+
+// pinnedKey is the one public key a POS device may sign with.
+type pinnedKey struct {
+	key         *ecdsa.PublicKey
+	fingerprint string
 }
 
 func NewSyncController(db *sql.DB) *SyncController {
@@ -36,8 +46,9 @@ func NewSyncController(db *sql.DB) *SyncController {
 	}
 }
 
-// RegisterDeviceKey handles POST /sync/register-key so Android POS terminals
-// can enroll their Hardware Keystore X.509 SPKI Base64 public key.
+// RegisterDeviceKey handles POST /sync/register-key {device_id, public_key_b64}. It is behind
+// the operator session (see main.go): a supervisor provisions a device or rotates its key,
+// e.g. after the app was reinstalled. Without it the first signed sync pins the key (TOFU).
 func (c *SyncController) RegisterDeviceKey(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
@@ -48,8 +59,8 @@ func (c *SyncController) RegisterDeviceKey(w http.ResponseWriter, r *http.Reques
 		DeviceID     string `json:"device_id"`
 		PublicKeyB64 string `json:"public_key_b64"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.DeviceID == "" || body.PublicKeyB64 == "" {
-		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "device_id and public_key_b64 are required")
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.DeviceID == "" || body.PublicKeyB64 == "" || len(body.DeviceID) > 64 {
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "device_id (max 64) and public_key_b64 are required")
 		return
 	}
 
@@ -58,9 +69,15 @@ func (c *SyncController) RegisterDeviceKey(w http.ResponseWriter, r *http.Reques
 		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "invalid ECDSA P-256 SPKI key: "+err.Error())
 		return
 	}
-
-	c.deviceKeys.Store(body.DeviceID, pubKey)
-	log.Printf("[INFO] [SYNC-ENROLL] Registered ECDSA P-256 public key for device=%s (sha256=%s)", body.DeviceID, fingerprint)
+	by := OperatorFrom(r.Context())
+	if by == "" {
+		by = "operator"
+	}
+	if err := c.pinKey(r, body.DeviceID, body.PublicKeyB64, pubKey, fingerprint, by, true); err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	log.Printf("[INFO] [SYNC-ENROLL] device=%s key sha256=%s registered by %s", body.DeviceID, fingerprint, by)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -69,6 +86,52 @@ func (c *SyncController) RegisterDeviceKey(w http.ResponseWriter, r *http.Reques
 		"signature_alg":       "ECDSA-P256-SHA256",
 		"key_fingerprint_hex": fingerprint,
 	})
+}
+
+// loadPinned returns the pinned key of a device from the cache or pos_device_key.
+func (c *SyncController) loadPinned(r *http.Request, deviceID string) (*pinnedKey, error) {
+	if v, ok := c.deviceKeys.Load(deviceID); ok {
+		return v.(*pinnedKey), nil
+	}
+	if c.db == nil {
+		return nil, nil
+	}
+	var b64 string
+	err := c.db.QueryRowContext(r.Context(), `SELECT public_key_b64 FROM pos_device_key WHERE device_id = ?`, deviceID).Scan(&b64)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	key, fp, err := parseP256PublicKeyBase64(b64)
+	if err != nil {
+		return nil, err
+	}
+	pk := &pinnedKey{key: key, fingerprint: fp}
+	c.deviceKeys.Store(deviceID, pk)
+	return pk, nil
+}
+
+// pinKey stores the device key. replace=false keeps an existing pin (first writer wins).
+func (c *SyncController) pinKey(r *http.Request, deviceID, b64 string, key *ecdsa.PublicKey, fp, by string, replace bool) error {
+	if c.db != nil {
+		stmt := `INSERT IGNORE INTO pos_device_key (device_id, public_key_b64, fingerprint, enrolled_by) VALUES (?, ?, ?, ?)`
+		if replace {
+			stmt = `REPLACE INTO pos_device_key (device_id, public_key_b64, fingerprint, enrolled_by) VALUES (?, ?, ?, ?)`
+		}
+		if _, err := c.db.ExecContext(r.Context(), stmt, deviceID, b64, fp, by); err != nil {
+			return err
+		}
+		c.deviceKeys.Delete(deviceID)
+		return nil
+	}
+	if replace {
+		c.deviceKeys.Store(deviceID, &pinnedKey{key: key, fingerprint: fp})
+	} else {
+		c.deviceKeys.LoadOrStore(deviceID, &pinnedKey{key: key, fingerprint: fp})
+	}
+	return nil
 }
 
 // IngestOutbox handles POST /sync
@@ -97,48 +160,82 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "outbox_items cannot be empty")
 		return
 	}
+	if len(req.OutboxItems) > maxOutboxItems {
+		writeAPIError(w, r, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", fmt.Sprintf("at most %d outbox_items per request", maxOutboxItems))
+		return
+	}
 
-	// Resolve ECDSA P-256 Public Key from header, request body, or enrolled device cache
-	pubKeyB64 := strings.TrimSpace(r.Header.Get("X-POS-Public-Key"))
-	if pubKeyB64 == "" {
-		pubKeyB64 = strings.TrimSpace(req.PublicKeyB64)
+	if req.DeviceID == "" || len(req.DeviceID) > 64 {
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "device_id (max 64 chars) is required")
+		return
+	}
+
+	// The device key: the pinned one, or (first contact, POS_ENROLLMENT != "closed") the key
+	// offered in X-POS-Public-Key, pinned after the envelope signature has been verified.
+	pinned, err := c.loadPinned(r, req.DeviceID)
+	if err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	offeredB64 := strings.TrimSpace(r.Header.Get("X-POS-Public-Key"))
+	if offeredB64 == "" {
+		offeredB64 = strings.TrimSpace(req.PublicKeyB64)
 	}
 	var devicePubKey *ecdsa.PublicKey
-	if pubKeyB64 != "" {
-		parsedKey, fp, err := parseP256PublicKeyBase64(pubKeyB64)
+	var offeredFP string
+	if offeredB64 != "" {
+		parsedKey, fp, err := parseP256PublicKeyBase64(offeredB64)
 		if err != nil {
 			writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "invalid X-POS-Public-Key SPKI: "+err.Error())
 			return
 		}
-		if headerFP := strings.TrimSpace(r.Header.Get("X-Key-Fingerprint")); headerFP != "" && !strings.EqualFold(headerFP, fp) {
-			writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: X-Key-Fingerprint mismatch with SPKI public key")
-			return
-		}
-		c.deviceKeys.Store(req.DeviceID, parsedKey)
-		devicePubKey = parsedKey
-	} else if cached, ok := c.deviceKeys.Load(req.DeviceID); ok {
-		devicePubKey = cached.(*ecdsa.PublicKey)
+		devicePubKey, offeredFP = parsedKey, fp
+	}
+	if headerFP := strings.TrimSpace(r.Header.Get("X-Key-Fingerprint")); headerFP != "" && offeredFP != "" && !strings.EqualFold(headerFP, offeredFP) {
+		writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "X-Key-Fingerprint does not match X-POS-Public-Key")
+		return
+	}
+	switch {
+	case pinned != nil && offeredFP != "" && offeredFP != pinned.fingerprint:
+		log.Printf("[WARN] [SYNC] device=%s offered key %s, pinned %s: refused", req.DeviceID, offeredFP, pinned.fingerprint)
+		writeAPIError(w, r, http.StatusForbidden, "KEY_MISMATCH", "device "+req.DeviceID+" is pinned to another key; a supervisor can re-register it via POST /sync/register-key")
+		return
+	case pinned != nil:
+		devicePubKey = pinned.key
+	case devicePubKey == nil || strings.EqualFold(os.Getenv("POS_ENROLLMENT"), "closed"):
+		writeAPIError(w, r, http.StatusForbidden, "DEVICE_NOT_ENROLLED", "send X-POS-Public-Key on first sync, or register the device via POST /sync/register-key")
+		return
 	}
 
-	// Verify outer HTTP Envelope ECDSA Signature (`X-Signature`) if public key is present
+	// The envelope signature is mandatory: it covers the whole body, so no field can be changed.
 	envelopeSigB64 := strings.TrimSpace(r.Header.Get("X-Signature"))
 	idempotencyUUID := strings.TrimSpace(r.Header.Get("X-Idempotency-UUIDv7"))
 	if idempotencyUUID == "" {
 		idempotencyUUID = req.SyncEnvelopeUUIDv7
 	}
-	if devicePubKey != nil && envelopeSigB64 != "" {
-		envelopeCanonical := fmt.Sprintf(
-			"%s:%s:%s:%s:%s",
-			req.TenantID,
-			req.DeviceID,
-			req.ActorRole,
-			idempotencyUUID,
-			string(rawBodyBytes),
-		)
-		if !verifyECDSAP256Signature(devicePubKey, envelopeCanonical, envelopeSigB64) {
-			writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: ECDSA-P256 envelope signature verification failed")
+	envelopeCanonical := fmt.Sprintf(
+		"%s:%s:%s:%s:%s",
+		req.TenantID,
+		req.DeviceID,
+		req.ActorRole,
+		idempotencyUUID,
+		string(rawBodyBytes),
+	)
+	if envelopeSigB64 == "" || !verifyECDSAP256Signature(devicePubKey, envelopeCanonical, envelopeSigB64) {
+		writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "ECDSA-P256 envelope signature missing or invalid")
+		return
+	}
+	if pinned == nil {
+		if err := c.pinKey(r, req.DeviceID, offeredB64, devicePubKey, offeredFP, "tofu", false); err != nil {
+			writeDBError(w, r, err)
 			return
 		}
+		// A concurrent first sync may have pinned a different key: re-check.
+		if p, err := c.loadPinned(r, req.DeviceID); err != nil || p == nil || p.fingerprint != offeredFP {
+			writeAPIError(w, r, http.StatusForbidden, "KEY_MISMATCH", "device "+req.DeviceID+" was pinned to another key")
+			return
+		}
+		log.Printf("[INFO] [SYNC-ENROLL] device=%s pinned to key sha256=%s on first signed sync", req.DeviceID, offeredFP)
 	}
 
 	var ackIDs []string
@@ -148,15 +245,11 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Resolve item-level public key if provided
+		// Items are signed by the same device key; an item may not claim another device.
 		itemPubKey := devicePubKey
-		if item.PublicKeyB64 != "" {
-			parsedItemKey, _, err := parseP256PublicKeyBase64(item.PublicKeyB64)
-			if err != nil {
-				writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: invalid item ECDSA public key")
-				return
-			}
-			itemPubKey = parsedItemKey
+		if item.DeviceID != "" && item.DeviceID != req.DeviceID {
+			writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "outbox item device_id differs from the envelope device_id")
+			return
 		}
 
 		// Build canonical v2 payload matching Nuri's KeystoreManager.buildCanonicalYieldPayload()
@@ -189,22 +282,10 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if itemPubKey != nil {
-			if !verifyECDSAP256Signature(itemPubKey, canonicalRecord, item.Signature) {
-				log.Printf("[ERROR] [SYNC] ECDSA P-256 signature verification failed for device=%s UUIDv7=%s", deviceID, item.Timestamp)
-				writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: ECDSA-P256 signature mismatch for UUIDv7="+item.Timestamp)
-				return
-			}
-			log.Printf("[INFO] [SYNC] ECDSA P-256 Signature Verified for device=%s batch=%s UUIDv7=%s", deviceID, item.BatchID, item.Timestamp)
-		} else {
-			// Even if the device hasn't enrolled its public key via /sync/register-key yet,
-			// strictly enforce valid Base64 ASN.1 DER ECDSA signature structure (0x30 SEQUENCE header).
-			if err := validateASN1DERSignatureStructure(item.Signature); err != nil {
-				log.Printf("[ERROR] [SYNC] Malformed ASN.1 DER ECDSA signature for UUIDv7=%s: %v", item.Timestamp, err)
-				writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "security alert: malformed ASN.1 DER ECDSA signature: "+err.Error())
-				return
-			}
-			log.Printf("[INFO] [SYNC] ECDSA P-256 Signature Verified (ASN.1 DER structure) for device=%s UUIDv7=%s", deviceID, item.Timestamp)
+		if !verifyECDSAP256Signature(itemPubKey, canonicalRecord, item.Signature) {
+			log.Printf("[ERROR] [SYNC] ECDSA P-256 signature verification failed for device=%s UUIDv7=%s", deviceID, item.Timestamp)
+			writeAPIError(w, r, http.StatusForbidden, "SIGNATURE_REJECTED", "ECDSA-P256 signature mismatch for UUIDv7="+item.Timestamp)
+			return
 		}
 
 		// Persist to MySQL `sync_inbox` (idempotent via PRIMARY KEY `event_uuid`)
@@ -216,6 +297,9 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 				// Not acknowledged. The code tells the POS whether a retry can help.
 				log.Printf("[WARN] [SYNC-MYSQL] item %s not applied: %v", item.Timestamp, dbErr)
 				_, code := classifyDBError(dbErr)
+				if errors.Is(dbErr, errReplayMismatch) {
+					code = "REPLAY_MISMATCH"
+				}
 				if strings.Contains(dbErr.Error(), "sale qty must be > 0") || strings.Contains(dbErr.Error(), "has no sale_price") {
 					code = "INVALID_INPUT"
 				}
@@ -280,7 +364,18 @@ func (c *SyncController) applyOutboxItem(r *http.Request, item models.OutboxItem
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 || !isSale {
+	if n, _ := res.RowsAffected(); n == 0 {
+		// Replay of a known UUIDv7: acknowledge only if it is the same signed record.
+		var stored string
+		if err := tx.QueryRowContext(ctx, `SELECT payload_hash FROM sync_inbox WHERE event_uuid = ?`, item.Timestamp).Scan(&stored); err != nil {
+			return err
+		}
+		if stored != payloadHash {
+			return errReplayMismatch
+		}
+		return tx.Commit()
+	}
+	if !isSale {
 		return tx.Commit()
 	}
 
@@ -311,6 +406,9 @@ func (c *SyncController) applyOutboxItem(r *http.Request, item models.OutboxItem
 	}
 	return tx.Commit()
 }
+
+// errReplayMismatch: a UUIDv7 already in sync_inbox arrived with a different payload.
+var errReplayMismatch = errors.New("REPLAY_MISMATCH: event uuid already used for a different payload")
 
 // uuidV7Time returns the creation time embedded in a UUIDv7 (first 48 bits = Unix ms),
 // falling back to now for malformed input.
@@ -360,17 +458,4 @@ func verifyECDSAP256Signature(pubKey *ecdsa.PublicKey, canonicalPayload string, 
 	}
 	digest := sha256.Sum256([]byte(canonicalPayload))
 	return ecdsa.VerifyASN1(pubKey, digest[:], sigDER)
-}
-
-// validateASN1DERSignatureStructure verifies that a Base64 signature is a valid
-// ASN.1 DER ECDSA sequence (`0x30 <len> 0x02 <rLen> ... 0x02 <sLen> ...`).
-func validateASN1DERSignatureStructure(signatureB64 string) error {
-	sigDER, err := base64.StdEncoding.DecodeString(strings.TrimSpace(signatureB64))
-	if err != nil {
-		return err
-	}
-	if len(sigDER) < 64 || len(sigDER) > 74 || sigDER[0] != 0x30 {
-		return errors.New("expected ASN.1 DER SEQUENCE (0x30) for P-256 ECDSA signature")
-	}
-	return nil
 }
