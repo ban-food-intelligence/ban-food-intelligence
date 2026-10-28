@@ -33,6 +33,10 @@ data class PosInventoryLot(
     val isBlocked: Boolean get() = status == "RECALLED" || status == "BLOCKED" || recallCode != null
 }
 
+/** Lots the Sell screen may offer: not blocked by a recall and with stock left. */
+fun sellableLots(lots: List<PosInventoryLot>): List<PosInventoryLot> =
+    lots.filter { !it.isBlocked && it.availableQty > 0.0 }
+
 /** Where the lot list on screen came from. */
 enum class CatalogSource { LIVE, CACHED, NONE }
 
