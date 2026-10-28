@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import com.ban.foodintelligence.pos.R
 import com.ban.foodintelligence.pos.catalog.CatalogSource
 import com.ban.foodintelligence.pos.catalog.PosInventoryLot
+import com.ban.foodintelligence.pos.catalog.sellableLots
 import com.ban.foodintelligence.pos.ui.design.Figure
 import com.ban.foodintelligence.pos.ui.design.Fmt
 import com.ban.foodintelligence.pos.ui.design.InsetGroup
@@ -90,7 +91,7 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecal
     val lots = state.lots.filter {
         query.isBlank() || it.productName.contains(query, ignoreCase = true) || it.lotNo.contains(query, ignoreCase = true)
     }
-    val available = lots.filter { !it.isBlocked && it.availableQty > 0.0 }
+    val available = sellableLots(lots)
     val recalled = lots.filter { it.isBlocked }
     // Recalled lots that are not stocked in this shop (e.g. SUC-2026-045, all shipped to
     // markets) still show up when searched for, so a cashier can check a pack in hand.
