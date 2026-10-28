@@ -1,0 +1,79 @@
+{
+  "message": "Emergency recall executed in MySQL via sp_recall_by_lot. POS lockdown broadcast active.",
+  "recall_summary": {
+    "recall_code": "RCL-2026-001",
+    "status": "OPEN",
+    "severity": "CLASS_I",
+    "reason": "Quality issue found in meat lot ET-2026-001",
+    "trigger_lot": "ET-2026-001",
+    "affected_lots": [
+      "ET-2026-001",
+      "SUC-2026-045"
+    ],
+    "target_markets": [
+      "Market A (MKT-A) - 30 PAKET",
+      "Market B (MKT-B) - 25 PAKET",
+      "Market C (MKT-C) - 30 PAKET",
+      "Örnek Lokanta (REST-01) - 10 PAKET"
+    ],
+    "affected_markets": [
+      {
+        "tier": 1,
+        "customer_code": "MKT-A",
+        "customer_name": "Market A",
+        "contact_person": "Şube Müdürü A",
+        "phone": "+90 216 000 00 0A",
+        "email": "market-a@musteri.example",
+        "address": "Kadıköy",
+        "second_tier": "NOT_RECORDED",
+        "lots": "SUC-2026-045",
+        "qty_shipped": 30,
+        "qty_returned": 0
+      },
+      {
+        "tier": 1,
+        "customer_code": "MKT-B",
+        "customer_name": "Market B",
+        "contact_person": "Şube Müdürü B",
+        "phone": "+90 216 000 00 0B",
+        "email": "market-b@musteri.example",
+        "address": "Üsküdar",
+        "second_tier": "NOT_RECORDED",
+        "lots": "SUC-2026-045",
+        "qty_shipped": 25,
+        "qty_returned": 0
+      },
+      {
+        "tier": 1,
+        "customer_code": "MKT-C",
+        "customer_name": "Market C",
+        "contact_person": "Şube Müdürü C",
+        "phone": "+90 216 000 00 0C",
+        "email": "market-c@musteri.example",
+        "address": "Ataşehir",
+        "second_tier": "RECORDED",
+        "lots": "SUC-2026-045",
+        "qty_shipped": 30,
+        "qty_returned": 0
+      },
+      {
+        "tier": 2,
+        "customer_code": "REST-01",
+        "customer_name": "Örnek Lokanta",
+        "contact_person": "İşletmeci",
+        "phone": "+90 216 000 00 11",
+        "email": "info@lokanta.example",
+        "received_via": "Market C",
+        "address": "Ataşehir",
+        "second_tier": "NOT_RECORDED",
+        "lots": "SUC-2026-045",
+        "qty_shipped": 10,
+        "qty_returned": 0
+      }
+    ],
+    "lock_enforced": true,
+    "initiated_by": "kalite_muduru",
+    "timestamp": "2026-10-28T05:54:45.239Z"
+  },
+  "status": "LOCKDOWN_ACTIVATED"
+}

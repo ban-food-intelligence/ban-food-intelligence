@@ -1,5 +1,7 @@
 # BAN Food Intelligence
 
+[![CI](https://github.com/ban-food-intelligence/ban-food-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ban-food-intelligence/ban-food-intelligence/actions/workflows/ci.yml)
+
 A working prototype for a food business: cost and stock from raw material to the final sale,
 with exact lot traceability and recall. Built for the AVATAR Yapay Zeka Yarışması assessment.
 
@@ -15,6 +17,11 @@ with exact lot traceability and recall. Built for the AVATAR Yapay Zeka Yarışm
 - **AI** A: production yield + EKP forecast; B: butchery part weights per species. Both beat a
   simple baseline on a time-split test (see [docs/AI.md](docs/AI.md)). Optional: invoice reading
   with NVIDIA Nemotron VL and human approval.
+- **Security** Supervisor sessions for every back-office write, ECDSA-signed POS sync with pinned
+  device keys and replay detection, rate limits and PIN lockout ([docs/SECURITY.md](docs/SECURITY.md)).
+
+Every bullet of the brief with its proof: [docs/SPEC_COMPLIANCE.md](docs/SPEC_COMPLIANCE.md).
+Sample records (lots, orders, butchery, sales, the ET-2026-001 recall): [docs/samples/](docs/samples/).
 
 | Sell (phone) | Recall stop | Offline, sale queued | Dashboard |
 |---|---|---|---|
@@ -64,6 +71,15 @@ docker compose up -d --build        # or: make up   (Podman: make up COMPOSE="po
 
 ### Android app
 
+**Without Android Studio:** download `ban-shop-pos-v1.0.0-demo.apk` from
+[Releases](https://github.com/ban-food-intelligence/ban-food-intelligence/releases) and install it
+(`adb install -r ban-shop-pos-v1.0.0-demo.apk`, or open the file on the phone and allow the
+install). Then connect it to the API as described below (USB: `adb reverse tcp:8080 tcp:8080`).
+The demo APK talks to `127.0.0.1` / the emulator host only and has invoice reading switched off
+(no API key is shipped inside an app). Build it yourself with `./scripts/build-release-apk.sh`.
+
+**From source:**
+
 Gradle needs to find the Android SDK: set `ANDROID_HOME` (e.g. `%LOCALAPPDATA%\Android\Sdk` on
 Windows, `~/Android/Sdk` on Linux) or put `sdk.dir=...` into `mobile-kotlin/local.properties`
 (Android Studio does this when it opens the project).
@@ -89,7 +105,7 @@ Optional, in the gitignored `mobile-kotlin/local.properties`:
 
 | What | Value | Notes |
 |---|---|---|
-| POS supervisor PIN | `246813` | Releases the recall stop on the Android POS. Demo value only. MySQL stores only its bcrypt hash (`supervisor.pin_hash`); the app's offline fallback uses a PBKDF2 hash from the gitignored `local.properties`. Five wrong PINs lock the device for 5 minutes. |
+| Supervisor PIN | `246813` | Releases the recall stop on the Android POS and signs in to back-office writes (starting a recall on the dashboard, `POST /auth/session` for the API). Demo value only. MySQL stores only its bcrypt hash (`supervisor.pin_hash`); the app's offline fallback uses a PBKDF2 hash from the gitignored `local.properties`. Five wrong PINs lock the device (ten per client IP) for 5 minutes. |
 | MySQL | `root` / `ban` | Local docker compose only. |
 
 The previous supervisor PIN was committed in plain text in earlier history; it is considered
@@ -108,11 +124,14 @@ compose container. Only the database tests: `./scripts/test-db.sh` (or `make tes
 
 | Suite | What it covers |
 |---|---|
-| `go test ./...` (api-go) | cost allocation rounding, PIN lockout, error codes, CORS, ECDSA sync verification |
-| Go integration tests (`MYSQL_TEST_DSN`) | EKP 18.16, butchery findings, allocation sums, forward/backward/butchery trace, every lot movement, oversell 409, recall CSV |
+| `go test ./...` (api-go) | cost allocation rounding (both keys, with by-product), PIN lockout (also per IP), operator sessions, error codes, CORS, rate limit, body cap, ECDSA sync (pinned keys, mandatory signatures) |
+| Go integration tests (`MYSQL_TEST_DSN`) | EKP 18.16, butchery findings, allocation sums, recording a receipt and a butchery operation with by-product, forward/backward/butchery trace, every lot movement, oversell 409, recall CSV, sync idempotency and replay mismatch, sale of a recalled lot rejected |
 | `scripts/test-db.sh` (pytest, `database-mysql/tests`) | schema, triggers (no negative stock, append-only ledger, recalled lots blocked), EKP, trace, recall |
-| `./gradlew testDebugUnitTest` | sale quantity validation, server address handling |
-| `npm run build` (web-react) | dashboard compiles |
+| `./gradlew testDebugUnitTest` | sale quantity validation, server address handling, recalled lots not sellable |
+| `npm test` + `npm run build` (web-react) | TR/EN texts complete, supervisor-session flow; dashboard compiles |
+
+The same suites run on every push in GitHub Actions ([ci.yml](.github/workflows/ci.yml)); the slow
+ML tests run there on manual dispatch.
 
 ML tests (separate, heavier dependencies):
 
@@ -125,12 +144,12 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 
 | Spec (AVATAR_Assessment.pdf) | Implementation |
 |---|---|
-| Raw material cards, purchase prices, units, lots, stock | `product`, `lot`, `purchase_receipt(_line)`, `stock_balance` (schema.sql); `GET /purchases`, `GET /lots`; dashboard *Purchases* |
+| Raw material cards, purchase prices, units, lots, stock | `product`, `lot`, `purchase_receipt(_line)`, `stock_balance` (schema.sql); `GET/POST /purchases` (supplier and expiry enforced), `GET /lots`; dashboard *Purchases* |
 | External production order, material shipment, service cost, receipt, quantity variance | `production_order/_input/_output`, `sp_production_add_input`, `sp_production_complete`; `GET/POST /production`; dashboard *Production* |
 | EKP from actual quantity; VKP, gross profit, margin | `v_production_cost`; 1,543.50 / 85 = 18.16 € (integration test) |
 | All cost and stock movements reviewable | append-only `stock_movement` (UPDATE/DELETE blocked by triggers); `GET /movements` with running balance |
-| Butchery: input lot, weight, real cost, date | `butchery_operation`; `GET /butchery` |
-| Parts, waste/by-products, weight balance | `butchery_output`, `weight_check` + `WEIGHT_IMBALANCE` finding |
+| Butchery: input lot, weight, real cost, date | `butchery_operation`; `GET /butchery`, `POST /butchery/operations` (records a new one) |
+| Parts, waste/by-products, weight balance | `butchery_output` (CUT / BY_PRODUCT / WASTE), `weight_check` + `WEIGHT_IMBALANCE` finding; unbalanced operations are refused |
 | Cost by quantity or value key, sum = total cost | `AllocateCost` (largest remainder, unit-tested), `GET /butchery/allocation`, `allocation_ok` |
 | Part lots stocked and sold from Kotlin | lots `KZB/KZS/KZO/KZK/KZY-2026-001`; Android *Sell* → `POST /sync` → `sale` + `sale_line` + SALE movement |
 | Spec inconsistencies explained (287.50 vs 351.00; 22 vs 25 kg) | `DECLARED_COST_MISMATCH`, `WEIGHT_IMBALANCE` (rejected record PRC-2026-000) vs posted PRC-2026-001 |
@@ -146,7 +165,7 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 | Optional: invoice reading with human approval | Android *Lots → Receive goods from an invoice* (NVIDIA Nemotron VL) |
 | SQLite ↔ MySQL sync approach explained | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#sqlite--mysql-sync) |
 | Reports: purchase, production, butchery, lot movements, sales, recall | dashboard tabs + `docs/API.md` |
-| Data model, API description, sample records, basic automated tests | ARCHITECTURE.md, API.md, `seed.sql`, the test suites above |
+| Data model, API description, sample records, basic automated tests | ARCHITECTURE.md, API.md, [docs/samples/](docs/samples/), the test suites above |
 
 ## Repository layout
 
@@ -157,7 +176,7 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 | `web-react/` | React dashboard |
 | `mobile-kotlin/` | Android POS |
 | `ml-engine/` | data generator, training, evaluation (`export_ai_report.py`) |
-| `scripts/` | `demo-reset.sh`, `check-all.sh` |
-| `docs/` | architecture, API, AI, glossary, demo script, screenshots |
+| `scripts/` | `demo-reset.sh`, `check-all.sh`, `test-db.sh`, `export-samples.sh`, `build-release-apk.sh` |
+| `docs/` | architecture, API, AI, security, spec compliance, glossary, demo script, samples, screenshots |
 
 Team: Ali (database, ML), Berke (Go API, React), Nuri (Android POS, sync, OCR).

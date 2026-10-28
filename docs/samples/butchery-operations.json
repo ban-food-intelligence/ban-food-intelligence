@@ -1,0 +1,258 @@
+[
+  {
+    "op_no": "PRC-2026-000",
+    "species": "KUZU",
+    "allocation_method": "VALUE",
+    "status": "REJECTED",
+    "input_weight_kg": 25,
+    "output_weight_kg": 22,
+    "cut_weight_kg": 22,
+    "waste_weight_kg": 0,
+    "weight_diff_kg": 3,
+    "purchase_unit_price": 11.5,
+    "purchase_cost": 287.5,
+    "additional_cost": 0,
+    "total_cost": 287.5,
+    "declared_total_cost": 351,
+    "declared_cost_diff": 63.5,
+    "allocated_total": 0,
+    "allocation_diff": 287.5,
+    "weight_ok": false,
+    "declared_cost_ok": false,
+    "allocation_ok": false,
+    "allocated_cuts": [
+      {
+        "cut_sku": "KZ-BUT",
+        "name": "Kuzu but",
+        "output_kind": "CUT",
+        "yield_weight_kg": 6.5,
+        "yield_pct": 26,
+        "market_price_per_kg": 22,
+        "total_sales_value": 143,
+        "allocation_basis": 0,
+        "allocated_cost": 0,
+        "allocated_unit_cost_per_kg": 0,
+        "margin_percentage": 100
+      },
+      {
+        "cut_sku": "KZ-OMUZ",
+        "name": "Kuzu omuz",
+        "output_kind": "CUT",
+        "yield_weight_kg": 5,
+        "yield_pct": 20,
+        "market_price_per_kg": 18,
+        "total_sales_value": 90,
+        "allocation_basis": 0,
+        "allocated_cost": 0,
+        "allocated_unit_cost_per_kg": 0,
+        "margin_percentage": 100
+      },
+      {
+        "cut_sku": "KZ-KIYMA",
+        "name": "Kuzu kıyma",
+        "output_kind": "CUT",
+        "yield_weight_kg": 4,
+        "yield_pct": 16,
+        "market_price_per_kg": 16,
+        "total_sales_value": 64,
+        "allocation_basis": 0,
+        "allocated_cost": 0,
+        "allocated_unit_cost_per_kg": 0,
+        "margin_percentage": 100
+      },
+      {
+        "cut_sku": "KZ-SIRT",
+        "name": "Kuzu sırt/pirzola",
+        "output_kind": "CUT",
+        "yield_weight_kg": 3.5,
+        "yield_pct": 14,
+        "market_price_per_kg": 26,
+        "total_sales_value": 91,
+        "allocation_basis": 0,
+        "allocated_cost": 0,
+        "allocated_unit_cost_per_kg": 0,
+        "margin_percentage": 100
+      },
+      {
+        "cut_sku": "KZ-KABURGA",
+        "name": "Kuzu kaburga",
+        "output_kind": "CUT",
+        "yield_weight_kg": 3,
+        "yield_pct": 12,
+        "market_price_per_kg": 14,
+        "total_sales_value": 42,
+        "allocation_basis": 0,
+        "allocated_cost": 0,
+        "allocated_unit_cost_per_kg": 0,
+        "margin_percentage": 100
+      }
+    ],
+    "weight_check": {
+      "input_kg": 25,
+      "cuts_kg": 22,
+      "by_product_kg": 0,
+      "waste_kg": 0,
+      "unrecorded_kg": 3,
+      "tolerance_kg": 0.01,
+      "status": "UNRECORDED_LOSS"
+    },
+    "findings": [
+      {
+        "code": "DECLARED_COST_MISMATCH",
+        "severity": "ERROR",
+        "message": "Declared cost 351.00 EUR does not match 25.00 kg x 11.50 EUR = 287.50 EUR. The difference of 63.50 EUR has no supporting document, so it is not used.",
+        "values": {
+          "computed_total_cost": 287.5,
+          "declared_total_cost": 351,
+          "difference": 63.5
+        }
+      },
+      {
+        "code": "WEIGHT_IMBALANCE",
+        "severity": "ERROR",
+        "message": "Input 25.00 kg, but parts 22.00 kg and recorded waste 0.00 kg leave 3.00 kg unrecorded. Weigh and record it as waste or by-product.",
+        "values": {
+          "input_kg": 25,
+          "outputs_kg": 22,
+          "unrecorded_kg": 3,
+          "waste_kg": 0
+        }
+      }
+    ]
+  },
+  {
+    "op_no": "PRC-2026-001",
+    "species": "KUZU",
+    "allocation_method": "VALUE",
+    "status": "POSTED",
+    "input_weight_kg": 25,
+    "output_weight_kg": 25,
+    "cut_weight_kg": 22,
+    "waste_weight_kg": 3,
+    "weight_diff_kg": 0,
+    "purchase_unit_price": 11.5,
+    "purchase_cost": 287.5,
+    "additional_cost": 0,
+    "total_cost": 287.5,
+    "allocated_total": 287.5,
+    "allocation_diff": 0,
+    "weight_ok": true,
+    "declared_cost_ok": true,
+    "allocation_ok": true,
+    "allocated_cuts": [
+      {
+        "cut_sku": "KZ-BUT",
+        "name": "Kuzu but",
+        "lot_no": "KZB-2026-001",
+        "output_kind": "CUT",
+        "yield_weight_kg": 6.5,
+        "yield_pct": 26,
+        "market_price_per_kg": 22,
+        "total_sales_value": 143,
+        "allocation_basis": 143,
+        "allocated_cost": 95.61,
+        "allocated_unit_cost_per_kg": 14.7092,
+        "margin_percentage": 33.13986013986014
+      },
+      {
+        "cut_sku": "KZ-OMUZ",
+        "name": "Kuzu omuz",
+        "lot_no": "KZO-2026-001",
+        "output_kind": "CUT",
+        "yield_weight_kg": 5,
+        "yield_pct": 20,
+        "market_price_per_kg": 18,
+        "total_sales_value": 90,
+        "allocation_basis": 90,
+        "allocated_cost": 60.18,
+        "allocated_unit_cost_per_kg": 12.036,
+        "margin_percentage": 33.13333333333333
+      },
+      {
+        "cut_sku": "KZ-KIYMA",
+        "name": "Kuzu kıyma",
+        "lot_no": "KZY-2026-001",
+        "output_kind": "CUT",
+        "yield_weight_kg": 4,
+        "yield_pct": 16,
+        "market_price_per_kg": 16,
+        "total_sales_value": 64,
+        "allocation_basis": 64,
+        "allocated_cost": 42.79,
+        "allocated_unit_cost_per_kg": 10.6975,
+        "margin_percentage": 33.140625
+      },
+      {
+        "cut_sku": "KZ-SIRT",
+        "name": "Kuzu sırt/pirzola",
+        "lot_no": "KZS-2026-001",
+        "output_kind": "CUT",
+        "yield_weight_kg": 3.5,
+        "yield_pct": 14,
+        "market_price_per_kg": 26,
+        "total_sales_value": 91,
+        "allocation_basis": 91,
+        "allocated_cost": 60.84,
+        "allocated_unit_cost_per_kg": 17.3829,
+        "margin_percentage": 33.14285714285714
+      },
+      {
+        "cut_sku": "KZ-KABURGA",
+        "name": "Kuzu kaburga",
+        "lot_no": "KZK-2026-001",
+        "output_kind": "CUT",
+        "yield_weight_kg": 3,
+        "yield_pct": 12,
+        "market_price_per_kg": 14,
+        "total_sales_value": 42,
+        "allocation_basis": 42,
+        "allocated_cost": 28.08,
+        "allocated_unit_cost_per_kg": 9.36,
+        "margin_percentage": 33.142857142857146
+      },
+      {
+        "cut_sku": "KZ-FIRE",
+        "name": "Kemik / fire",
+        "output_kind": "WASTE",
+        "yield_weight_kg": 3,
+        "yield_pct": 12,
+        "market_price_per_kg": 0,
+        "total_sales_value": 0,
+        "allocation_basis": 0,
+        "allocated_cost": 0,
+        "allocated_unit_cost_per_kg": 0,
+        "margin_percentage": 0
+      }
+    ],
+    "weight_check": {
+      "input_kg": 25,
+      "cuts_kg": 22,
+      "by_product_kg": 0,
+      "waste_kg": 3,
+      "unrecorded_kg": 0,
+      "tolerance_kg": 0.01,
+      "status": "BALANCED"
+    },
+    "findings": [
+      {
+        "code": "WEIGHT_BALANCED",
+        "severity": "OK",
+        "message": "Weight balance OK: 25.00 kg = 22.00 kg parts + 3.00 kg waste.",
+        "values": {
+          "input_kg": 25,
+          "outputs_kg": 22,
+          "waste_kg": 3
+        }
+      },
+      {
+        "code": "ALLOCATION_BALANCED",
+        "severity": "OK",
+        "message": "Allocated 287.50 EUR equals the total cost 287.50 EUR.",
+        "values": {
+          "allocated_total": 287.5,
+          "total_cost": 287.5
+        }
+      }
+    ]
+  }
+]
