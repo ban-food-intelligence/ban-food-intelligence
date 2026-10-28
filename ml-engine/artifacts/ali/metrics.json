@@ -1,5 +1,5 @@
 {
-  "version": "ali-1.0.0",
+  "version": "ali-1.1.0",
   "production": {
     "n_train": 1198,
     "n_test": 302,
@@ -59,27 +59,27 @@
       },
       "ali_ridge": {
         "cv_oof_yield_pct": {
-          "MAE": 0.9161855232709178,
+          "MAE": 0.9161855232709182,
           "RMSE": 1.3705523377128954,
-          "MAPE_pct": 1.1135189480849934,
-          "R2": 0.6455133949032961
+          "MAPE_pct": 1.113518948084994,
+          "R2": 0.6455133949032958
         },
         "test_yield_pct": {
-          "MAE": 0.9741289477080096,
-          "RMSE": 1.3874335063668954,
-          "MAPE_pct": 1.1825402829482456,
-          "R2": 0.6681149057950699
+          "MAE": 0.9741289477080086,
+          "RMSE": 1.3874335063668952,
+          "MAPE_pct": 1.1825402829482445,
+          "R2": 0.6681149057950702
         },
         "test_actual_qty": {
-          "MAE": 1.3688426659401782,
-          "RMSE": 2.000761618669802,
+          "MAE": 1.3688426659401773,
+          "RMSE": 2.0007616186698014,
           "MAPE_pct": 1.1825355918743201,
           "R2": 0.9989027444790943
         },
         "test_ekp_eur": {
-          "MAE": 0.13756708822858318,
-          "RMSE": 0.2078890193030911,
-          "MAPE_pct": 0.8144601177939378,
+          "MAE": 0.13756708822858307,
+          "RMSE": 0.20788901930309095,
+          "MAPE_pct": 0.8144601177939371,
           "R2": 0.9965214847668987
         }
       },
@@ -111,11 +111,26 @@
       }
     },
     "champion": "ali_ridge",
-    "interval90_yield_pct": {
-      "half_width": 1.7417244349959897,
-      "test_coverage": 0.890728476821192
+    "intervals_yield_pct": {
+      "80": {
+        "half_width": 1.4300399194879532,
+        "test_coverage": 0.8311258278145696
+      },
+      "90": {
+        "half_width": 1.840458574927652,
+        "test_coverage": 0.9039735099337748
+      },
+      "98": {
+        "half_width": 3.8721714567664947,
+        "test_coverage": 0.9801324503311258
+      }
     },
-    "improvement_vs_hist_mean_pct": 49.09124650143312,
+    "interval_calibration": "time-ordered split conformal (fit on first 75% of the train period, calibrate on the last 25%)",
+    "interval90_yield_pct": {
+      "half_width": 1.840458574927652,
+      "test_coverage": 0.9039735099337748
+    },
+    "improvement_vs_hist_mean_pct": 49.09124650143315,
     "catboost_feature_importance": {
       "meat_fat_pct": 31.08,
       "subcontractor_code": 19.7,
@@ -180,18 +195,18 @@
       },
       "ali_ridge": {
         "cv_oof_pct_MAE": 0.5452783765116195,
-        "test_pct_MAE": 0.5383055669376843,
-        "test_kg_MAE": 0.11498330986328142,
+        "test_pct_MAE": 0.5383055669376844,
+        "test_kg_MAE": 0.11498330986328145,
         "test_kg_MAE_per_part": {
-          "but": 0.12357102011247251,
-          "sirt": 0.09161159278149698,
-          "omuz": 0.12353230852821619,
-          "kaburga": 0.0964561472604798,
-          "kiyma": 0.141612102711606,
-          "fire": 0.11311668778541711
+          "but": 0.12357102011247253,
+          "sirt": 0.09161159278149694,
+          "omuz": 0.12353230852821624,
+          "kaburga": 0.09645614726047982,
+          "kiyma": 0.14161210271160604,
+          "fire": 0.1131166877854171
         },
-        "test_sellable_kg_MAE": 0.11312478538339511,
-        "mass_balance_max_err_kg": 7.105427357601002e-15
+        "test_sellable_kg_MAE": 0.1131247853833953,
+        "mass_balance_max_err_kg": 1.4210854715202004e-14
       },
       "ali_catboost": {
         "cv_oof_pct_MAE": 0.556467487948318,
@@ -210,15 +225,54 @@
       }
     },
     "champion": "ali_ridge",
-    "interval90_pct": {
-      "but_pct": 1.1714230663815697,
-      "sirt_pct": 0.9405253275915848,
-      "omuz_pct": 1.1815560778566785,
-      "kaburga_pct": 0.932816388448017,
-      "kiyma_pct": 1.355419505605053,
-      "fire_pct": 1.1044272945825095
+    "intervals_pct": {
+      "80": {
+        "half_width": {
+          "but_pct": 0.9146752661927735,
+          "sirt_pct": 0.7477370313982536,
+          "omuz_pct": 0.9869386814956123,
+          "kaburga_pct": 0.7494895897920326,
+          "kiyma_pct": 0.9785047975628896,
+          "fire_pct": 0.8814333951812348
+        },
+        "test_coverage": 0.8083333333333333,
+        "test_coverage_joint_6": 0.302
+      },
+      "90": {
+        "half_width": {
+          "but_pct": 1.1832586315175,
+          "sirt_pct": 0.8782191750075032,
+          "omuz_pct": 1.1879608327148041,
+          "kaburga_pct": 0.9263628524124172,
+          "kiyma_pct": 1.338633977937178,
+          "fire_pct": 1.1461711343476466
+        },
+        "test_coverage": 0.897,
+        "test_coverage_joint_6": 0.534
+      },
+      "98": {
+        "half_width": {
+          "but_pct": 1.6600653445210014,
+          "sirt_pct": 1.3503333316884074,
+          "omuz_pct": 1.8147739102571556,
+          "kaburga_pct": 1.3008950265470212,
+          "kiyma_pct": 1.9711821293412743,
+          "fire_pct": 1.6236926315819211
+        },
+        "test_coverage": 0.982,
+        "test_coverage_joint_6": 0.898
+      }
     },
-    "interval90_test_coverage": 0.898,
-    "improvement_vs_hist_mean_pct": 37.45083832867376
+    "interval_calibration": "time-ordered split conformal per share (fit on first 75% of the train period, calibrate on the last 25%)",
+    "interval90_pct": {
+      "but_pct": 1.1832586315175,
+      "sirt_pct": 0.8782191750075032,
+      "omuz_pct": 1.1879608327148041,
+      "kaburga_pct": 0.9263628524124172,
+      "kiyma_pct": 1.338633977937178,
+      "fire_pct": 1.1461711343476466
+    },
+    "interval90_test_coverage": 0.897,
+    "improvement_vs_hist_mean_pct": 37.45083832867374
   }
 }

@@ -25,8 +25,8 @@ import train_model_nuri as TN  # noqa: E402
 
 
 @pytest.fixture(scope="module")
-def nuri_artifacts():
-    out_dir = ENGINE / "artifacts" / "nuri"
+def nuri_artifacts(tmp_path_factory):
+    out_dir = tmp_path_factory.mktemp("nuri")       # never overwrite the tracked artifacts/nuri files
     df4a = pd.read_csv(ENGINE / "data" / "train_task4a_ali.csv")
     df4b = pd.read_csv(ENGINE / "data" / "train_task4b_ali.csv")
     rep_p, oof_p = TN.train_task4a_production_nuri(df4a, out_dir)
@@ -85,15 +85,17 @@ def test_real_stacking_meta_learner_beats_ali(nuri_artifacts):
 
 
 def test_predict_nuri_seed_cases_and_sql_emission(nuri_artifacts):
+    import joblib
+    out_dir, *_ = nuri_artifacts
     seed_p = pd.read_csv(ENGINE / "data" / "seed_cases_production.csv")
-    res_p = PN.predict_production_nuri(seed_p)
+    res_p = PN.predict_production_nuri(seed_p, joblib.load(out_dir / "production_model_nuri.joblib"))
     urt45 = res_p[res_p["row_id"] == "DB-P-URT-2026-045"].iloc[0]
     assert abs(urt45["pred_qty"] - 85.0) <= 1.0
     assert abs(urt45["pred_ekp"] - 18.16) < 0.25
     assert "epistemic_var" in res_p.columns
 
     seed_b = pd.read_csv(ENGINE / "data" / "seed_cases_butchery.csv")
-    res_b = PN.predict_butchery_nuri(seed_b)
+    res_b = PN.predict_butchery_nuri(seed_b, joblib.load(out_dir / "butchery_model_nuri.joblib"))
     assert np.isclose(res_b["pred_kg"].sum(), 25.0, atol=0.02)
     sql_text = PN.to_sql_nuri("production", res_p)
     assert "INSERT INTO ml_prediction" in sql_text
