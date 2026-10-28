@@ -29,6 +29,24 @@ Money values are EUR, quantities are in the lot's unit (`KG`, `PAKET`).
 `CORS_ALLOWED_ORIGINS`. **Logging:** one line per request with status and duration.
 **Shutdown:** SIGINT/SIGTERM drain in-flight requests (10 s).
 
+## Authentication for writes
+
+Reads are open. Every back-office write needs a supervisor session:
+
+```bash
+TOKEN=$(curl -s -X POST localhost:8080/auth/session -d '{"pin":"246813"}' | jq -r .token)
+curl -X POST localhost:8080/recall -H "Authorization: Bearer $TOKEN" -d '{"trigger_lot":"ET-2026-001"}'
+```
+
+`POST /auth/session` `{"pin","device_id"?}` → `200 {"token","token_type":"Bearer","expires_at","username","display_name"}`
+(30 minutes); `401 INVALID_PIN` / `429 LOCKED_OUT` as for the supervisor unlock. Protected:
+`POST /recall`, `/movements/transfer|return|waste`, `/rework`, `/production`, `/purchases`,
+`/butchery/operations`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
+The recall initiator and the movements' `created_by` are the signed-in supervisor.
+
+Limits for every request: body ≤ 1 MiB (`413 PAYLOAD_TOO_LARGE`), 20 requests/s per client IP
+with a burst of 120 (`429 RATE_LIMITED`, `Retry-After`). See [SECURITY.md](SECURITY.md).
+
 ## Health
 
 `GET /health`
@@ -80,6 +98,20 @@ largest-remainder method; the cents always sum to the total cost.
  "lines":[{"cut_sku":"KZ-BUT","weight_kg":6.5,"basis":6.5,"share_pct":29.55,"allocated_cost":84.94,"unit_cost_per_kg":13.0677}, "..."]}
 ```
 
+`POST /butchery/operations` (session) - record a carcass breakdown with actual weights. Cuts and
+by-products get a lot each; waste gets none. The weight balance must hold (10 g tolerance), otherwise
+`422 WEIGHT_IMBALANCE` with the `weight_check` and nothing is written. The response shows the
+allocation with the chosen key and with both keys (`allocation_by_key`); `"dry_run": true` only
+calculates.
+```json
+{"op_no":"PRC-2026-002","input_lot_no":"KUZU-2026-002","input_weight_kg":24,"allocation_method":"QUANTITY",
+ "op_date":"2026-10-28","outputs":[{"sku":"KZ-BUT","output_kind":"CUT","weight_kg":6.2,"lot_no":"KZB-2026-002"}, "...",
+  {"sku":"KZ-SAKATAT","output_kind":"BY_PRODUCT","weight_kg":0.8,"lot_no":"KZC-2026-002"},
+  {"sku":"KZ-FIRE","output_kind":"WASTE","weight_kg":2.1}]}
+```
+`201 {"status":"POSTED","total_cost":283.2,"weight_check":{"status":"BALANCED",...},"allocation":{...},
+"allocation_by_key":{"QUANTITY":{"allocated_total":283.2,"sums_exact":true,...},"VALUE":{...}}}`.
+
 ## Task 3: traceability and recall
 
 `GET /trace/{lot_no}?direction=forward|backward` - recursive trace over `lot_link` (no AI).
@@ -99,15 +131,30 @@ buyers (tier 1 and recorded tier 2) and POS sales. Backward: input lots, supplie
 `second_tier` = `RECORDED` / `NOT_RECORDED`). `lock_enforced` is true while the recall is OPEN and
 its lots are RECALLED. Empty list when there is no recall.
 
-`POST /recall` - start a recall (blocks the root and every lot made from it in one transaction):
+`POST /recall` (session) - start a recall (blocks the root and every lot made from it in one
+transaction); the initiator is the signed-in supervisor:
 ```json
-{"recall_code":"RCL-2026-001","trigger_lot":"ET-2026-001","reason":"Quality problem","initiator":"quality"}
+{"recall_code":"RCL-2026-001","trigger_lot":"ET-2026-001","reason":"Quality problem"}
 ```
 `201` with `recall_summary`; `404 LOT_NOT_FOUND` for an unknown lot.
 
 `GET /recall/contacts.csv?recall_code=RCL-2026-001` - the contact list as CSV (UTF-8 with BOM).
 
 `GET /lots` - stock per lot and warehouse with status, sale price (VKP) and expiry date.
+
+## Raw-material receipt
+
+`POST /purchases` (session) - one supplier delivery; each line becomes a PURCHASE lot with supplier,
+supplier batch, date, quantity, price and expiry date, plus a `PURCHASE_IN` movement.
+```json
+{"receipt_no":"ALS-2026-200","supplier_code":"TED-HAY-01","receipt_date":"2026-10-27","invoice_no":"FTR-HAY-0050",
+ "lines":[{"sku":"KZ-KARKAS","lot_no":"KUZU-2026-002","supplier_lot_no":"KUPE-TR-10-445900",
+           "qty":24,"unit_price":11.8,"expiry_date":"2026-11-03"}]}
+```
+`201` with the receipt and total; `422 INVALID_INPUT` with per-field `details`
+(e.g. `{"lines[0].expiry_date":"required: the product has a shelf life"}`); `404` unknown
+supplier / product; `409 CONFLICT` for a used receipt or lot number. The database refuses a
+purchased perishable lot without expiry as well (`EXPIRY_REQUIRED`).
 
 ## Reports and lot movements
 
@@ -145,13 +192,20 @@ sale line trigger writes the SALE stock movement. Replays are acknowledged witho
 ```
 Only acknowledged ids are removed from the device queue. `rejected` codes `INSUFFICIENT_STOCK`,
 `LOT_BLOCKED`, `INVALID_INPUT`, `CONFLICT` are permanent (the POS stops retrying and shows the reason);
-`DB_ERROR` is retried. `POST /sync/register-key` enrols a device public key.
+`DB_ERROR` is retried; `REPLAY_MISMATCH` (a known UUIDv7 with different data) is permanent too.
+
+Security: the envelope header `X-Signature` (ECDSA over `tenant:device:role:uuid:body`) is
+required. The device's key is pinned in `pos_device_key` on its first signed sync (the app sends
+`X-POS-Public-Key`); later batches signed with another key get `403 KEY_MISMATCH`, an unknown
+device without a key `403 DEVICE_NOT_ENROLLED`. With `POS_ENROLLMENT=closed` only keys provisioned
+by a supervisor via `POST /sync/register-key` (session) `{"device_id","public_key_b64"}` are
+accepted; the same call rotates a key after a reinstall.
 
 ## Supervisor unlock
 
 `POST /auth/supervisor/verify` - `{"pin","device_id","lot_no","recall_code"}`. bcrypt check against
 `supervisor.pin_hash`; `401 INVALID_PIN` with `details.attempts_left`; after 5 wrong PINs per
-device `429 LOCKED_OUT` for 5 minutes. Every attempt is written to `audit_log`.
+device (or 10 per client IP) `429 LOCKED_OUT` for 5 minutes. Every attempt is written to `audit_log`.
 
 `GET /auth/supervisor/audit` - the latest unlock attempts (who, when, device, lot, recall).
 

@@ -1,0 +1,106 @@
+{
+  "root_lot_number": "SUC-2026-045",
+  "direction": "backward",
+  "lots": [
+    {
+      "depth": 0,
+      "lot_no": "SUC-2026-045",
+      "sku": "MM-SUCUK-1KG",
+      "product_name": "Narin Sucuk 1 kg",
+      "origin_type": "PRODUCTION",
+      "qty": 85,
+      "uom_code": "PAKET",
+      "status": "ACTIVE",
+      "lot_date": "2026-10-06",
+      "expiry_date": "2027-01-04",
+      "unit_cost": 18.1588,
+      "path": "/SUC-2026-045/"
+    },
+    {
+      "depth": 1,
+      "lot_no": "BAG-2026-001",
+      "sku": "HM-BAGIRSAK",
+      "product_name": "Doğal bağırsak",
+      "origin_type": "PURCHASE",
+      "qty": 10,
+      "uom_code": "KG",
+      "status": "ACTIVE",
+      "lot_date": "2026-09-25",
+      "expiry_date": "2027-03-25",
+      "unit_cost": 11.6,
+      "supplier_code": "TED-BAG-01",
+      "supplier_name": "Örnek Doğal Bağırsak Ltd.",
+      "supplier_lot_no": "BGR-0912",
+      "path": "/SUC-2026-045/BAG-2026-001/"
+    },
+    {
+      "depth": 1,
+      "lot_no": "BAH-2026-001",
+      "sku": "HM-BAHARAT",
+      "product_name": "Sucuk baharat karışımı",
+      "origin_type": "PURCHASE",
+      "qty": 5,
+      "uom_code": "KG",
+      "status": "ACTIVE",
+      "lot_date": "2026-09-20",
+      "expiry_date": "2027-09-20",
+      "unit_cost": 24,
+      "supplier_code": "TED-BAH-01",
+      "supplier_name": "Örnek Baharat Ltd.",
+      "supplier_lot_no": "BHR-55120",
+      "path": "/SUC-2026-045/BAH-2026-001/"
+    },
+    {
+      "depth": 1,
+      "lot_no": "ET-2026-001",
+      "sku": "HM-ET-DANA",
+      "product_name": "Dana et (sucukluk)",
+      "origin_type": "PURCHASE",
+      "qty": 100,
+      "uom_code": "KG",
+      "status": "ACTIVE",
+      "lot_date": "2026-10-01",
+      "expiry_date": "2026-10-11",
+      "unit_cost": 9.7,
+      "supplier_code": "TED-ET-01",
+      "supplier_name": "Örnek Et Tedarik A.Ş.",
+      "supplier_lot_no": "TED-ET-B7731",
+      "path": "/SUC-2026-045/ET-2026-001/"
+    }
+  ],
+  "links": [
+    {
+      "link_type": "PRODUCTION",
+      "document_no": "URT-2026-045",
+      "subcontractor": "Örnek Fason Sucuk Üretim",
+      "input_lot_no": "BAG-2026-001",
+      "qty_consumed": 5,
+      "input_uom": "KG",
+      "output_lot_no": "SUC-2026-045",
+      "qty_produced": 85,
+      "output_uom": "PAKET"
+    },
+    {
+      "link_type": "PRODUCTION",
+      "document_no": "URT-2026-045",
+      "subcontractor": "Örnek Fason Sucuk Üretim",
+      "input_lot_no": "BAH-2026-001",
+      "qty_consumed": 2,
+      "input_uom": "KG",
+      "output_lot_no": "SUC-2026-045",
+      "qty_produced": 85,
+      "output_uom": "PAKET"
+    },
+    {
+      "link_type": "PRODUCTION",
+      "document_no": "URT-2026-045",
+      "subcontractor": "Örnek Fason Sucuk Üretim",
+      "input_lot_no": "ET-2026-001",
+      "qty_consumed": 100,
+      "input_uom": "KG",
+      "output_lot_no": "SUC-2026-045",
+      "qty_produced": 85,
+      "output_uom": "PAKET"
+    }
+  ]
+}

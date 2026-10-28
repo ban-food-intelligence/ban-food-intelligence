@@ -1,0 +1,124 @@
+[
+  {
+    "order_no": "URT-2026-045",
+    "product_sku": "MM-SUCUK-1KG",
+    "product_name": "Narin Sucuk 1 kg",
+    "status": "RECEIVED",
+    "planned_qty": 85,
+    "actual_qty": 85,
+    "qty_variance": 0,
+    "fulfilment_pct": 100,
+    "input_kg": 107,
+    "yield_pct_of_meat": 85,
+    "material_cost": 1076,
+    "service_cost": 467.5,
+    "total_cost": 1543.5,
+    "ekp": 18.1588,
+    "ekp_display": 18.16,
+    "vkp": 24.9,
+    "gross_profit_per_unit": 6.74,
+    "revenue_at_vkp": 2116.5,
+    "gross_profit_total": 573,
+    "margin_pct": 27.07,
+    "output_lot_number": "SUC-2026-045",
+    "breakdown": [
+      {
+        "order_no": "URT-2026-045",
+        "lot_no": "BAG-2026-001",
+        "cost_element": "Doğal bağırsak",
+        "qty": 5,
+        "uom_code": "KG",
+        "unit_cost": 11.6,
+        "amount": 58
+      },
+      {
+        "order_no": "URT-2026-045",
+        "lot_no": "BAH-2026-001",
+        "cost_element": "Sucuk baharat karışımı",
+        "qty": 2,
+        "uom_code": "KG",
+        "unit_cost": 24,
+        "amount": 48
+      },
+      {
+        "order_no": "URT-2026-045",
+        "lot_no": "ET-2026-001",
+        "cost_element": "Dana et (sucukluk)",
+        "qty": 100,
+        "uom_code": "KG",
+        "unit_cost": 9.7,
+        "amount": 970
+      },
+      {
+        "order_no": "URT-2026-045",
+        "lot_no": "FAS-FTR-2026-045",
+        "cost_element": "Fason hizmet / işçilik",
+        "qty": 85,
+        "uom_code": "PAKET",
+        "unit_cost": 5.5,
+        "amount": 467.5
+      }
+    ]
+  },
+  {
+    "order_no": "URT-2026-046",
+    "product_sku": "MM-SUCUK-1KG",
+    "product_name": "Narin Sucuk 1 kg",
+    "status": "RECEIVED",
+    "planned_qty": 85,
+    "actual_qty": 83,
+    "qty_variance": -2,
+    "fulfilment_pct": 97.65,
+    "input_kg": 107,
+    "yield_pct_of_meat": 83,
+    "material_cost": 1091,
+    "service_cost": 456.5,
+    "total_cost": 1547.5,
+    "ekp": 18.6446,
+    "ekp_display": 18.64,
+    "vkp": 24.9,
+    "gross_profit_per_unit": 6.26,
+    "revenue_at_vkp": 2066.7,
+    "gross_profit_total": 519.2,
+    "margin_pct": 25.12,
+    "output_lot_number": "SUC-2026-046",
+    "breakdown": [
+      {
+        "order_no": "URT-2026-046",
+        "lot_no": "BAG-2026-001",
+        "cost_element": "Doğal bağırsak",
+        "qty": 5,
+        "uom_code": "KG",
+        "unit_cost": 11.6,
+        "amount": 58
+      },
+      {
+        "order_no": "URT-2026-046",
+        "lot_no": "BAH-2026-001",
+        "cost_element": "Sucuk baharat karışımı",
+        "qty": 2,
+        "uom_code": "KG",
+        "unit_cost": 24,
+        "amount": 48
+      },
+      {
+        "order_no": "URT-2026-046",
+        "lot_no": "ET-2026-002",
+        "cost_element": "Dana et (sucukluk)",
+        "qty": 100,
+        "uom_code": "KG",
+        "unit_cost": 9.85,
+        "amount": 985
+      },
+      {
+        "order_no": "URT-2026-046",
+        "lot_no": "FAS-FTR-2026-046",
+        "cost_element": "Fason hizmet / işçilik",
+        "qty": 83,
+        "uom_code": "PAKET",
+        "unit_cost": 5.5,
+        "amount": 456.5
+      }
+    ]
+  }
+]

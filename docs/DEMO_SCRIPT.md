@@ -84,7 +84,8 @@ until "0 waiting". Then dashboard *Sales* (refresh) shows the new line with cost
 > "Geriye doğru izlemede sucuk lotunun hangi et, baharat ve bağırsak lotlarından, hangi
 > tedarikçiden geldiği görünüyor. Bir lot birden çok lota, birden çok lot da bir lota bağlanabiliyor."
 
-**Shot:** forward trace ET-2026-001 again → *Start recall* → confirm. Show the recall report:
+**Shot:** forward trace ET-2026-001 again → *Start recall* → enter the supervisor PIN `246813`
+→ confirm (only a supervisor can start a recall; it is recorded under that name). Show the recall report:
 affected lots RECALLED, customer list with quantities, shipment documents, contacts; download the
 CSV; open print view.
 

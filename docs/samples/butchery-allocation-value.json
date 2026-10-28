@@ -1,0 +1,80 @@
+{
+  "op_no": "PRC-2026-001",
+  "method": "VALUE",
+  "total_cost": 287.5,
+  "allocated_total": 287.5,
+  "sums_exactly": true,
+  "lines": [
+    {
+      "cut_sku": "KZ-BUT",
+      "name": "Kuzu but",
+      "lot_no": "KZB-2026-001",
+      "output_kind": "CUT",
+      "weight_kg": 6.5,
+      "sale_price": 22,
+      "basis": 143,
+      "share_pct": 33.26,
+      "allocated_cost": 95.61,
+      "unit_cost_per_kg": 14.7092
+    },
+    {
+      "cut_sku": "KZ-OMUZ",
+      "name": "Kuzu omuz",
+      "lot_no": "KZO-2026-001",
+      "output_kind": "CUT",
+      "weight_kg": 5,
+      "sale_price": 18,
+      "basis": 90,
+      "share_pct": 20.93,
+      "allocated_cost": 60.18,
+      "unit_cost_per_kg": 12.036
+    },
+    {
+      "cut_sku": "KZ-KIYMA",
+      "name": "Kuzu kıyma",
+      "lot_no": "KZY-2026-001",
+      "output_kind": "CUT",
+      "weight_kg": 4,
+      "sale_price": 16,
+      "basis": 64,
+      "share_pct": 14.88,
+      "allocated_cost": 42.79,
+      "unit_cost_per_kg": 10.6975
+    },
+    {
+      "cut_sku": "KZ-SIRT",
+      "name": "Kuzu sırt/pirzola",
+      "lot_no": "KZS-2026-001",
+      "output_kind": "CUT",
+      "weight_kg": 3.5,
+      "sale_price": 26,
+      "basis": 91,
+      "share_pct": 21.16,
+      "allocated_cost": 60.84,
+      "unit_cost_per_kg": 17.3829
+    },
+    {
+      "cut_sku": "KZ-KABURGA",
+      "name": "Kuzu kaburga",
+      "lot_no": "KZK-2026-001",
+      "output_kind": "CUT",
+      "weight_kg": 3,
+      "sale_price": 14,
+      "basis": 42,
+      "share_pct": 9.77,
+      "allocated_cost": 28.08,
+      "unit_cost_per_kg": 9.36
+    },
+    {
+      "cut_sku": "KZ-FIRE",
+      "name": "Kemik / fire",
+      "output_kind": "WASTE",
+      "weight_kg": 3,
+      "sale_price": 0,
+      "basis": 0,
+      "share_pct": 0,
+      "allocated_cost": 0,
+      "unit_cost_per_kg": 0
+    }
+  ]
+}
