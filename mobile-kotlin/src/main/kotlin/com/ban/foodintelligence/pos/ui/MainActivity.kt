@@ -15,8 +15,11 @@ import com.ban.foodintelligence.pos.ui.design.palette
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,8 +44,9 @@ class MainActivity : ComponentActivity() {
         // do them off the main thread and show the app as soon as they are ready.
         setContent {
             PosTheme {
-                val ready by produceState<Pair<AppDatabase, String>?>(initialValue = null) {
-                    value = withContext(Dispatchers.IO) {
+                var ready by remember { mutableStateOf<Pair<AppDatabase, String>?>(null) }
+                LaunchedEffect(Unit) {
+                    ready = withContext(Dispatchers.IO) {
                         val fingerprint = try {
                             KeystoreManager.ensureKeyPairProvisioned(applicationContext)
                             KeystoreManager.publicKeyFingerprintHex().take(16)

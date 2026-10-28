@@ -5,12 +5,6 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
-import androidx.room.Database
-import androidx.room.InvalidationTracker
-import androidx.room.Room
-import androidx.room.RoomDatabase
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.ban.foodintelligence.pos.dao.OutboxDao
 import com.ban.foodintelligence.pos.model.OutboxItem
 import com.ban.foodintelligence.pos.model.SyncOutboxQueue
@@ -51,14 +45,14 @@ data class StockMovementRecord(
  *
  * MIGRATION POLICY: `fallbackToDestructiveMigration()` has been REMOVED. The
  * outbox holds signed transactions that have not reached the server yet, and
- * silently wiping them on a schema bump is data loss.
+ * silently wiping them on a schema bump is data loss. Schema changes go into
+ * [SqliteBackedAppDatabase]'s `onUpgrade`.
+ *
+ * The project has no Room annotation processor, so this is a plain class over
+ * android.database.sqlite rather than a RoomDatabase (Room's generated
+ * implementation never existed; the direct SQLite engine was always used).
  */
-@Database(
-    entities = [SyncOutboxQueue::class, OutboxItem::class],
-    version = 2,
-    exportSchema = true
-)
-abstract class AppDatabase : RoomDatabase() {
+abstract class AppDatabase {
 
     abstract fun outboxDao(): OutboxDao
 
@@ -191,32 +185,13 @@ abstract class AppDatabase : RoomDatabase() {
         private const val TAG = "AppDatabase"
         private const val DATABASE_NAME = "ban_avatar_pos_offline_outbox.db"
 
-        /** Register every schema migration here. Intentionally empty at v2. */
-        val MIGRATIONS: Array<Migration> = emptyArray()
-
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
-                    val appContext = context.applicationContext
-                    val db = try {
-                        Room.databaseBuilder(
-                            appContext,
-                            AppDatabase::class.java,
-                            DATABASE_NAME
-                        )
-                            .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                            .addMigrations(*MIGRATIONS)
-                            .build()
-                    } catch (e: RuntimeException) {
-                        Log.i(
-                            TAG,
-                            "🗄️ Using direct SQLite WAL engine for $DATABASE_NAME (${e.message})"
-                        )
-                        SqliteBackedAppDatabase(appContext, DATABASE_NAME)
-                    }
+                    val db = SqliteBackedAppDatabase(context.applicationContext, DATABASE_NAME)
                     INSTANCE = db
                     Log.i(TAG, "🗄️ Offline outbox opened ($DATABASE_NAME, WAL, no destructive fallback).")
                     db
@@ -543,15 +518,7 @@ internal class SqliteBackedAppDatabase(
         n
     }
 
-    override fun createOpenHelper(config: androidx.room.DatabaseConfiguration): SupportSQLiteOpenHelper {
-        throw UnsupportedOperationException("Direct SQLiteOpenHelper used")
-    }
-
-    override fun createInvalidationTracker(): InvalidationTracker {
-        return InvalidationTracker(this, emptyMap(), emptyMap(), "sync_outbox_queue", "pos_outbox")
-    }
-
-    override fun clearAllTables() {
+    fun clearAllTables() {
         val db = sqliteHelper.writableDatabase
         db.execSQL("DELETE FROM sync_outbox_queue")
         db.execSQL("DELETE FROM pos_outbox")
