@@ -88,7 +88,7 @@ fun SyncScreen(state: PosAppState) {
                         ListRow(
                             title = "${m.productName} · ${Fmt.qty(abs(m.qtyDelta), m.uom)}",
                             subtitle = listOfNotNull(
-                                "${m.lotNo} · ${Fmt.money(m.totalEur)} · ${Fmt.dateTime(m.createdAtMs)}",
+                                "${m.lotNo} · ${Fmt.money(m.totalEur)}\n${Fmt.dateTime(m.createdAtMs).replace(' ', '\u00A0')}",
                                 m.syncReason
                             ).joinToString("\n"),
                             accentBar = if (kind == PillKind.Danger) palette.danger else null

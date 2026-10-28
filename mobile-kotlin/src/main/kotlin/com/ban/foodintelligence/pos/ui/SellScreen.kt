@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.ReportProblem
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -79,7 +81,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
-fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit) {
+fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecalls: () -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     var selling by remember { mutableStateOf<PosInventoryLot?>(null) }
     var blocked by remember { mutableStateOf<PosInventoryLot?>(null) }
@@ -90,10 +92,31 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit) {
     }
     val available = lots.filter { !it.isBlocked && it.availableQty > 0.0 }
     val recalled = lots.filter { it.isBlocked }
+    // Recalled lots that are not stocked in this shop (e.g. SUC-2026-045, all shipped to
+    // markets) still show up when searched for, so a cashier can check a pack in hand.
+    val recalledElsewhere = if (query.isBlank()) emptyList() else catalog?.recalls.orEmpty()
+        .flatMap { rc -> rc.affectedLots.map { it to rc } }
+        .filter { (lotNo, _) -> lotNo.contains(query.trim(), ignoreCase = true) && state.lots.none { it.lotNo == lotNo } }
+        .distinctBy { it.first }
 
     PosScreen(title = stringResource(R.string.sell_title), trailing = { trailing() }) {
         item(key = "search") { SearchField(query) { query = it } }
         catalogBanner(state)
+        val recalls = catalog?.recalls.orEmpty()
+        if (recalls.isNotEmpty() && query.isBlank()) item(key = "recall-banner") {
+            InsetGroup {
+                row {
+                    ListRow(
+                        title = pluralStringResource(R.plurals.sell_recall_banner, recalls.size, recalls.size),
+                        subtitle = recalls.joinToString(" · ") { it.recallCode },
+                        icon = Icons.Rounded.ReportProblem,
+                        iconTint = palette.dangerText,
+                        chevron = true,
+                        onClick = onOpenRecalls
+                    )
+                }
+            }
+        }
 
         when {
             catalog == null -> item(key = "skeleton") { SkeletonGroup(4) }
@@ -101,7 +124,7 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit) {
             state.lots.isEmpty() -> item(key = "empty") {
                 StateMessage(Icons.Rounded.Inventory2, stringResource(R.string.sell_empty), actionLabel = stringResource(R.string.action_retry), onAction = { scope.launch { state.refreshAll() } })
             }
-            available.isEmpty() && recalled.isEmpty() -> item(key = "nomatch") {
+            available.isEmpty() && recalled.isEmpty() && recalledElsewhere.isEmpty() -> item(key = "nomatch") {
                 StateMessage(Icons.Rounded.Search, stringResource(R.string.sell_no_match, query))
             }
             else -> {
@@ -112,9 +135,20 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit) {
                         }
                     }
                 }
-                if (recalled.isNotEmpty()) item(key = "recalled") {
+                if (recalled.isNotEmpty() || recalledElsewhere.isNotEmpty()) item(key = "recalled") {
                     InsetGroup(header = stringResource(R.string.sell_section_blocked)) {
                         recalled.forEach { lot -> row { LotRow(lot) { blocked = lot } } }
+                        recalledElsewhere.forEach { (lotNo, rc) ->
+                            row {
+                                ListRow(
+                                    title = lotNo,
+                                    subtitle = stringResource(R.string.lot_recalled_reason, rc.recallCode, rc.triggerLot),
+                                    icon = Icons.Rounded.Lock,
+                                    iconTint = palette.dangerText,
+                                    accentBar = palette.danger
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -194,7 +228,8 @@ fun expiryLabel(iso: String): String = runCatching {
 fun LotRow(lot: PosInventoryLot, onClick: () -> Unit) {
     val subtitle = buildString {
         append(lot.lotNo)
-        if (lot.expiryDate.isNotBlank()) append(" · ").append(stringResource(R.string.lot_expiry, expiryLabel(lot.expiryDate)))
+        // Expiry on its own line; the date itself never splits ("18 Oct" / "2026").
+        if (lot.expiryDate.isNotBlank()) append('\n').append(stringResource(R.string.lot_expiry, expiryLabel(lot.expiryDate).replace(' ', '\u00A0')))
     }
     ListRow(
         title = lot.productName,

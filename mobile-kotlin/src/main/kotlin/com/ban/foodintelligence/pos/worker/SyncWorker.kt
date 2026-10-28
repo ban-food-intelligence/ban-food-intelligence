@@ -9,6 +9,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.ban.foodintelligence.pos.net.ApiConfig
@@ -80,9 +81,7 @@ class SyncWorker(
 
     override suspend fun doWork(): Result = withContext(throttledSyncDispatcher) {
         KeystoreManager.registerApplicationContext(applicationContext)
-        println("🌍 Provisioning DE/EN/TR i18n...")
-        println("📡 Network Restored: Flushing Outbox...")
-        Log.i(TAG, "📡 Network Restored: Flushing Outbox with Quantum-Shield Coroutine Throttling...")
+        Log.i(TAG, "Sending outbox")
         var batchesSent = 0
         var recordsSent = 0
 
@@ -93,8 +92,7 @@ class SyncWorker(
                 val remaining = outboxDao.countPending()
                 if (remaining > 0) {
                     val localizedSyncMsg = applicationContext.getString(R.string.sync_status_syncing, remaining)
-                    println("🔁 [SYNC-CHAIN] $localizedSyncMsg")
-                    Log.i(TAG, "🔁 $localizedSyncMsg")
+                    Log.i(TAG, "$localizedSyncMsg")
                     scheduleContinuation(applicationContext)
                 }
                 return@withContext Result.success()
@@ -104,38 +102,32 @@ class SyncWorker(
             if (pending.isEmpty()) break
 
             val syncingStatus = applicationContext.getString(R.string.sync_status_syncing, pending.size)
-            println("📡 [L10N-SYNC] $syncingStatus")
 
             when (val outcome = flushBatch(pending)) {
                 is BatchOutcome.Sent -> {
                     batchesSent++
                     recordsSent += outcome.count
                     val ackMsg = applicationContext.getString(R.string.sync_status_batch_ack, outcome.count)
-                    println("📦 [SYNC-LOOP] Batch #$batchesSent: $ackMsg ($recordsSent total).")
-                    Log.i(TAG, "📦 Batch #$batchesSent: $ackMsg")
+                    Log.i(TAG, "Batch #$batchesSent: $ackMsg")
 
-                    // Quantum Shield Patch 3: Cooperative Coroutine Yield + 500ms Thermal/WAL Throttle
-                    val throttleMsg = applicationContext.getString(R.string.sync_status_throttling)
-                    println("🔋 [QUANTUM-SHIELD] $throttleMsg")
-                    yield()
+                                yield()
                     delay(BATCH_THROTTLE_DELAY_MS)
                 }
                 BatchOutcome.AllQuarantined -> {
-                    Log.w(TAG, "🚨 Whole batch failed local integrity checks and was quarantined; yielding & continuing.")
+                    Log.w(TAG, "Whole batch failed local integrity checks and was quarantined; yielding & continuing.")
                     yield()
                     delay(BATCH_THROTTLE_DELAY_MS)
                 }
                 is BatchOutcome.Retry -> return@withContext handleBackoff(outcome.timestamps, outcome.reason)
                 is BatchOutcome.Fatal -> {
-                    Log.e(TAG, "🛑 Fatal sync failure: ${outcome.reason}")
+                    Log.e(TAG, "Fatal sync failure: ${outcome.reason}")
                     return@withContext Result.failure()
                 }
             }
         }
 
         val idleMsg = applicationContext.getString(R.string.sync_status_idle)
-        println("✅ [SYNC-COMPLETE] $idleMsg ($recordsSent records in $batchesSent batches).")
-        Log.i(TAG, "✅ $idleMsg ($recordsSent records in $batchesSent batches).")
+        Log.i(TAG, "$idleMsg ($recordsSent records in $batchesSent batches).")
         Result.success()
     }
 
@@ -162,7 +154,7 @@ class SyncWorker(
             if (valid) {
                 verified.add(record)
             } else {
-                Log.e(TAG, "🚨 Signature check failed for UUIDv7=${record.timestamp}; queuing for quarantine.")
+                Log.e(TAG, "Signature check failed for UUIDv7=${record.timestamp}; queuing for quarantine.")
                 corruptedTimestamps.add(record.timestamp)
             }
         }
@@ -202,7 +194,7 @@ class SyncWorker(
 
         val timestamps = verified.map { it.timestamp }
         return try {
-            Log.i(TAG, "🚀 POST $syncUrl | records=${verified.size} | idem=$idempotencyKey")
+            Log.i(TAG, "POST $syncUrl | records=${verified.size} | idem=$idempotencyKey")
             httpClient.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
                 when {
@@ -307,12 +299,13 @@ class SyncWorker(
         outboxDao.incrementRetryCount(timestamps)
         val attempt = runAttemptCount + 1
         if (attempt > MAX_RETRY_ATTEMPTS) {
-            Log.e(TAG, "❌ Exceeded $MAX_RETRY_ATTEMPTS attempts ($reason). Marking ${timestamps.size} rows FAILED in a single transaction.")
-            outboxDao.markBatchFailed(timestamps)
+            // Server unreachable for a long time: stop this chain but keep the sales PENDING.
+            // The app calls syncNow() as soon as the API answers again; nothing is lost.
+            Log.w(TAG, "Giving up after $MAX_RETRY_ATTEMPTS attempts ($reason); ${timestamps.size} sales stay pending")
             return Result.failure()
         }
         val retryMsg = applicationContext.getString(R.string.sync_status_network_retry)
-        Log.w(TAG, "⏳ $retryMsg ($reason). Attempt #$attempt.")
+        Log.w(TAG, "$retryMsg ($reason). Attempt #$attempt.")
         return Result.retry()
     }
 
@@ -369,13 +362,29 @@ class SyncWorker(
                 .build()
         }
 
+        /**
+         * Send now: replaces a job that is waiting in exponential backoff (KEEP would leave it
+         * waiting for minutes after the server is back). A running job is left alone. Safe
+         * because every record carries its UUIDv7 and the server ignores replays.
+         * Call off the main thread.
+         */
+        fun syncNow(context: Context) {
+            val wm = WorkManager.getInstance(context.applicationContext)
+            val running = runCatching {
+                wm.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get().any { it.state == WorkInfo.State.RUNNING }
+            }.getOrDefault(false)
+            if (running) return
+            wm.enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, buildRequest())
+            Log.i(TAG, "Sync requested")
+        }
+
         fun enqueueWhenNetworkConnected(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
                 UNIQUE_WORK_NAME,
                 ExistingWorkPolicy.KEEP,
                 buildRequest()
             )
-            Log.i(TAG, "📅 SyncWorker scheduled (NetworkType.CONNECTED, exponential backoff).")
+            Log.i(TAG, "Sync scheduled (waits for network)")
         }
 
         private fun scheduleContinuation(context: Context) {
