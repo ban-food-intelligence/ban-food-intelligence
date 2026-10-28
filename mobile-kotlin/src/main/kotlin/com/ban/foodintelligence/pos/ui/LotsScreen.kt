@@ -61,6 +61,7 @@ import com.ban.foodintelligence.pos.ui.design.Space
 import com.ban.foodintelligence.pos.ui.design.StateMessage
 import com.ban.foodintelligence.pos.ui.design.palette
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
 fun LotsScreen(state: PosAppState, trailing: @Composable () -> Unit) {
@@ -270,10 +271,15 @@ private fun ForecastContent(summary: AiSummary) {
                         else -> "${Fmt.number(v, 2)} kg"
                     }
                     fun pct(v: Double?): String = if (v == null) "" else " (${if (v > 0) "+" else ""}${Fmt.number(v, 1)} %)"
+                    // interval and anomaly are optional in /ai/summary; older APIs omit them
+                    val interval = if (c.intervalLow != null && c.intervalHigh != null)
+                        "\n" + stringResource(R.string.ai_interval, ((c.intervalLevel ?: 0.8) * 100).roundToInt(), fmt(c.intervalLow), fmt(c.intervalHigh))
+                    else ""
+                    val anomaly = if (c.anomaly == true) "\n" + stringResource(R.string.ai_anomaly) else ""
                     ListRow(
                         title = targetLabel(c.target),
                         subtitle = "${stringResource(R.string.ai_model)} ${fmt(c.model)}${pct(c.modelDevPct)}\n" +
-                            "${stringResource(R.string.ai_baseline)} ${fmt(c.baseline)}${pct(c.baselineDevPct)}",
+                            "${stringResource(R.string.ai_baseline)} ${fmt(c.baseline)}${pct(c.baselineDevPct)}" + interval + anomaly,
                         value = "${stringResource(R.string.ai_actual)} ${fmt(c.actual)}"
                     )
                 }

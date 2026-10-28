@@ -52,7 +52,12 @@ data class AiComparison(
     val model: Double?,
     val modelDevPct: Double?,
     val baseline: Double?,
-    val baselineDevPct: Double?
+    val baselineDevPct: Double?,
+    // optional in /ai/summary (ml-engine ali-1.1.0): conformal interval of the model value and anomaly flag
+    val intervalLow: Double? = null,
+    val intervalHigh: Double? = null,
+    val intervalLevel: Double? = null,
+    val anomaly: Boolean? = null
 )
 
 data class AiMetric(val task: String, val target: String, val unit: String, val model: String, val role: String, val mae: Double, val mapePct: Double)
@@ -110,7 +115,10 @@ object InsightsRepository {
                     AiComparison(
                         it.optString("task"), it.optString("ref_no"), it.optString("target"),
                         it.optNullableDouble("actual"), it.optNullableDouble("model_pred"), it.optNullableDouble("model_dev_pct"),
-                        it.optNullableDouble("baseline_pred"), it.optNullableDouble("baseline_dev_pct")
+                        it.optNullableDouble("baseline_pred"), it.optNullableDouble("baseline_dev_pct"),
+                        it.optNullableDouble("interval_low"), it.optNullableDouble("interval_high"),
+                        it.optNullableDouble("interval_level"),
+                        if (it.has("anomaly") && !it.isNull("anomaly")) it.optBoolean("anomaly") else null
                     )
                 },
                 metrics = o.optJSONArray("metrics").objects().map {

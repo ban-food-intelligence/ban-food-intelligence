@@ -213,6 +213,9 @@ device (or 10 per client IP) `429 LOCKED_OUT` for 5 minutes. Every attempt is wr
 
 `GET /ai/summary` - metrics (MAE, MAPE on the time-split test period for the model and the
 baselines) and, per demo record and target, the actual value, model and baseline predictions and
-their deviations (abs and %). See [AI.md](AI.md).
+their deviations (abs and %). Optional per comparison (absent when the row has none):
+`interval_low` / `interval_high` / `interval_level` (80 % conformal interval of `model_pred`, same
+unit), `anomaly` (actual outside the 98 % band; not for `ekp`) and `outside_interval` (actual
+outside the 80 % interval). See [AI.md](AI.md).
 
 `GET /yield` - raw `v_ml_prediction_deviation` rows (kept for compatibility).

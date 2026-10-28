@@ -241,3 +241,37 @@ func TestIntegrationRecallContactsCSV(t *testing.T) {
 		t.Fatalf("second tier flags missing:\n%s", csv)
 	}
 }
+
+func TestIntegrationAISummaryIntervals(t *testing.T) {
+	db := testDB(t)
+	status, body := call(t, NewAIController(db).Summary, http.MethodGet, "/ai/summary", nil)
+	if status != http.StatusOK {
+		t.Fatalf("status %d: %s", status, body)
+	}
+	var s AISummaryDto
+	if err := json.Unmarshal(body, &s); err != nil {
+		t.Fatal(err)
+	}
+	found := 0
+	for _, c := range s.Comparisons {
+		if c.IntervalLow == nil || c.IntervalHigh == nil || c.IntervalLevel == nil || c.ModelPred == nil {
+			t.Fatalf("%s %s: interval missing", c.RefNo, c.Target)
+		}
+		if *c.IntervalLow > *c.ModelPred || *c.ModelPred > *c.IntervalHigh || !near(*c.IntervalLevel, 0.8) {
+			t.Errorf("%s %s: interval %v-%v does not contain %v", c.RefNo, c.Target, *c.IntervalLow, *c.IntervalHigh, *c.ModelPred)
+		}
+		// ekp has no anomaly flag of its own; packages and part weights do
+		if (c.Target == "ekp") != (c.Anomaly == nil) {
+			t.Errorf("%s %s: anomaly presence wrong", c.RefNo, c.Target)
+		}
+		if c.RefNo == "URT-2026-045" && c.Target == "actual_qty" {
+			found++
+			if !near(*c.IntervalLow, 83.2) || !near(*c.IntervalHigh, 86.0) || *c.Anomaly || *c.OutsideInterval {
+				t.Errorf("URT-2026-045 packages: got %+v", c)
+			}
+		}
+	}
+	if found != 1 {
+		t.Fatalf("URT-2026-045 packages row missing")
+	}
+}

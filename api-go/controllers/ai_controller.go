@@ -46,6 +46,13 @@ type AIComparisonDto struct {
 	BaselineDev       *float64 `json:"baseline_dev"`
 	BaselineDevPct    *float64 `json:"baseline_dev_pct"`
 	ModelCloserThanBL *bool    `json:"model_closer_than_baseline"`
+	// Optional (ml-engine ali-1.1.0): conformal interval of model_pred in the same unit, its level
+	// (0.8), and the anomaly flag (actual outside the 98 % band). Absent on rows without them.
+	IntervalLow     *float64 `json:"interval_low,omitempty"`
+	IntervalHigh    *float64 `json:"interval_high,omitempty"`
+	IntervalLevel   *float64 `json:"interval_level,omitempty"`
+	Anomaly         *bool    `json:"anomaly,omitempty"`
+	OutsideInterval *bool    `json:"outside_interval,omitempty"`
 }
 
 type AISummaryDto struct {
@@ -86,7 +93,8 @@ func (c *AIController) Summary(w http.ResponseWriter, r *http.Request) {
 
 	prow, err := c.db.QueryContext(r.Context(),
 		`SELECT IF(mp.ref_type = 'production_order', 'PRODUCTION', 'BUTCHERY'),
-		        COALESCE(po.order_no, bo.op_no), mp.target_name, mp.model_name, mp.predicted_value, mp.actual_value
+		        COALESCE(po.order_no, bo.op_no), mp.target_name, mp.model_name, mp.predicted_value, mp.actual_value,
+		        mp.interval_low, mp.interval_high, mp.interval_level, mp.is_anomaly
 		 FROM ml_prediction mp
 		 LEFT JOIN production_order po   ON mp.ref_type = 'production_order'   AND po.id = mp.ref_id
 		 LEFT JOIN butchery_operation bo ON mp.ref_type = 'butchery_operation' AND bo.id = mp.ref_id
@@ -101,8 +109,9 @@ func (c *AIController) Summary(w http.ResponseWriter, r *http.Request) {
 	for prow.Next() {
 		var task, ref, target, model string
 		var pred float64
-		var actual sql.NullFloat64
-		if err := prow.Scan(&task, &ref, &target, &model, &pred, &actual); err != nil {
+		var actual, lo, hi, level sql.NullFloat64
+		var anomaly sql.NullBool
+		if err := prow.Scan(&task, &ref, &target, &model, &pred, &actual, &lo, &hi, &level, &anomaly); err != nil {
 			continue
 		}
 		key := task + "|" + ref + "|" + target
@@ -118,6 +127,19 @@ func (c *AIController) Summary(w http.ResponseWriter, r *http.Request) {
 		p := pred
 		if model == championModel {
 			cmp.ModelPred = &p
+			// the interval and the anomaly flag belong to the champion's prediction only
+			if lo.Valid && hi.Valid {
+				l, h := lo.Float64, hi.Float64
+				cmp.IntervalLow, cmp.IntervalHigh = &l, &h
+				if level.Valid {
+					lv := level.Float64
+					cmp.IntervalLevel = &lv
+				}
+			}
+			if anomaly.Valid {
+				a := anomaly.Bool
+				cmp.Anomaly = &a
+			}
 		} else {
 			cmp.BaselinePred = &p
 		}
@@ -129,6 +151,11 @@ func (c *AIController) Summary(w http.ResponseWriter, r *http.Request) {
 			if cmp.ModelDev != nil && cmp.BaselineDev != nil {
 				closer := math.Abs(*cmp.ModelDev) <= math.Abs(*cmp.BaselineDev)
 				cmp.ModelCloserThanBL = &closer
+			}
+			// informational, only where ml-engine also flags anomalies (not for ekp)
+			if cmp.Anomaly != nil && cmp.IntervalLow != nil {
+				out := *cmp.Actual < *cmp.IntervalLow || *cmp.Actual > *cmp.IntervalHigh
+				cmp.OutsideInterval = &out
 			}
 		}
 		resp.Comparisons = append(resp.Comparisons, *cmp)
