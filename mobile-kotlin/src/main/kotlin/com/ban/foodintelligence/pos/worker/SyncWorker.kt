@@ -178,12 +178,21 @@ class SyncWorker(
             return BatchOutcome.Fatal("Cannot sign envelope: ${e.message}")
         }
 
+        // The server pins this key to the device on the first signed sync and refuses any
+        // other key for it afterwards (KEY_MISMATCH).
+        val publicKeyB64 = try {
+            KeystoreManager.exportPublicKeyBase64()
+        } catch (e: SecurityException) {
+            return BatchOutcome.Fatal("Cannot export public key: ${e.message}")
+        }
+
         val syncUrl = inputData.getString(KEY_GO_API_SYNC_URL) ?: (ApiConfig.baseUrl(applicationContext) + "/sync")
         val request = Request.Builder()
             .url(syncUrl)
             .header("X-Signature", envelopeSignature)
             .header("X-Signature-Alg", "ECDSA-P256-SHA256")
             .header("X-Key-Fingerprint", KeystoreManager.publicKeyFingerprintHex())
+            .header("X-POS-Public-Key", publicKeyB64)
             .header("X-Idempotency-UUIDv7", idempotencyKey)
             .header("X-Tenant-ID", head.tenantId)
             .header("X-Device-ID", head.deviceId)
@@ -313,7 +322,7 @@ class SyncWorker(
         private const val TAG = "SyncWorker"
 
         const val UNIQUE_WORK_NAME = "ban_avatar_pos_outbox_sync_worker"
-        private val PERMANENT_REJECTIONS = setOf("INSUFFICIENT_STOCK", "LOT_BLOCKED", "INVALID_INPUT", "CONFLICT", "NOT_FOUND", "LOT_NOT_FOUND")
+        private val PERMANENT_REJECTIONS = setOf("INSUFFICIENT_STOCK", "LOT_BLOCKED", "INVALID_INPUT", "CONFLICT", "NOT_FOUND", "LOT_NOT_FOUND", "REPLAY_MISMATCH")
         const val KEY_GO_API_SYNC_URL = "GO_API_SYNC_URL"
 
         const val BATCH_SIZE = 50
