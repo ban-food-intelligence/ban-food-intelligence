@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import com.ban.foodintelligence.pos.BuildConfig
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -84,11 +85,16 @@ fun LotsScreen(state: PosAppState, trailing: @Composable () -> Unit) {
         item(key = "more") {
             InsetGroup(header = stringResource(R.string.lots_section_tools)) {
                 row(dividerInset = 56.dp) {
+                    // The demo release APK carries no API key, so invoice reading is switched off there.
+                    val ocrEnabled = BuildConfig.NVIDIA_API_KEY.isNotEmpty()
                     ListRow(
                         title = stringResource(R.string.lots_receive_invoice),
+                        subtitle = if (ocrEnabled) null else stringResource(R.string.ocr_disabled_build),
                         icon = Icons.Rounded.DocumentScanner,
-                        chevron = true,
-                        onClick = { context.startActivity(Intent(context, InvoiceOcrActivity::class.java)) }
+                        chevron = ocrEnabled,
+                        onClick = if (ocrEnabled) {
+                            { context.startActivity(Intent(context, InvoiceOcrActivity::class.java)) }
+                        } else null
                     )
                 }
                 row(dividerInset = 56.dp) {
