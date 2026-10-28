@@ -2,12 +2,19 @@ import React, { useState } from 'react';
 import { useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { Async, Group, Kpi, Mono, Page, Pill, Table } from '../lib/ui';
+import { ReceiptForm } from './Entry';
 
 export function Purchases() {
   const { t, fmt } = useLang();
   const result = useApi('/purchases');
+  const [entering, setEntering] = useState(false);
   return (
-    <Page title={t('pu_title')} subtitle={t('pu_sub')}>
+    <Page
+      title={t('pu_title')}
+      subtitle={t('pu_sub')}
+      actions={!entering && <button className="btn-primary" onClick={() => setEntering(true)}>{t('en_newReceipt')}</button>}
+    >
+      {entering && <ReceiptForm onDone={result.reload} onCancel={() => setEntering(false)} />}
       <Async result={result}>
         {(rows) => (
           <Group>

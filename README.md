@@ -105,7 +105,9 @@ Optional, in the gitignored `mobile-kotlin/local.properties`:
 
 | What | Value | Notes |
 |---|---|---|
-| Supervisor PIN | `246813` | Releases the recall stop on the Android POS and signs in to back-office writes (starting a recall on the dashboard, `POST /auth/session` for the API). Demo value only. MySQL stores only its bcrypt hash (`supervisor.pin_hash`); the app's offline fallback uses a PBKDF2 hash from the gitignored `local.properties`. Five wrong PINs lock the device (ten per client IP) for 5 minutes. |
+| Phone supervisor PIN (Android POS) | `246813` | Releases the recall stop screen on the phone. Five wrong PINs lock the device (ten per client IP) for 5 minutes. The app's offline fallback uses a PBKDF2 hash from the gitignored `local.properties`; without it, unlock works online only. |
+| Dashboard PIN (recall + back-office forms) | `246813` | Same supervisor PIN. Asked when starting a recall and when recording a receipt or butchery operation on the dashboard; for the API, `POST /auth/session` with this PIN returns the bearer token for back-office writes. |
+| Both | | Demo value only. MySQL stores only its bcrypt hash (`supervisor.pin_hash`). |
 | MySQL | `root` / `ban` | Local docker compose only. |
 
 The previous supervisor PIN was committed in plain text in earlier history; it is considered
@@ -144,11 +146,11 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 
 | Spec (AVATAR_Assessment.pdf) | Implementation |
 |---|---|
-| Raw material cards, purchase prices, units, lots, stock | `product`, `lot`, `purchase_receipt(_line)`, `stock_balance` (schema.sql); `GET/POST /purchases` (supplier and expiry enforced), `GET /lots`; dashboard *Purchases* |
+| Raw material cards, purchase prices, units, lots, stock | `product`, `lot`, `purchase_receipt(_line)`, `stock_balance` (schema.sql); `GET/POST /purchases` (supplier and expiry enforced), `GET /lots`; dashboard *Purchases* (list + *New receipt* form, supervisor PIN) |
 | External production order, material shipment, service cost, receipt, quantity variance | `production_order/_input/_output`, `sp_production_add_input`, `sp_production_complete`; `GET/POST /production`; dashboard *Production* |
 | EKP from actual quantity; VKP, gross profit, margin | `v_production_cost`; 1,543.50 / 85 = 18.16 € (integration test) |
 | All cost and stock movements reviewable | append-only `stock_movement` (UPDATE/DELETE blocked by triggers); `GET /movements` with running balance |
-| Butchery: input lot, weight, real cost, date | `butchery_operation`; `GET /butchery`, `POST /butchery/operations` (records a new one) |
+| Butchery: input lot, weight, real cost, date | `butchery_operation`; `GET /butchery`, `POST /butchery/operations` (records a new one); dashboard *Butchery* (*Record butchery* form with live weight balance and a no-save *Check*, supervisor PIN) |
 | Parts, waste/by-products, weight balance | `butchery_output` (CUT / BY_PRODUCT / WASTE), `weight_check` + `WEIGHT_IMBALANCE` finding; unbalanced operations are refused |
 | Cost by quantity or value key, sum = total cost | `AllocateCost` (largest remainder, unit-tested), `GET /butchery/allocation`, `allocation_ok` |
 | Part lots stocked and sold from Kotlin | lots `KZB/KZS/KZO/KZK/KZY-2026-001`; Android *Sell* → `POST /sync` → `sale` + `sale_line` + SALE movement |
