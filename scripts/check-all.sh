@@ -15,14 +15,14 @@ echo "== gofmt + go vet + go test ./..."
 if command -v go >/dev/null 2>&1; then
   (cd api-go && test -z "$(gofmt -l .)" && go vet ./... && go test ./...)
 else
-  docker run --rm -v "$(cd api-go && pwd -W 2>/dev/null || pwd):/src" -w /src golang:1.22-alpine \
+  docker run --rm -v "$(cd api-go && pwd -W 2>/dev/null || pwd):/src" -w /src golang:1.25-alpine \
     sh -c 'test -z "$(gofmt -l .)" && go vet ./... && go test ./...'
 fi
 
 echo "== go integration tests (real MySQL, compose network)"
 ./scripts/demo-reset.sh >/dev/null
 NET=$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' ban-mysql)
-docker run --rm --network "$NET"   -e MYSQL_TEST_DSN='root:ban@tcp(mysql:3306)/food_intel?parseTime=true&multiStatements=true'   -v "$(cd api-go && pwd -W 2>/dev/null || pwd):/src" -w /src golang:1.22-alpine go test -count=1 ./controllers/ -run Integration
+docker run --rm --network "$NET"   -e MYSQL_TEST_DSN='root:ban@tcp(mysql:3306)/food_intel?parseTime=true&multiStatements=true'   -v "$(cd api-go && pwd -W 2>/dev/null || pwd):/src" -w /src golang:1.25-alpine go test -count=1 ./controllers/ -run Integration
 
 echo "== pytest database-mysql"
 ./scripts/test-db.sh

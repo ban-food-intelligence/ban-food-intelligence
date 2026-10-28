@@ -1,7 +1,7 @@
 # ============================================================================
 # BAN Food Intelligence - Go REST API (Berke) - multi-stage build
 # ============================================================================
-FROM golang:1.22-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 RUN apk add --no-cache git ca-certificates
 COPY go.mod go.sum* ./
