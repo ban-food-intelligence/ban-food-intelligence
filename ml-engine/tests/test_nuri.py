@@ -25,8 +25,10 @@ import train_model_nuri as TN  # noqa: E402
 
 
 @pytest.fixture(scope="module")
-def nuri_artifacts():
-    out_dir = ENGINE / "artifacts" / "nuri"
+def nuri_artifacts(tmp_path_factory):
+    # Train into a temporary folder: running the tests must not rewrite the tracked
+    # files in ml-engine/artifacts/nuri (OOF CSVs, metrics.json).
+    out_dir = tmp_path_factory.mktemp("nuri")
     df4a = pd.read_csv(ENGINE / "data" / "train_task4a_ali.csv")
     df4b = pd.read_csv(ENGINE / "data" / "train_task4b_ali.csv")
     rep_p, oof_p = TN.train_task4a_production_nuri(df4a, out_dir)
@@ -84,7 +86,9 @@ def test_real_stacking_meta_learner_beats_ali(nuri_artifacts):
     assert s4b["🏆 nuri_stack_meta (L2)"]["kg_mae"] < s4b["Ali - ali_ridge (Champ)"]["kg_mae"]
 
 
-def test_predict_nuri_seed_cases_and_sql_emission(nuri_artifacts):
+def test_predict_nuri_seed_cases_and_sql_emission(nuri_artifacts, monkeypatch):
+    out_dir, *_ = nuri_artifacts
+    monkeypatch.setattr(PN, "ART_NURI", out_dir)  # use the models trained above, never retrain in the repo
     seed_p = pd.read_csv(ENGINE / "data" / "seed_cases_production.csv")
     res_p = PN.predict_production_nuri(seed_p)
     urt45 = res_p[res_p["row_id"] == "DB-P-URT-2026-045"].iloc[0]
