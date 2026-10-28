@@ -14,3 +14,7 @@ catboost_info/
 ml-engine/data/train_task4_retail.csv
 .venv/
 .venv-ml/
+mobile-kotlin/release-keystore/
+*.jks
+*.keystore
+dist-apk/

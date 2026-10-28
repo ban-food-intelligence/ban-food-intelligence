@@ -203,4 +203,5 @@
         <item quantity="one">%1$d active recall</item>
         <item quantity="other">%1$d active recalls</item>
     </plurals>
+    <string name="ocr_disabled_build">Not available in this demo build: invoice reading needs an API key, which is never shipped inside the app. Build from source with your own key to try it.</string>
 </resources>

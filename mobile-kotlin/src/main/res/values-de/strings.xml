@@ -203,4 +203,5 @@
         <item quantity="one">%1$d aktiver Rückruf</item>
         <item quantity="other">%1$d aktive Rückrufe</item>
     </plurals>
+    <string name="ocr_disabled_build">In diesem Demo-Build nicht verfügbar: Das Lesen von Rechnungen braucht einen API-Schlüssel, der nie in der App ausgeliefert wird. Zum Ausprobieren mit eigenem Schlüssel aus dem Quellcode bauen.</string>
 </resources>

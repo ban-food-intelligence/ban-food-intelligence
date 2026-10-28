@@ -203,4 +203,5 @@
         <item quantity="one">%1$d aktif geri çağırma</item>
         <item quantity="other">%1$d aktif geri çağırma</item>
     </plurals>
+    <string name="ocr_disabled_build">Bu demo sürümünde kapalı: fatura okuma bir API anahtarı gerektirir ve anahtar uygulamanın içine konmaz. Denemek için kendi anahtarınızla kaynaktan derleyin.</string>
 </resources>

@@ -43,9 +43,30 @@ android {
         buildConfig = true
     }
 
+    // Demo release signing: a keystore outside git (release-keystore/, gitignored), created by
+    // scripts/build-release-apk.sh. Without it the release build is unsigned.
+    val releaseKeystore = rootProject.file("release-keystore/demo-release.jks")
+    signingConfigs {
+        if (releaseKeystore.exists()) {
+            create("demoRelease") {
+                storeFile = releaseKeystore
+                storePassword = System.getenv("DEMO_KEYSTORE_PASSWORD") ?: localProp("DEMO_KEYSTORE_PASSWORD")
+                keyAlias = "demo"
+                keyPassword = System.getenv("DEMO_KEYSTORE_PASSWORD") ?: localProp("DEMO_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
+            // Never ship a secret in a distributed APK: the release build has no NVIDIA key
+            // and no offline PIN hash, whatever local.properties contains.
+            buildConfigField("String", "NVIDIA_API_KEY", "\"\"")
+            buildConfigField("String", "SUPERVISOR_PIN_PBKDF2", "\"\"")
+            signingConfigs.findByName("demoRelease")?.let { signingConfig = it }
+            // No R8 for the demo APK: it cannot be tested on a device in CI, and shrinking can break
+            // reflection-based libraries (Room, WorkManager) at runtime.
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
