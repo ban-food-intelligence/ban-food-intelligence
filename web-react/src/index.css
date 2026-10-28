@@ -231,3 +231,21 @@ button { font: inherit; cursor: pointer; }
 .pin-field { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .pin-field input { width: 9em; padding: 6px 10px; font: inherit; letter-spacing: 0.2em; border: 1px solid var(--separator); border-radius: 8px; background: var(--bg-elevated, transparent); color: var(--label); }
 .muted { color: var(--secondary); font-size: 13px; margin-top: 6px; }
+
+/* ---------- entry forms (receipt, butchery) ---------- */
+.field-error { color: var(--bad); font-size: 12px; }
+.entry-fieldset { border: 0; min-width: 0; }
+.entry-pad { padding: 0 16px 10px; }
+.entry-tight { padding-top: 0; }
+.entry-lines td { vertical-align: top; padding: 6px 8px; }
+.entry-lines td:first-child, .entry-lines th:first-child { padding-left: 16px; }
+.entry-lines th { padding-left: 8px; padding-right: 8px; }
+.cell-input {
+  font: inherit; font-size: 14px; color: var(--label); background: var(--fill); border: 1px solid transparent;
+  border-radius: 8px; padding: 6px 10px; min-height: 36px; width: 100%; min-width: 110px;
+}
+.entry-lines .num .cell-input { text-align: right; min-width: 80px; }
+.cell-input:focus { outline: none; border-color: var(--accent); }
+.cell-input.invalid, .field input[aria-invalid='true'] { border-color: var(--bad); }
+.entry-submit { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 4px 16px 12px; border-top: 1px solid var(--separator); }
+.entry-submit .confirm-actions { margin-top: 10px; align-items: center; }
