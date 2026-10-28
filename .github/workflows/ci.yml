@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.25"
           cache-dependency-path: api-go/go.sum
       - name: Load schema + seed
         run: |
@@ -75,7 +75,7 @@ jobs:
         run: pytest database-mysql -q -p no:cacheprovider
 
   android:
-    name: Android POS (assembleDebug + unit tests)
+    name: Android POS (lint + assembleDebug + unit tests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,13 +88,15 @@ jobs:
         working-directory: mobile-kotlin
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug testDebugUnitTest --console=plain
-      - name: Unit test report
+          ./gradlew lintDebug assembleDebug testDebugUnitTest --console=plain
+      - name: Unit test + lint reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-unit-tests
-          path: mobile-kotlin/build/test-results/testDebugUnitTest/
+          name: android-reports
+          path: |
+            mobile-kotlin/build/test-results/testDebugUnitTest/
+            mobile-kotlin/build/reports/lint-results-debug.*
           if-no-files-found: ignore
 
   web:
