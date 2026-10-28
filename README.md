@@ -16,11 +16,13 @@ with exact lot traceability and recall. Built for the AVATAR Yapay Zeka Yarışm
   simple baseline on a time-split test (see [docs/AI.md](docs/AI.md)). Optional: invoice reading
   with NVIDIA Nemotron VL and human approval.
 
-| Android POS | Recall stop | Dashboard |
-|---|---|---|
-| ![Sell](docs/screenshots/pos-sell-light.png) | ![Recall](docs/screenshots/pos-recall-lock-light.png) | ![Butchery](docs/screenshots/web-butchery.png) |
+| Sell (phone) | Recall stop | Offline, sale queued | Dashboard |
+|---|---|---|---|
+| ![Sell](docs/screenshots/android-sell-tr-light.png) | ![Recall stop](docs/screenshots/android-flow-11-recall-stop-tr-dark.png) | ![Offline](docs/screenshots/android-flow-9-offline-pending-tr-dark.png) | ![Butchery](docs/screenshots/web-butchery.png) |
 
-More screenshots (light, dark, Turkish, German, 1.3× font): [docs/screenshots](docs/screenshots).
+Phone screenshots are from a real device (Samsung, Android 15) running against the local stack.
+Every tab in TR / EN / DE, light and dark, and at 1.3× font: `docs/screenshots/android-<tab>-<lang>-<mode>.png`;
+the device test flow (sale, invalid quantities, recall, offline, supervisor PIN): `android-flow-*.png`.
 
 ## Architecture
 
