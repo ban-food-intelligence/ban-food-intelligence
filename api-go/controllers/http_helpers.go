@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -27,6 +28,12 @@ var errorMessages = map[string]map[string]string{
 	"INVALID_PIN":        {"en": "Wrong PIN.", "tr": "PIN hatalı.", "de": "Falsche PIN."},
 	"LOCKED_OUT":         {"en": "Too many wrong attempts. Try again later.", "tr": "Çok fazla hatalı deneme. Daha sonra tekrar deneyin.", "de": "Zu viele Fehlversuche. Bitte später erneut versuchen."},
 	"SIGNATURE_REJECTED": {"en": "The device signature was rejected.", "tr": "Cihaz imzası reddedildi.", "de": "Die Gerätesignatur wurde abgelehnt."},
+	"AUTH_REQUIRED":      {"en": "Sign in with a supervisor PIN first.", "tr": "Önce yetkili PIN'i ile giriş yapın.", "de": "Bitte zuerst mit der Aufsichts-PIN anmelden."},
+	"PAYLOAD_TOO_LARGE":  {"en": "The request is too large.", "tr": "İstek çok büyük.", "de": "Die Anfrage ist zu groß."},
+	"RATE_LIMITED":       {"en": "Too many requests. Slow down.", "tr": "Çok fazla istek. Lütfen yavaşlayın.", "de": "Zu viele Anfragen. Bitte langsamer."},
+	"DEVICE_NOT_ENROLLED": {"en": "This device is not registered for sync.", "tr": "Bu cihaz senkronizasyon için kayıtlı değil.", "de": "Dieses Gerät ist nicht für die Synchronisierung registriert."},
+	"KEY_MISMATCH":       {"en": "This device is registered with a different key.", "tr": "Bu cihaz farklı bir anahtarla kayıtlı.", "de": "Dieses Gerät ist mit einem anderen Schlüssel registriert."},
+	"REPLAY_MISMATCH":    {"en": "This record ID was already used for different data.", "tr": "Bu kayıt kimliği farklı verilerle zaten kullanıldı.", "de": "Diese Datensatz-ID wurde bereits für andere Daten verwendet."},
 	"DB_ERROR":           {"en": "The database could not complete the request.", "tr": "Veritabanı isteği tamamlayamadı.", "de": "Die Datenbank konnte die Anfrage nicht ausführen."},
 }
 
@@ -64,6 +71,12 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, status int, code stri
 // to the right HTTP status and error code.
 func writeDBError(w http.ResponseWriter, r *http.Request, err error) {
 	status, code := classifyDBError(err)
+	if status == http.StatusInternalServerError {
+		// Unexpected driver errors can name tables, columns or hosts: log them, do not return them.
+		log.Printf("[ERROR] [DB] %s %s: %v", r.Method, r.URL.Path, err)
+		writeAPIError(w, r, status, code, nil)
+		return
+	}
 	writeAPIError(w, r, status, code, err.Error())
 }
 
@@ -78,7 +91,7 @@ func classifyDBError(err error) (int, string) {
 		return http.StatusConflict, "LOT_BLOCKED"
 	case strings.Contains(msg, "ORDER_STATE"):
 		return http.StatusConflict, "ORDER_STATE"
-	case strings.Contains(msg, "ACTUAL_QTY"), strings.Contains(msg, "MOVEMENT_SIGN"), strings.Contains(msg, "Check constraint"):
+	case strings.Contains(msg, "ACTUAL_QTY"), strings.Contains(msg, "MOVEMENT_SIGN"), strings.Contains(msg, "EXPIRY_REQUIRED"), strings.Contains(msg, "Check constraint"):
 		return http.StatusUnprocessableEntity, "INVALID_INPUT"
 	case strings.Contains(msg, "Duplicate entry"):
 		return http.StatusConflict, "CONFLICT"

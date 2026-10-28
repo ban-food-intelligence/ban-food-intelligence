@@ -264,7 +264,7 @@ func warehouseID(ctx context.Context, tx *sql.Tx, code string) (int64, error) {
 func insertMovement(ctx context.Context, tx *sql.Tx, lot, wh int64, typ string, qty, cost float64, refType string, refID *int64, note string) error {
 	_, err := tx.ExecContext(ctx,
 		`INSERT INTO stock_movement (lot_id, warehouse_id, movement_type, qty, unit_cost, ref_type, ref_id, created_by, note)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, 'api', ?)`, lot, wh, typ, qty, cost, refType, refID, note)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, lot, wh, typ, qty, cost, refType, refID, nonEmpty(OperatorFrom(ctx), "api"), note)
 	return err
 }
 

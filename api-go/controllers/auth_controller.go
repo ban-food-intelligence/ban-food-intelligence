@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	supervisorMaxFailures = 5
-	supervisorLockout     = 5 * time.Minute
+	supervisorMaxFailures      = 5
+	supervisorMaxFailuresPerIP = 10
+	supervisorLockout          = 5 * time.Minute
 )
 
 // SupervisorAuthController verifies the supervisor PIN that releases a POS recall lock.
@@ -22,6 +23,7 @@ type SupervisorAuthController struct {
 	db       *sql.DB
 	mu       sync.Mutex
 	attempts map[string]*pinAttempts
+	sessions *SessionManager
 	now      func() time.Time
 }
 
@@ -55,6 +57,12 @@ func NewSupervisorAuthController(db *sql.DB) *SupervisorAuthController {
 	return &SupervisorAuthController{db: db, attempts: map[string]*pinAttempts{}, now: time.Now}
 }
 
+// WithSessions lets Session issue operator tokens signed by m.
+func (c *SupervisorAuthController) WithSessions(m *SessionManager) *SupervisorAuthController {
+	c.sessions = m
+	return c
+}
+
 // Verify handles POST /auth/supervisor/verify.
 //
 //	200 {ok, username, display_name, unlocked_at}
@@ -71,22 +79,80 @@ func (c *SupervisorAuthController) Verify(w http.ResponseWriter, r *http.Request
 		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "pin must be 4-12 digits")
 		return
 	}
-	key := req.DeviceID
-	if key == "" {
-		key = r.RemoteAddr
+	details, _ := json.Marshal(map[string]string{
+		"device_id": req.DeviceID, "lot_no": req.LotNo, "recall_code": req.RecallCode,
+	})
+	_, username, display, ok := c.checkPIN(w, r, req.PIN, req.DeviceID, "terminal_lock", "SUPERVISOR_UNLOCK", details)
+	if !ok {
+		return
 	}
+	log.Printf("[INFO] [AUTH] supervisor=%s unlocked device=%s lot=%s recall=%s", username, req.DeviceID, req.LotNo, req.RecallCode)
+	writeJSON(w, SupervisorVerifyResponse{OK: true, Username: username, DisplayName: display, UnlockedAt: c.now().UTC()})
+}
 
-	if wait := c.lockedFor(key); wait > 0 {
+// OperatorSessionResponse is the body of a successful POST /auth/session.
+type OperatorSessionResponse struct {
+	Token       string    `json:"token"`
+	TokenType   string    `json:"token_type"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name"`
+}
+
+// Session handles POST /auth/session {pin, device_id?}: a supervisor PIN (same lockout as
+// Verify) buys a 30-minute bearer token for the back-office write endpoints (recall,
+// movements, rework, production, purchases, butchery operations).
+func (c *SupervisorAuthController) Session(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, r, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", nil)
+		return
+	}
+	var req SupervisorVerifyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !validPIN(req.PIN) {
+		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "pin must be 4-12 digits")
+		return
+	}
+	details, _ := json.Marshal(map[string]string{"device_id": req.DeviceID, "client_ip": ClientIP(r)})
+	_, username, display, ok := c.checkPIN(w, r, req.PIN, req.DeviceID, "operator_session", "OPERATOR_SESSION", details)
+	if !ok {
+		return
+	}
+	token, exp := c.sessions.Issue(username)
+	log.Printf("[INFO] [AUTH] operator session for %s from %s", username, ClientIP(r))
+	writeJSON(w, OperatorSessionResponse{Token: token, TokenType: "Bearer", ExpiresAt: exp, Username: username, DisplayName: display})
+}
+
+type lockKey struct {
+	key string
+	max int
+}
+
+// checkPIN applies the lockout (5 wrong PINs per device, 10 per client IP, so rotating
+// device_id does not help), compares the PIN with every active supervisor's bcrypt hash and
+// audits the attempt in audit_log under auditTable. On failure it has already written the
+// 401/429 response.
+func (c *SupervisorAuthController) checkPIN(w http.ResponseWriter, r *http.Request, pin, deviceID, auditTable, action string, details []byte) (int64, string, string, bool) {
+	keys := []lockKey{{"ip:" + ClientIP(r), supervisorMaxFailuresPerIP}}
+	if deviceID != "" {
+		keys = append(keys, lockKey{"dev:" + deviceID, supervisorMaxFailures})
+	}
+	var wait time.Duration
+	for _, k := range keys {
+		if d := c.lockedFor(k.key); d > wait {
+			wait = d
+		}
+	}
+	if wait > 0 {
 		w.Header().Set("Retry-After", itoa(int(wait.Seconds())))
 		writeAPIError(w, r, http.StatusTooManyRequests, "LOCKED_OUT", map[string]int{"retry_after_seconds": int(wait.Seconds())})
-		return
+		return 0, "", "", false
 	}
 
 	rows, err := c.db.QueryContext(r.Context(),
 		`SELECT id, username, display_name, pin_hash FROM supervisor WHERE is_active = TRUE`)
 	if err != nil {
 		writeDBError(w, r, err)
-		return
+		return 0, "", "", false
 	}
 	var matchID int64
 	var username, display string
@@ -96,32 +162,34 @@ func (c *SupervisorAuthController) Verify(w http.ResponseWriter, r *http.Request
 		if err := rows.Scan(&id, &u, &d, &hash); err != nil {
 			continue
 		}
-		if matchID == 0 && bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.PIN)) == nil {
+		if matchID == 0 && bcrypt.CompareHashAndPassword([]byte(hash), []byte(pin)) == nil {
 			matchID, username, display = id, u, d
 		}
 	}
 	rows.Close()
 
-	details, _ := json.Marshal(map[string]string{
-		"device_id": req.DeviceID, "lot_no": req.LotNo, "recall_code": req.RecallCode,
-	})
-
 	if matchID == 0 {
-		left := c.recordFailure(key)
-		c.audit(r, 0, "SUPERVISOR_UNLOCK_DENIED", details, "unknown")
+		left := supervisorMaxFailuresPerIP
+		for _, k := range keys {
+			if l := c.recordFailureMax(k.key, k.max); l < left {
+				left = l
+			}
+		}
+		c.audit(r, auditTable, 0, action+"_DENIED", details, "unknown")
 		if left <= 0 {
+			w.Header().Set("Retry-After", itoa(int(supervisorLockout.Seconds())))
 			writeAPIError(w, r, http.StatusTooManyRequests, "LOCKED_OUT",
 				map[string]int{"retry_after_seconds": int(supervisorLockout.Seconds())})
-			return
+			return 0, "", "", false
 		}
 		writeAPIError(w, r, http.StatusUnauthorized, "INVALID_PIN", map[string]int{"attempts_left": left})
-		return
+		return 0, "", "", false
 	}
-
-	c.reset(key)
-	c.audit(r, matchID, "SUPERVISOR_UNLOCK", details, username)
-	log.Printf("[INFO] [AUTH] supervisor=%s unlocked device=%s lot=%s recall=%s", username, req.DeviceID, req.LotNo, req.RecallCode)
-	writeJSON(w, SupervisorVerifyResponse{OK: true, Username: username, DisplayName: display, UnlockedAt: c.now().UTC()})
+	for _, k := range keys {
+		c.reset(k.key)
+	}
+	c.audit(r, auditTable, matchID, action, details, username)
+	return matchID, username, display, true
 }
 
 // Audit handles GET /auth/supervisor/audit: the latest unlock attempts (who, when, which lot).
@@ -150,10 +218,10 @@ func (c *SupervisorAuthController) Audit(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, list)
 }
 
-func (c *SupervisorAuthController) audit(r *http.Request, supervisorID int64, action string, details []byte, by string) {
+func (c *SupervisorAuthController) audit(r *http.Request, table string, supervisorID int64, action string, details []byte, by string) {
 	if _, err := c.db.ExecContext(r.Context(),
-		`INSERT INTO audit_log (table_name, row_id, action, new_value, changed_by) VALUES ('terminal_lock', ?, ?, ?, ?)`,
-		supervisorID, action, string(details), by); err != nil {
+		`INSERT INTO audit_log (table_name, row_id, action, new_value, changed_by) VALUES (?, ?, ?, ?, ?)`,
+		table, supervisorID, action, string(details), by); err != nil {
 		log.Printf("[WARN] [AUTH] audit insert failed: %v", err)
 	}
 }
@@ -169,6 +237,10 @@ func (c *SupervisorAuthController) lockedFor(key string) time.Duration {
 
 // recordFailure counts a wrong PIN and returns the attempts left before lockout.
 func (c *SupervisorAuthController) recordFailure(key string) int {
+	return c.recordFailureMax(key, supervisorMaxFailures)
+}
+
+func (c *SupervisorAuthController) recordFailureMax(key string, max int) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	a, ok := c.attempts[key]
@@ -177,7 +249,7 @@ func (c *SupervisorAuthController) recordFailure(key string) int {
 		c.attempts[key] = a
 	}
 	a.failures++
-	left := supervisorMaxFailures - a.failures
+	left := max - a.failures
 	if left <= 0 {
 		a.lockedUntil = c.now().Add(supervisorLockout)
 	}

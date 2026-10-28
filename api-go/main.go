@@ -7,10 +7,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -20,7 +18,7 @@ import (
 )
 
 // apiVersion is reported by GET /health.
-const apiVersion = "1.2.0"
+const apiVersion = "1.3.0"
 
 const defaultMySQLDSN = "root:ban@tcp(127.0.0.1:3306)/food_intel?parseTime=true&multiStatements=true&charset=utf8mb4"
 
@@ -68,7 +66,12 @@ func main() {
 	lotCtrl := controllers.NewLotController(db)
 	yieldCtrl := controllers.NewYieldController(db)
 	reportsCtrl := controllers.NewReportsController(db)
-	authCtrl := controllers.NewSupervisorAuthController(db)
+	sessions := controllers.NewSessionManager()
+	authCtrl := controllers.NewSupervisorAuthController(db).WithSessions(sessions)
+	entryCtrl := controllers.NewEntryController(db)
+	// Back-office writes need a supervisor session (POST /auth/session); reads stay open.
+	// The POS only writes through /sync (ECDSA-signed) and /auth/supervisor/verify.
+	op := sessions.RequireOperator
 	movementsCtrl := controllers.NewMovementsController(db)
 	aiCtrl := controllers.NewAIController(db)
 
@@ -92,18 +95,20 @@ func main() {
 	})
 
 	// Task 1: External Production & EKP Cost Calculation
-	mux.HandleFunc("/production", productionCtrl.ListOrders)
-	mux.HandleFunc("/api/v1/production", productionCtrl.ListOrders)
+	mux.HandleFunc("/production", op(productionCtrl.ListOrders))
+	mux.HandleFunc("/api/v1/production", op(productionCtrl.ListOrders))
+	mux.HandleFunc("/purchases", purchasesHandler(reportsCtrl.Purchases, op(entryCtrl.Purchase)))
 
 	// Task 2: Whole Lamb Butchery & Cost Allocation
 	mux.HandleFunc("/butchery", butcheryCtrl.ReconcileButchery)
 	mux.HandleFunc("/butchery/reconcile", butcheryCtrl.ReconcileButchery)
 	mux.HandleFunc("/butchery/allocation", butcheryCtrl.Allocation)
+	mux.HandleFunc("/butchery/operations", op(entryCtrl.ButcheryOperation))
 	mux.HandleFunc("/api/v1/butchery", butcheryCtrl.ReconcileButchery)
 
 	// Task 3: Recursive Lot Traceability & Emergency Recall
-	mux.HandleFunc("/recall", recallCtrl.TriggerRecall)
-	mux.HandleFunc("/api/v1/recall", recallCtrl.TriggerRecall)
+	mux.HandleFunc("/recall", op(recallCtrl.TriggerRecall))
+	mux.HandleFunc("/api/v1/recall", op(recallCtrl.TriggerRecall))
 	mux.HandleFunc("/recall/contacts.csv", recallCtrl.ContactsCSV)
 	mux.HandleFunc("/trace/", traceCtrl.TraceHandler)
 	mux.HandleFunc("/api/v1/trace/", traceCtrl.TraceHandler)
@@ -113,17 +118,17 @@ func main() {
 	// Supervisor unlock of a recalled POS terminal (bcrypt, lockout, audit)
 	mux.HandleFunc("/auth/supervisor/verify", authCtrl.Verify)
 	mux.HandleFunc("/auth/supervisor/audit", authCtrl.Audit)
+	mux.HandleFunc("/auth/session", authCtrl.Session)
 
 	// Reports: purchases, lot movement ledger, POS sales
-	mux.HandleFunc("/purchases", reportsCtrl.Purchases)
 	mux.HandleFunc("/movements", reportsCtrl.Movements)
 	mux.HandleFunc("/sales", reportsCtrl.Sales)
 
 	// Lot movements: transfer, customer return, waste, rework (sale/shipment/production elsewhere)
-	mux.HandleFunc("/movements/transfer", movementsCtrl.Transfer)
-	mux.HandleFunc("/movements/return", movementsCtrl.Return)
-	mux.HandleFunc("/movements/waste", movementsCtrl.Waste)
-	mux.HandleFunc("/rework", movementsCtrl.Rework)
+	mux.HandleFunc("/movements/transfer", op(movementsCtrl.Transfer))
+	mux.HandleFunc("/movements/return", op(movementsCtrl.Return))
+	mux.HandleFunc("/movements/waste", op(movementsCtrl.Waste))
+	mux.HandleFunc("/rework", op(movementsCtrl.Rework))
 
 	// Task 4: ML Yield Predictions & Deviation Telemetry
 	mux.HandleFunc("/yield", yieldCtrl.PredictYield)
@@ -134,7 +139,7 @@ func main() {
 	mux.HandleFunc("/sync", syncCtrl.IngestOutbox)
 	mux.HandleFunc("/v1/sync", syncCtrl.IngestOutbox)
 	mux.HandleFunc("/api/v1/sync", syncCtrl.IngestOutbox)
-	mux.HandleFunc("/sync/register-key", syncCtrl.RegisterDeviceKey)
+	mux.HandleFunc("/sync/register-key", op(syncCtrl.RegisterDeviceKey))
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -143,10 +148,12 @@ func main() {
 
 	server := &http.Server{
 		Addr:         ":" + port,
-		Handler:      withCORSAndLogging(mux),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 20 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Handler:           withCORSAndLogging(withSecurity(newRateLimiter(rateFromEnv()), mux)),
+		ReadHeaderTimeout: 5 * time.Second,
+		MaxHeaderBytes:    64 << 10,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      20 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// Graceful shutdown: on SIGINT/SIGTERM stop accepting requests and let running
@@ -258,32 +265,6 @@ func ensureStoredProcedureAliases(db *sql.DB) {
 	logInfo("MYSQL-SP", "Verified MySQL Stored Procedures: sp_calculate_production_cost, sp_execute_butchery, sp_recall_by_lot.")
 }
 
-// allowedOrigin reports whether a browser origin may call the API: the React dashboard
-// (dev 5173, compose 3000, preview 4173) on any host, so a LAN IP works too, or an
-// explicit list in CORS_ALLOWED_ORIGINS (comma separated).
-func allowedOrigin(origin string) bool {
-	if origin == "" {
-		return false
-	}
-	if list := os.Getenv("CORS_ALLOWED_ORIGINS"); list != "" {
-		for _, o := range strings.Split(list, ",") {
-			if strings.TrimSpace(o) == origin {
-				return true
-			}
-		}
-		return false
-	}
-	u, err := url.Parse(origin)
-	if err != nil {
-		return false
-	}
-	switch u.Port() {
-	case "5173", "3000", "4173":
-		return true
-	}
-	return false
-}
-
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
@@ -312,4 +293,15 @@ func withCORSAndLogging(next http.Handler) http.Handler {
 		next.ServeHTTP(rec, r)
 		logInfo("HTTP", "%s %s -> %d (%s)", r.Method, r.URL.RequestURI(), rec.status, time.Since(start).Round(time.Millisecond))
 	})
+}
+
+// purchasesHandler serves GET /purchases (report) and POST /purchases (new receipt).
+func purchasesHandler(get, post http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			post(w, r)
+			return
+		}
+		get(w, r)
+	}
 }

@@ -115,3 +115,29 @@ def test_recall_report_lists_customers_with_quantities_and_contacts(db):
     assert by_code["REST-01"]["tier"] == 2 and by_code["REST-01"]["received_via"] == "Market C"
     assert all(v["phone"] and v["email"] for v in by_code.values())
     assert [(s["lot_no"], s["warehouse_code"], s["qty"]) for s in stock] == [("SUC-2026-045", "KARANTINA", D("30.000"))]
+
+
+# ---------------------------------------------------------------- hammadde girişi (şartname 3)
+def test_every_purchased_lot_has_supplier_date_qty_and_expiry(db):
+    rows = query(db, "SELECT l.lot_no FROM lot l JOIN product p ON p.id = l.product_id "
+                     "WHERE l.origin_type = 'PURCHASE' AND (l.supplier_id IS NULL OR l.lot_date IS NULL "
+                     "OR l.initial_qty <= 0 OR (p.shelf_life_days IS NOT NULL AND l.expiry_date IS NULL))")
+    assert rows == []
+
+
+def test_purchased_perishable_lot_without_expiry_is_rejected(db):
+    with pytest.raises(pymysql.err.OperationalError, match="EXPIRY_REQUIRED"):
+        _exec(db, "INSERT INTO lot (lot_no, product_id, origin_type, supplier_id, lot_date, initial_qty, uom_code, unit_cost) "
+                  "SELECT 'ET-TEST-NOEXP', p.id, 'PURCHASE', s.id, '2026-10-28', 10, 'KG', 9.7 "
+                  "FROM product p, supplier s WHERE p.sku='HM-ET-DANA' AND s.code='TED-ET-01'")
+    with pytest.raises(pymysql.err.OperationalError, match="EXPIRY_REQUIRED"):
+        _exec(db, "INSERT INTO lot (lot_no, product_id, origin_type, supplier_id, lot_date, expiry_date, initial_qty, uom_code, unit_cost) "
+                  "SELECT 'ET-TEST-PAST', p.id, 'PURCHASE', s.id, '2026-10-28', '2026-10-01', 10, 'KG', 9.7 "
+                  "FROM product p, supplier s WHERE p.sku='HM-ET-DANA' AND s.code='TED-ET-01'")
+
+
+def test_purchase_without_supplier_is_rejected(db):
+    with pytest.raises(pymysql.err.OperationalError, match="ck_lot_purchase_supplier"):
+        _exec(db, "INSERT INTO lot (lot_no, product_id, origin_type, lot_date, expiry_date, initial_qty, uom_code, unit_cost) "
+                  "SELECT 'ET-TEST-NOSUP', p.id, 'PURCHASE', '2026-10-28', '2026-11-07', 10, 'KG', 9.7 "
+                  "FROM product p WHERE p.sku='HM-ET-DANA'")
