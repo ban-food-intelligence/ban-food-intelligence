@@ -1,0 +1,102 @@
+{
+  "root_lot_number": "ET-2026-001",
+  "direction": "forward",
+  "lots": [
+    {
+      "depth": 0,
+      "lot_no": "ET-2026-001",
+      "sku": "HM-ET-DANA",
+      "product_name": "Dana et (sucukluk)",
+      "origin_type": "PURCHASE",
+      "qty": 100,
+      "uom_code": "KG",
+      "status": "ACTIVE",
+      "expiry_date": "2026-10-11",
+      "path": "/ET-2026-001/"
+    },
+    {
+      "depth": 1,
+      "lot_no": "SUC-2026-045",
+      "sku": "MM-SUCUK-1KG",
+      "product_name": "Narin Sucuk 1 kg",
+      "origin_type": "PRODUCTION",
+      "qty": 85,
+      "uom_code": "PAKET",
+      "status": "ACTIVE",
+      "expiry_date": "2027-01-04",
+      "path": "/ET-2026-001/SUC-2026-045/"
+    }
+  ],
+  "links": [
+    {
+      "link_type": "PRODUCTION",
+      "document_no": "URT-2026-045",
+      "subcontractor": "Örnek Fason Sucuk Üretim",
+      "input_lot_no": "ET-2026-001",
+      "qty_consumed": 100,
+      "input_uom": "KG",
+      "output_lot_no": "SUC-2026-045",
+      "qty_produced": 85,
+      "output_uom": "PAKET"
+    }
+  ],
+  "shipments": [
+    {
+      "tier": 1,
+      "customer_code": "MKT-A",
+      "customer_name": "Market A",
+      "contact_person": "Şube Müdürü A",
+      "phone": "+90 216 000 00 0A",
+      "email": "market-a@musteri.example",
+      "lot_no": "SUC-2026-045",
+      "shipment_no": "SVK-2026-201",
+      "ship_date": "2026-10-07",
+      "delivery_note_no": "IRS-SVK-201",
+      "qty": 30,
+      "uom_code": "PAKET"
+    },
+    {
+      "tier": 1,
+      "customer_code": "MKT-B",
+      "customer_name": "Market B",
+      "contact_person": "Şube Müdürü B",
+      "phone": "+90 216 000 00 0B",
+      "email": "market-b@musteri.example",
+      "lot_no": "SUC-2026-045",
+      "shipment_no": "SVK-2026-202",
+      "ship_date": "2026-10-07",
+      "delivery_note_no": "IRS-SVK-202",
+      "qty": 25,
+      "uom_code": "PAKET"
+    },
+    {
+      "tier": 1,
+      "customer_code": "MKT-C",
+      "customer_name": "Market C",
+      "contact_person": "Şube Müdürü C",
+      "phone": "+90 216 000 00 0C",
+      "email": "market-c@musteri.example",
+      "lot_no": "SUC-2026-045",
+      "shipment_no": "SVK-2026-203",
+      "ship_date": "2026-10-08",
+      "delivery_note_no": "IRS-SVK-203",
+      "qty": 30,
+      "uom_code": "PAKET"
+    },
+    {
+      "tier": 2,
+      "customer_code": "REST-01",
+      "customer_name": "Örnek Lokanta",
+      "contact_person": "İşletmeci",
+      "phone": "+90 216 000 00 11",
+      "email": "info@lokanta.example",
+      "received_via": "Market C",
+      "lot_no": "SUC-2026-045",
+      "shipment_no": "MKC-IRS-7781",
+      "ship_date": "2026-10-09",
+      "delivery_note_no": "MKC-IRS-7781",
+      "qty": 10,
+      "uom_code": "PAKET"
+    }
+  ]
+}

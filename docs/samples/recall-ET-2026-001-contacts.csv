@@ -1,0 +1,5 @@
+﻿recall_code,root_lot,tier,customer_code,customer_name,contact_person,phone,email,address,received_via,lots,qty_shipped,qty_returned,second_tier
+RCL-2026-001,ET-2026-001,1,MKT-A,Market A,Şube Müdürü A,+90 216 000 00 0A,market-a@musteri.example,Kadıköy,,SUC-2026-045,30.000,0.000,NOT_RECORDED
+RCL-2026-001,ET-2026-001,1,MKT-B,Market B,Şube Müdürü B,+90 216 000 00 0B,market-b@musteri.example,Üsküdar,,SUC-2026-045,25.000,0.000,NOT_RECORDED
+RCL-2026-001,ET-2026-001,1,MKT-C,Market C,Şube Müdürü C,+90 216 000 00 0C,market-c@musteri.example,Ataşehir,,SUC-2026-045,30.000,0.000,RECORDED
+RCL-2026-001,ET-2026-001,2,REST-01,Örnek Lokanta,İşletmeci,+90 216 000 00 11,info@lokanta.example,Ataşehir,Market C,SUC-2026-045,10.000,0.000,NOT_RECORDED
