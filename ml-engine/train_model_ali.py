@@ -6,7 +6,9 @@ Değerlendirme dürüstlüğü için:
   * Her model iki basit referansla kıyaslanır: reçete standardı ve geçmiş ortalaması.
   * EKP doğrudan öğrenilmez: verim tahmin edilir, EKP şartname formülüyle hesaplanır.
   * Parçalama: 6 pay ayrı tahmin edilir, toplam 100'e normalize edilir -> kütle dengesi.
-  * Belirsizlik: OOF artıklarından split-conformal %90 aralık.
+  * Belirsizlik: zaman sıralı split-conformal; train döneminin ilk %75'iyle eğitilen model son %25'te
+    kalibre edilir (gelecek hatası gibi). %80 aralık gösterilir, %98 bant anomali eşiğidir.
+    Sağlam değerlendirme (kayan başlangıçlı CV, güven aralıkları, testler): evaluate_ali.py.
 
 Modeller: CatBoost (takım planında Ali'nin modeli; kategorik değişkenleri doğal işler)
 ve Ridge (doğrusal referans). İkisinin OOF tahmini de stacking'e verilir.
@@ -37,7 +39,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import ml_contract as C  # noqa: E402
 
-MODEL_VERSION = "ali-1.0.0"
+MODEL_VERSION = "ali-1.1.0"
 RECIPE_YIELD_PCT = 85.0                                         # şartname: 100 kg et -> 85 kg sucuk
 RECIPE_BUTCHERY_PCT = {"KUZU": [26, 14, 20, 12, 16, 12], "OGLAK": [25, 13, 21, 11, 14, 16],
                        "KOYUN": [24, 13, 20, 13, 19, 11]}
@@ -119,6 +121,30 @@ def metrics(y, p) -> dict:
             "MAPE_pct": float(100 * np.mean(np.abs((y - p) / y))), "R2": float(r2_score(y, p))}
 
 
+INTERVAL_LEVELS = (0.80, 0.90, 0.98)       # gösterilen / eski uyumlu / anomali bandı
+CAL_FRACTION = 0.25
+
+
+def conformal_q(scores, level: float) -> float:
+    """Sonlu örnek split-conformal kantili: skorların ceil((n+1)·level)'inci küçüğü."""
+    s = np.sort(np.asarray(scores, float))
+    k = int(np.ceil((len(s) + 1) * level))
+    return float(s[min(k, len(s)) - 1])
+
+
+def time_conformal(make_model, X, y, tr: np.ndarray) -> dict:
+    """Tarih sıralı train satırlarının son CAL_FRACTION'ı kalibrasyon: ilk kısımla eğitilen modelin
+    mutlak artıkları -> seviye başına yarı genişlik (çok hedefte hedef başına)."""
+    y = np.asarray(y)
+    idx = np.where(tr)[0]
+    cut = int(len(idx) * (1 - CAL_FRACTION))
+    proper, cal = idx[:cut], idx[cut:]
+    res = np.abs(y[cal] - make_model().fit(X.iloc[proper], y[proper]).predict(X.iloc[cal]))
+    if res.ndim == 1:
+        return {lv: conformal_q(res, lv) for lv in INTERVAL_LEVELS}
+    return {lv: np.array([conformal_q(res[:, j], lv) for j in range(res.shape[1])]) for lv in INTERVAL_LEVELS}
+
+
 def oof_and_test(make_model, X, y, df):
     """5-kat OOF (train) + tüm train ile eğitilmiş modelin test tahmini."""
     tr = (df.split == "train").to_numpy()
@@ -147,8 +173,9 @@ def train_production(df: pd.DataFrame, out: pathlib.Path) -> tuple[dict, pd.Data
         "baseline_hist_mean": df.groupby("product_sku")[C.PRODUCTION["target"]]
                                 .transform(lambda s: s[tr[s.index]].mean()).to_numpy(),
     }
-    preds["ali_ridge"], ridge_model = oof_and_test(lambda: ridge(cats, nums), X, y, df)
-    preds["ali_catboost"], cb_model = oof_and_test(lambda: CBRegressor(cats, PROD_CB_PARAMS), X, y, df)
+    makers = {"ali_ridge": lambda: ridge(cats, nums), "ali_catboost": lambda: CBRegressor(cats, PROD_CB_PARAMS)}
+    preds["ali_ridge"], ridge_model = oof_and_test(makers["ali_ridge"], X, y, df)
+    preds["ali_catboost"], cb_model = oof_and_test(makers["ali_catboost"], X, y, df)
     fitted = {"ali_ridge": ridge_model, "ali_catboost": cb_model}
 
     report = {"n_train": int(tr.sum()), "n_test": int(te.sum()), "target": "yield_pct", "models": {}}
@@ -164,10 +191,16 @@ def train_production(df: pd.DataFrame, out: pathlib.Path) -> tuple[dict, pd.Data
     # şampiyon test'e bakılmadan, yalnız CV OOF hatasıyla seçilir
     champ = min(fitted, key=lambda m: report["models"][m]["cv_oof_yield_pct"]["MAE"])
     report["champion"] = champ
-    # split-conformal %90 aralık (verim puanı), OOF artıklarından
-    q90 = float(np.quantile(np.abs(y[tr] - preds[champ][tr]), 0.90))
-    covered = float(np.mean(np.abs(y[te] - preds[champ][te]) <= q90))
-    report["interval90_yield_pct"] = {"half_width": q90, "test_coverage": covered}
+    # zaman sıralı split-conformal aralıklar (verim puanı); kapsama zaman bazlı testte ölçülür
+    q = time_conformal(makers[champ], X, y, tr)
+    abs_te = np.abs(y[te] - preds[champ][te])
+    report["intervals_yield_pct"] = {f"{round(lv * 100)}": {"half_width": q[lv],
+                                                            "test_coverage": float(np.mean(abs_te <= q[lv]))}
+                                     for lv in INTERVAL_LEVELS}
+    report["interval_calibration"] = ("time-ordered split conformal (fit on first 75% of the train period, "
+                                      "calibrate on the last 25%)")
+    q90 = q[0.90]
+    report["interval90_yield_pct"] = report["intervals_yield_pct"]["90"]
     base = report["models"]["baseline_hist_mean"]["test_actual_qty"]["MAE"]
     best = report["models"][champ]["test_actual_qty"]["MAE"]
     report["improvement_vs_hist_mean_pct"] = 100 * (1 - best / base)
@@ -175,8 +208,8 @@ def train_production(df: pd.DataFrame, out: pathlib.Path) -> tuple[dict, pd.Data
     report["catboost_feature_importance"] = dict(sorted(zip(X.columns, map(float, np.round(imp, 2))),
                                                         key=lambda kv: -kv[1]))
 
-    joblib.dump({"models": fitted, "champion": champ, "q90": q90, "version": MODEL_VERSION},
-                out / "production_model.joblib")
+    joblib.dump({"models": fitted, "champion": champ, "q80": q[0.80], "q90": q90, "q98": q[0.98],
+                 "version": MODEL_VERSION}, out / "production_model.joblib")
 
     oof = pd.concat([pd.DataFrame({"row_id": df.row_id, "split": df.split, "fold": df.fold, "task": "production",
                                    "target": "yield_pct", "y_true": y, "model": m, "y_pred": np.round(preds[m], 4)})
@@ -188,6 +221,44 @@ def train_production(df: pd.DataFrame, out: pathlib.Path) -> tuple[dict, pd.Data
 def normalize_pct(P: np.ndarray) -> np.ndarray:
     P = np.clip(P, 0.1, None)
     return 100 * P / P.sum(axis=1, keepdims=True)
+
+
+# Bileşimsel (ALR): log(pay_j / fire) öğrenilir, softmax ile geri dönülür -> paylar her zaman pozitif, toplam tam 100.
+def alr(P: np.ndarray) -> np.ndarray:
+    P = np.clip(np.asarray(P, float), 1e-3, None)
+    return np.log(P[:, :-1] / P[:, -1:])
+
+
+def alr_inverse(Z: np.ndarray) -> np.ndarray:
+    Z = np.column_stack([np.atleast_2d(Z), np.zeros(len(np.atleast_2d(Z)))])
+    E = np.exp(Z - Z.max(axis=1, keepdims=True))
+    return 100 * E / E.sum(axis=1, keepdims=True)
+
+
+class _PerShare:
+    """Kalibrasyon için: pay başına bir model + simplex izdüşümü (eğitimdeki ali_ridge ile aynı)."""
+
+    def __init__(self, make):
+        self.make = make
+
+    def fit(self, X, Y):
+        self.models = [self.make().fit(X, Y[:, j]) for j in range(Y.shape[1])]
+        return self
+
+    def predict(self, X):
+        return normalize_pct(np.column_stack([m.predict(X) for m in self.models]))
+
+
+class _Projected:
+    def __init__(self, model):
+        self.model = model
+
+    def fit(self, X, Y):
+        self.model.fit(X, Y)
+        return self
+
+    def predict(self, X):
+        return normalize_pct(np.atleast_2d(self.model.predict(X)))
 
 
 def train_butchery(df: pd.DataFrame, out: pathlib.Path) -> tuple[dict, pd.DataFrame]:
@@ -206,6 +277,8 @@ def train_butchery(df: pd.DataFrame, out: pathlib.Path) -> tuple[dict, pd.DataFr
         "baseline_hist_mean": hist.loc[df.species].to_numpy(),
     }
     models = {"ali_ridge": []}
+    makers = {"ali_ridge": lambda: _PerShare(lambda: ridge(cats, nums)),
+              "ali_catboost": lambda: _Projected(CBRegressor(cats, BUTCH_CB_PARAMS))}
     cols = []
     for j in range(len(targets)):                       # Ridge: her pay için ayrı model
         p, m = oof_and_test(lambda: ridge(cats, nums), X, Y[:, j], df)
@@ -230,15 +303,22 @@ def train_butchery(df: pd.DataFrame, out: pathlib.Path) -> tuple[dict, pd.DataFr
         }
     champ = min(models, key=lambda m: report["models"][m]["cv_oof_pct_MAE"])
     report["champion"] = champ
-    abs_res = np.abs(Y[tr] - preds[champ][tr])
-    q90 = np.quantile(abs_res, 0.90, axis=0)
-    report["interval90_pct"] = {t: float(q) for t, q in zip(targets, q90)}
-    report["interval90_test_coverage"] = float(np.mean(np.abs(Y[te] - preds[champ][te]) <= q90))
+    q = time_conformal(makers[champ], X, Y, tr)
+    abs_te = np.abs(Y[te] - preds[champ][te])
+    report["intervals_pct"] = {f"{round(lv * 100)}": {"half_width": dict(zip(targets, map(float, q[lv]))),
+                                                      "test_coverage": float(np.mean(abs_te <= q[lv])),
+                                                      "test_coverage_joint_6": float(np.mean((abs_te <= q[lv]).all(1)))}
+                               for lv in INTERVAL_LEVELS}
+    report["interval_calibration"] = ("time-ordered split conformal per share (fit on first 75% of the train "
+                                      "period, calibrate on the last 25%)")
+    q90 = q[0.90]
+    report["interval90_pct"] = {t: float(v) for t, v in zip(targets, q90)}
+    report["interval90_test_coverage"] = report["intervals_pct"]["90"]["test_coverage"]
     base = report["models"]["baseline_hist_mean"]["test_kg_MAE"]
     report["improvement_vs_hist_mean_pct"] = 100 * (1 - report["models"][champ]["test_kg_MAE"] / base)
 
-    joblib.dump({"models": models, "champion": champ, "targets": targets, "q90": q90, "version": MODEL_VERSION},
-                out / "butchery_model.joblib")
+    joblib.dump({"models": models, "champion": champ, "targets": targets, "q80": q[0.80], "q90": q90,
+                 "q98": q[0.98], "version": MODEL_VERSION}, out / "butchery_model.joblib")
 
     frames = []
     for m in ("ali_catboost", "ali_ridge"):
@@ -274,15 +354,15 @@ def main():
               f"  | EKP MAE {r['test_ekp_eur']['MAE']:.3f} €  | verim R2 {r['test_yield_pct']['R2']:.3f}")
     print(f"  Şampiyon (CV ile seçildi): {rep_p['champion']}; geçmiş ortalamaya göre paket hatasında"
           f" %{rep_p['improvement_vs_hist_mean_pct']:.1f} iyileşme;"
-          f" %90 aralık ±{rep_p['interval90_yield_pct']['half_width']:.2f} puan,"
-          f" test kapsaması %{100 * rep_p['interval90_yield_pct']['test_coverage']:.1f}")
+          f" %80 aralık ±{rep_p['intervals_yield_pct']['80']['half_width']:.2f} puan,"
+          f" test kapsaması %{100 * rep_p['intervals_yield_pct']['80']['test_coverage']:.1f}")
     print("== 4B Parçalama verimi (test) ==")
     for m, r in rep_b["models"].items():
         print(f"  {m:20s} parça kg MAE {r['test_kg_MAE']:.3f}  pay MAE {r['test_pct_MAE']:.3f} puan"
               f"  | satılabilir kg MAE {r['test_sellable_kg_MAE']:.3f}")
     print(f"  Şampiyon (CV ile seçildi): {rep_b['champion']}; geçmiş ortalamaya göre kg hatasında"
           f" %{rep_b['improvement_vs_hist_mean_pct']:.1f} iyileşme,"
-          f" %90 aralık test kapsaması %{100 * rep_b['interval90_test_coverage']:.1f} (parça başına)")
+          f" %80 aralık test kapsaması %{100 * rep_b['intervals_pct']['80']['test_coverage']:.1f} (parça başına)")
 
 
 if __name__ == "__main__":
