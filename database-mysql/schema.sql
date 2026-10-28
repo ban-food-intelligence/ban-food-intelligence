@@ -1212,4 +1212,47 @@ BEGIN
    WHERE rl.recall_id = v_recall;
 END$$
 
+-- ---------------------------------------------------------------------
+-- API kısayolları (Go API'nin çağırdığı adlar; önceden API açılışta oluşturuyordu)
+-- ---------------------------------------------------------------------
+CREATE PROCEDURE sp_calculate_production_cost(IN p_order_no VARCHAR(30))
+BEGIN
+  SELECT order_no, sku, product_name, status,
+         planned_qty, actual_qty, qty_variance, fulfilment_pct,
+         input_kg, COALESCE(yield_pct_of_meat, 0) AS yield_pct_of_meat,
+         material_cost, service_cost, total_cost,
+         ekp, ekp_display, COALESCE(vkp, 0) AS vkp,
+         COALESCE(gross_profit_per_unit, 0) AS gross_profit_per_unit,
+         COALESCE(revenue_at_vkp, 0) AS revenue_at_vkp,
+         COALESCE(gross_profit_total, 0) AS gross_profit_total,
+         COALESCE(margin_pct, 0) AS margin_pct
+  FROM v_production_cost
+  WHERE order_no = p_order_no;
+END$$
+
+CREATE PROCEDURE sp_execute_butchery(IN p_op_no VARCHAR(30), IN p_alloc_method VARCHAR(20))
+BEGIN
+  SELECT op_no, species, allocation_method, status,
+         input_weight_kg, output_weight_kg, cut_weight_kg, waste_weight_kg, weight_diff_kg,
+         purchase_unit_price, purchase_cost, additional_cost, total_cost,
+         declared_total_cost, declared_cost_diff, allocated_total, allocation_diff,
+         weight_ok, declared_cost_ok, allocation_ok
+  FROM v_butchery_reconciliation
+  WHERE op_no = p_op_no OR (p_op_no = '' AND allocation_method = p_alloc_method)
+  LIMIT 1;
+END$$
+
+CREATE PROCEDURE sp_recall_by_lot(
+  IN p_recall_no VARCHAR(30),
+  IN p_lot_no VARCHAR(30),
+  IN p_reason VARCHAR(500),
+  IN p_user VARCHAR(64)
+)
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM recall WHERE recall_no = p_recall_no) THEN
+    CALL sp_recall_initiate(p_recall_no, p_lot_no, p_reason, p_user);
+  END IF;
+  CALL sp_recall_report(p_recall_no);
+END$$
+
 DELIMITER ;
