@@ -158,6 +158,8 @@
     <string name="ai_actual">Gerçekleşen</string>
     <string name="ai_model">Model</string>
     <string name="ai_baseline">Referans</string>
+    <string name="ai_interval">%%%1$d aralık: %2$s – %3$s</string>
+    <string name="ai_anomaly" formatted="false">Anomali: gerçekleşen %98 bandın dışında</string>
     <string name="ai_note">Sentetik veriyle eğitildi. Sapma = gerçekleşen eksi tahmin. Geri çağırma ve izlenebilirlik bu tahminleri asla kullanmaz.</string>
     <string name="ai_section_production">Üretim emri %1$s</string>
     <string name="ai_section_butchery">Parçalama %1$s</string>
