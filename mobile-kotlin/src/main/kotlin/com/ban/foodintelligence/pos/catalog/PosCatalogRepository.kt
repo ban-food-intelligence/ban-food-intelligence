@@ -5,6 +5,8 @@ import android.util.Log
 import com.ban.foodintelligence.pos.net.ApiConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.ban.foodintelligence.pos.worker.SyncState
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -70,6 +72,10 @@ object PosCatalogRepository {
         OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
+            // No keep-alive: this request decides the online/offline status, so it must open a
+            // fresh connection each time. A pooled socket can outlive the route (e.g. after
+            // `adb reverse --remove` or a Wi-Fi change) and would report "online" wrongly.
+            .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS))
             .build()
     }
 
@@ -87,6 +93,7 @@ object PosCatalogRepository {
                 .putString(KEY_RECALLS, recallsJson)
                 .putLong(KEY_FETCHED_AT, now)
                 .apply()
+            SyncState.markContacted(context)
             PosCatalog(lots, CatalogSource.LIVE, now, null, recalls)
         } catch (e: Exception) {
             if (e !is IOException && e !is JSONException) throw e

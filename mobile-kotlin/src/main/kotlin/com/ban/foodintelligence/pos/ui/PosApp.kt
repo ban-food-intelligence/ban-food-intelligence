@@ -53,6 +53,9 @@ import com.ban.foodintelligence.pos.ui.design.PillKind
 import com.ban.foodintelligence.pos.ui.design.StatusPill
 import com.ban.foodintelligence.pos.ui.design.palette
 import com.ban.foodintelligence.pos.worker.SyncWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -93,8 +96,13 @@ class PosAppState(private val context: Context, val appDb: AppDatabase) {
         refreshCatalog()
     }
 
+    val isLive: Boolean get() = catalog?.source == CatalogSource.LIVE
+
+    private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Send the outbox now (also replaces a job waiting in backoff). */
     fun requestSync() {
-        runCatching { SyncWorker.enqueueWhenNetworkConnected(context) }
+        io.launch { runCatching { SyncWorker.syncNow(context) } }
     }
 }
 
@@ -113,11 +121,14 @@ fun PosApp(appDb: AppDatabase, keyFingerprint: String) {
     val state = remember { PosAppState(context.applicationContext, appDb) }
     var tab by rememberSaveable { mutableStateOf(Tab.Sell) }
 
-    // Load at start, then every 30 s while the app is open (new recalls, stock, sync status).
+    // Load at start, then every 15 s while the app is open (new recalls, stock, sync status).
+    // While offline or with unsent sales it checks every 5 s, and sends the outbox as soon as
+    // the API answers again, so the pill returns to "Synced" without restarting the app.
     LaunchedEffect(Unit) {
         while (true) {
             state.refreshAll()
-            delay(30_000)
+            if (state.isLive && state.pendingCount > 0) state.requestSync()
+            delay(if (!state.isLive || state.pendingCount > 0) 5_000 else 15_000)
         }
     }
 
@@ -175,7 +186,7 @@ fun PosApp(appDb: AppDatabase, keyFingerprint: String) {
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
             when (tab) {
-                Tab.Sell -> SellScreen(state = state, trailing = syncPill)
+                Tab.Sell -> SellScreen(state = state, trailing = syncPill, onOpenRecalls = { tab = Tab.Recall })
                 Tab.Lots -> LotsScreen(state = state, trailing = syncPill)
                 Tab.Recall -> RecallScreen(state = state, trailing = syncPill)
                 Tab.Sync -> SyncScreen(state = state)

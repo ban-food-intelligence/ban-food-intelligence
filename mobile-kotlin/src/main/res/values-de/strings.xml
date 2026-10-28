@@ -198,4 +198,9 @@
         <item quantity="other">%d zurückgerufene Chargen sind in diesem Geschäft. Nehmen Sie sie aus dem Regal.</item>
     </plurals>
     <string name="ocr_unavailable">Rechnungserkennung ist gerade nicht verfügbar. Bitte Positionen manuell erfassen.</string>
+    <string name="recall_lot_blocked">Verkauf gesperrt</string>
+    <plurals name="sell_recall_banner">
+        <item quantity="one">%1$d aktiver Rückruf</item>
+        <item quantity="other">%1$d aktive Rückrufe</item>
+    </plurals>
 </resources>

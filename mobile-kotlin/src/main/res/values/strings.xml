@@ -198,4 +198,9 @@
         <item quantity="other">%d recalled lots are in this shop. Take them off the shelf.</item>
     </plurals>
     <string name="ocr_unavailable">Invoice reading is not available right now. Enter the lines by hand.</string>
+    <string name="recall_lot_blocked">Sale blocked</string>
+    <plurals name="sell_recall_banner">
+        <item quantity="one">%1$d active recall</item>
+        <item quantity="other">%1$d active recalls</item>
+    </plurals>
 </resources>

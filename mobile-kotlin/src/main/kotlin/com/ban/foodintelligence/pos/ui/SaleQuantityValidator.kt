@@ -1,6 +1,7 @@
 package com.ban.foodintelligence.pos.ui
 
 import com.ban.foodintelligence.pos.R
+import com.ban.foodintelligence.pos.ui.design.Fmt
 
 /** Result of checking the sale quantity field against the selected lot. */
 sealed interface QtyCheck {
@@ -32,16 +33,12 @@ object SaleQuantityValidator {
             // KG: decimals allowed.
             if (decimals > 3) return QtyCheck.Invalid(R.string.pos_qty_error_kg_precision)
         } else if (text.contains('.')) {
-            return QtyCheck.Invalid(R.string.pos_qty_error_whole_number, uom)
+            return QtyCheck.Invalid(R.string.pos_qty_error_whole_number)
         }
 
         if (qty > availableQty + EPSILON) {
-            return QtyCheck.Invalid(R.string.pos_qty_error_exceeds_stock, formatQty(availableQty, uom))
+            return QtyCheck.Invalid(R.string.pos_qty_error_exceeds_stock, Fmt.qty(availableQty, uom))
         }
         return QtyCheck.Valid(qty)
     }
-
-    fun formatQty(qty: Double, uom: String): String =
-        if (uom == "KG") String.format(java.util.Locale.US, "%.3f %s", qty, uom)
-        else String.format(java.util.Locale.US, "%.0f %s", qty, uom)
 }

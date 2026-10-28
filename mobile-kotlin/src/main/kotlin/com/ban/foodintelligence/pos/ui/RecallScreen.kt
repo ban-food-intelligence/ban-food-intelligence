@@ -1,6 +1,7 @@
 package com.ban.foodintelligence.pos.ui
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.ReportProblem
 import androidx.compose.material.icons.rounded.VerifiedUser
@@ -70,6 +71,16 @@ fun RecallScreen(state: PosAppState, trailing: @Composable () -> Unit) {
                                     value = expiryLabel(rc.initiatedAt.take(10))
                                 )
                             }
+                            rc.affectedLots.forEach { lotNo ->
+                                row(dividerInset = 56.dp) {
+                                    ListRow(
+                                        title = lotNo,
+                                        subtitle = stringResource(R.string.recall_lot_blocked),
+                                        icon = Icons.Rounded.Lock,
+                                        iconTint = palette.dangerText
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -95,10 +106,11 @@ fun RecallScreen(state: PosAppState, trailing: @Composable () -> Unit) {
                     row(dividerInset = 56.dp) {
                         ListRow(
                             title = e.supervisor.ifBlank { stringResource(R.string.recall_unlock_offline) },
-                            subtitle = listOf(e.recallCode, e.lotNo).filter { it.isNotBlank() }.joinToString(" · "),
+                            // Date on its own line: in the value column it squeezed the name and codes at large font sizes.
+                            subtitle = listOf(e.recallCode, e.lotNo).filter { it.isNotBlank() }.joinToString(" · ") +
+                                "\n" + Fmt.dateTime(e.atMs).replace(' ', '\u00A0'),
                             icon = Icons.Rounded.LockOpen,
-                            iconTint = palette.secondaryLabel,
-                            value = Fmt.dateTime(e.atMs)
+                            iconTint = palette.secondaryLabel
                         )
                     }
                 }

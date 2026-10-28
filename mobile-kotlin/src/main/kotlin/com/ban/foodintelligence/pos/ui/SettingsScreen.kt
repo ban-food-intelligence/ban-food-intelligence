@@ -100,12 +100,14 @@ fun SettingsScreen(
                     selected = preset == ApiConfig.Preset.USB
                 ) { choose(ApiConfig.Preset.USB) }
             }
-            row {
-                CheckRow(
-                    title = stringResource(R.string.settings_server_emulator),
-                    subtitle = "10.0.2.2:8080",
-                    selected = preset == ApiConfig.Preset.EMULATOR
-                ) { choose(ApiConfig.Preset.EMULATOR) }
+            if (ApiConfig.isEmulator) {
+                row {
+                    CheckRow(
+                        title = stringResource(R.string.settings_server_emulator),
+                        subtitle = "10.0.2.2:8080",
+                        selected = preset == ApiConfig.Preset.EMULATOR
+                    ) { choose(ApiConfig.Preset.EMULATOR) }
+                }
             }
             row {
                 CheckRow(
