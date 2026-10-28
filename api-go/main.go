@@ -49,7 +49,6 @@ func main() {
 		logWarn("MYSQL", "MySQL initial ping exhausted retries (%v) — pool remains active for on-demand reconnect.", err)
 	} else {
 		logInfo("MYSQL", "MySQL 8.0 connection pool verified against schema 'food_intel'.")
-		ensureStoredProcedureAliases(db)
 	}
 	defer func() {
 		if db != nil {
@@ -207,62 +206,6 @@ func initMySQLPool(dsn string) (*sql.DB, error) {
 
 	logError("MYSQL", "Database connection failed after %d retries: %v", maxRetries, lastErr)
 	return db, fmt.Errorf("mysql unreachable after %d retries: %w", maxRetries, lastErr)
-}
-
-// ensureStoredProcedureAliases provisions `sp_calculate_production_cost`,
-// `sp_execute_butchery`, and `sp_recall_by_lot` in Ali's `food_intel` database
-// so callers and tests can invoke them directly alongside `sp_production_complete`
-// and `sp_recall_initiate`.
-func ensureStoredProcedureAliases(db *sql.DB) {
-	procedures := []string{
-		`DROP PROCEDURE IF EXISTS sp_calculate_production_cost`,
-		`CREATE PROCEDURE sp_calculate_production_cost(IN p_order_no VARCHAR(30))
-		 BEGIN
-		   SELECT order_no, sku, product_name, status,
-		          planned_qty, actual_qty, qty_variance, fulfilment_pct,
-		          input_kg, COALESCE(yield_pct_of_meat, 0) AS yield_pct_of_meat,
-		          material_cost, service_cost, total_cost,
-		          ekp, ekp_display, COALESCE(vkp, 0) AS vkp,
-		          COALESCE(gross_profit_per_unit, 0) AS gross_profit_per_unit,
-		          COALESCE(revenue_at_vkp, 0) AS revenue_at_vkp,
-		          COALESCE(gross_profit_total, 0) AS gross_profit_total,
-		          COALESCE(margin_pct, 0) AS margin_pct
-		   FROM v_production_cost
-		   WHERE order_no = p_order_no;
-		 END`,
-		`DROP PROCEDURE IF EXISTS sp_execute_butchery`,
-		`CREATE PROCEDURE sp_execute_butchery(IN p_op_no VARCHAR(30), IN p_alloc_method VARCHAR(20))
-		 BEGIN
-		   SELECT op_no, species, allocation_method, status,
-		          input_weight_kg, output_weight_kg, cut_weight_kg, waste_weight_kg, weight_diff_kg,
-		          purchase_unit_price, purchase_cost, additional_cost, total_cost,
-		          declared_total_cost, declared_cost_diff, allocated_total, allocation_diff,
-		          weight_ok, declared_cost_ok, allocation_ok
-		   FROM v_butchery_reconciliation
-		   WHERE op_no = p_op_no OR (p_op_no = '' AND allocation_method = p_alloc_method)
-		   LIMIT 1;
-		 END`,
-		`DROP PROCEDURE IF EXISTS sp_recall_by_lot`,
-		`CREATE PROCEDURE sp_recall_by_lot(
-		   IN p_recall_no VARCHAR(30),
-		   IN p_lot_no VARCHAR(30),
-		   IN p_reason VARCHAR(500),
-		   IN p_user VARCHAR(64)
-		 )
-		 BEGIN
-		   IF NOT EXISTS (SELECT 1 FROM recall WHERE recall_no = p_recall_no) THEN
-		     CALL sp_recall_initiate(p_recall_no, p_lot_no, p_reason, p_user);
-		   END IF;
-		   CALL sp_recall_report(p_recall_no);
-		 END`,
-	}
-
-	for _, stmt := range procedures {
-		if _, err := db.Exec(stmt); err != nil {
-			logWarn("MYSQL-SP", "Stored procedure alias setup note: %v", err)
-		}
-	}
-	logInfo("MYSQL-SP", "Verified MySQL Stored Procedures: sp_calculate_production_cost, sp_execute_butchery, sp_recall_by_lot.")
 }
 
 type statusRecorder struct {
