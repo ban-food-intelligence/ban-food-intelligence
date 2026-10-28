@@ -47,6 +47,7 @@ jobs:
         env:
           MYSQL_TEST_DSN: root:ban@tcp(127.0.0.1:3306)/food_intel?parseTime=true&multiStatements=true
         run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; echo "run gofmt -w"; exit 1; }
           go vet ./...
           go test -count=1 ./...
 
