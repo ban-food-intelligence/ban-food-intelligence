@@ -2,14 +2,21 @@ import React, { useState } from 'react';
 import { useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { Async, Group, Kpi, Mono, Page, Pill, Segmented, Table } from '../lib/ui';
+import { ButcheryForm } from './Entry';
 
 const toneFor = { ERROR: 'bad', WARNING: 'warn', OK: 'ok' };
 
 export default function Butchery() {
   const { t } = useLang();
   const result = useApi('/butchery');
+  const [entering, setEntering] = useState(false);
   return (
-    <Page title={t('bu_title')} subtitle={t('bu_sub')}>
+    <Page
+      title={t('bu_title')}
+      subtitle={t('bu_sub')}
+      actions={!entering && <button className="btn-primary" onClick={() => setEntering(true)}>{t('en_newButchery')}</button>}
+    >
+      {entering && <ButcheryForm onDone={result.reload} onCancel={() => setEntering(false)} />}
       <Async result={result}>
         {(ops) => (ops || []).map((op) => <Operation key={op.op_no} op={op} />)}
       </Async>
