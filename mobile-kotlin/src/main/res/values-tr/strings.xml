@@ -198,4 +198,9 @@
         <item quantity="other">Bu mağazada %d geri çağrılan lot var. Raftan kaldırın.</item>
     </plurals>
     <string name="ocr_unavailable">Fatura okuma şu anda kullanılamıyor. Satırları elle girin.</string>
+    <string name="recall_lot_blocked">Satış engellendi</string>
+    <plurals name="sell_recall_banner">
+        <item quantity="one">%1$d aktif geri çağırma</item>
+        <item quantity="other">%1$d aktif geri çağırma</item>
+    </plurals>
 </resources>

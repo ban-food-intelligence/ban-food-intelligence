@@ -1,5 +1,7 @@
 package com.ban.foodintelligence.pos.ui
 
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -276,11 +278,23 @@ private fun LockScreen(incident: LockIncident, onUnlocked: (LockIncident, String
                     modifier = Modifier.fillMaxWidth()
                 )
                 val failed = state as? UnlockState.Failed
+                // Lockout: count the minutes down and clear the message when it ends.
+                val lockout = failed?.result as? SupervisorAuth.Result.LockedOut
+                var lockLeftMs by remember(lockout) { mutableStateOf(lockout?.remainingMs ?: 0L) }
+                if (lockout != null) LaunchedEffect(lockout) {
+                    val until = System.currentTimeMillis() + lockout.remainingMs
+                    while (true) {
+                        lockLeftMs = until - System.currentTimeMillis()
+                        if (lockLeftMs <= 0) break
+                        delay(1_000)
+                    }
+                    state = UnlockState.Idle
+                }
                 if (failed != null) {
                     Text(
                         text = when (val r = failed.result) {
                             is SupervisorAuth.Result.WrongPin -> pluralStringResource(R.plurals.lock_pin_wrong, r.attemptsLeft, r.attemptsLeft)
-                            is SupervisorAuth.Result.LockedOut -> stringResource(R.string.lock_pin_locked, ((r.remainingMs + 59_999) / 60_000).toInt())
+                            is SupervisorAuth.Result.LockedOut -> stringResource(R.string.lock_pin_locked, ((lockLeftMs + 59_999) / 60_000).toInt().coerceAtLeast(1))
                             SupervisorAuth.Result.OfflineUnavailable -> stringResource(R.string.lock_offline_unavailable)
                             else -> ""
                         },

@@ -1,10 +1,13 @@
 package com.ban.foodintelligence.pos.net
 
 import android.content.Context
+import android.os.Build
+import android.util.Log
 import com.ban.foodintelligence.pos.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -26,6 +29,7 @@ object ApiConfig {
         LAN(null)
     }
 
+    private const val TAG = "ApiConfig"
     private const val PREFS = "pos_api_config"
     private const val KEY_BASE_URL = "base_url"
 
@@ -33,12 +37,31 @@ object ApiConfig {
         OkHttpClient.Builder()
             .connectTimeout(4, TimeUnit.SECONDS)
             .readTimeout(6, TimeUnit.SECONDS)
+            .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS)) // a test must open a new connection
             .build()
     }
 
-    fun baseUrl(context: Context): String =
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_BASE_URL, null) ?: BuildConfig.POS_API_BASE_URL
+    /**
+     * 10.0.2.2 only exists inside the Android emulator. A real phone that has it saved (for
+     * example from an earlier emulator test) would stay offline forever, so it falls back to
+     * the default (127.0.0.1 via `adb reverse`).
+     */
+    fun baseUrl(context: Context): String {
+        val saved = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_BASE_URL, null)
+        if (saved == Preset.EMULATOR.url && !isEmulator) {
+            Log.w(TAG, "Ignoring emulator address $saved on a physical device")
+            return BuildConfig.POS_API_BASE_URL
+        }
+        return saved ?: BuildConfig.POS_API_BASE_URL
+    }
+
+    /** True inside the Android emulator (goldfish/ranchu kernels, sdk_gphone images). */
+    val isEmulator: Boolean by lazy {
+        Build.HARDWARE.contains("ranchu") || Build.HARDWARE.contains("goldfish") ||
+            Build.FINGERPRINT.startsWith("generic") || Build.PRODUCT.contains("sdk_gphone") ||
+            Build.MODEL.contains("Emulator") || Build.MODEL.contains("Android SDK built for")
+    }
 
     fun setBaseUrl(context: Context, url: String) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
