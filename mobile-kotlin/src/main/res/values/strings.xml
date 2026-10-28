@@ -158,6 +158,8 @@
     <string name="ai_actual">Actual</string>
     <string name="ai_model">Model</string>
     <string name="ai_baseline">Baseline</string>
+    <string name="ai_interval">%1$d%% range: %2$s – %3$s</string>
+    <string name="ai_anomaly" formatted="false">Anomaly: actual outside the 98% band</string>
     <string name="ai_note">Trained on synthetic data. Deviation = actual minus prediction. Recall and traceability never use these forecasts.</string>
     <string name="ai_section_production">Production order %1$s</string>
     <string name="ai_section_butchery">Butchery %1$s</string>

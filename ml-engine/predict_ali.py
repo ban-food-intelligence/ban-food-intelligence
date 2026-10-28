@@ -155,26 +155,39 @@ def alerts_to_sql(task: str, res: pd.DataFrame) -> str:
     return "\n".join(lines) + ("\n" if lines else "")
 
 
+def _num(v) -> str:
+    return "NULL" if v is None or (isinstance(v, float) and np.isnan(v)) else str(v)
+
+
+def _flag(v) -> str:
+    return "NULL" if v is None or (isinstance(v, float) and np.isnan(v)) else str(int(bool(v)))
+
+
+PRED_COLS = ("INSERT INTO ml_prediction (task, model_name, model_version, ref_type, ref_id, target_name, "
+             "predicted_value, actual_value, interval_low, interval_high, interval_level, is_anomaly) VALUES ")
+
+
 def to_sql(task: str, res: pd.DataFrame) -> str:
     lines = ["USE food_intel;"]
     if task == "production":
         for r in res.itertuples():
             ref = r.row_id.removeprefix("DB-P-")
             sub = f"(SELECT id FROM production_order WHERE order_no = '{ref}')"
-            for tgt, pred, act in (("actual_qty", r.pred_qty, getattr(r, "actual_qty", None)),
-                                   ("ekp", r.pred_ekp, getattr(r, "actual_ekp", None))):
-                lines.append("INSERT INTO ml_prediction (task, model_name, model_version, ref_type, ref_id, target_name, "
-                             f"predicted_value, actual_value) VALUES ('{'PRODUCTION_YIELD' if tgt == 'actual_qty' else 'PRODUCTION_EKP'}', "
+            # EKP'nin kendi anomali bayrağı yok: paket sayısından maliyet formülüyle çıkar
+            for tgt, pred, act, lo, hi, anom in (
+                    ("actual_qty", r.pred_qty, getattr(r, "actual_qty", None), r.interval_low, r.interval_high,
+                     getattr(r, "anomaly", None)),
+                    ("ekp", r.pred_ekp, getattr(r, "actual_ekp", None), r.ekp_interval_low, r.ekp_interval_high, None)):
+                lines.append(PRED_COLS + f"('{'PRODUCTION_YIELD' if tgt == 'actual_qty' else 'PRODUCTION_EKP'}', "
                              f"'{r.model}', '{r.version}', 'production_order', {sub}, '{tgt}', {pred}, "
-                             f"{'NULL' if act is None else act});")
+                             f"{_num(act)}, {lo}, {hi}, {r.interval_level}, {_flag(anom)});")
     else:
         for r in res.itertuples():
             ref = r.row_id.removeprefix("DB-B-")
             sub = f"(SELECT id FROM butchery_operation WHERE op_no = '{ref}')"
-            act = getattr(r, "actual_kg", None)
-            lines.append("INSERT INTO ml_prediction (task, model_name, model_version, ref_type, ref_id, target_name, "
-                         f"predicted_value, actual_value) VALUES ('BUTCHERY_YIELD', '{r.model}', '{r.version}', "
-                         f"'butchery_operation', {sub}, '{r.part}_kg', {r.pred_kg}, {'NULL' if act is None else act});")
+            lines.append(PRED_COLS + f"('BUTCHERY_YIELD', '{r.model}', '{r.version}', "
+                         f"'butchery_operation', {sub}, '{r.part}_kg', {r.pred_kg}, {_num(getattr(r, 'actual_kg', None))}, "
+                         f"{r.interval_low}, {r.interval_high}, {r.interval_level}, {_flag(getattr(r, 'anomaly', None))});")
     return "\n".join(lines) + "\n"
 
 

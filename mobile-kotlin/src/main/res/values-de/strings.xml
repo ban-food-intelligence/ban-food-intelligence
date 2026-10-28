@@ -158,6 +158,8 @@
     <string name="ai_actual">Ist</string>
     <string name="ai_model">Modell</string>
     <string name="ai_baseline">Referenz</string>
+    <string name="ai_interval">%1$d-%%-Bereich: %2$s – %3$s</string>
+    <string name="ai_anomaly" formatted="false">Anomalie: Istwert außerhalb des 98-%-Bands</string>
     <string name="ai_note">Mit synthetischen Daten trainiert. Abweichung = Ist minus Prognose. Rückruf und Rückverfolgung nutzen diese Prognosen nie.</string>
     <string name="ai_section_production">Fertigungsauftrag %1$s</string>
     <string name="ai_section_butchery">Zerlegung %1$s</string>

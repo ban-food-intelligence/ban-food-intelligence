@@ -427,6 +427,12 @@ CREATE TABLE ml_prediction (
   target_name      VARCHAR(50)  NOT NULL,                  -- actual_qty, ekp, but_kg ...
   predicted_value  DECIMAL(14,4) NOT NULL,
   actual_value     DECIMAL(14,4) NULL,
+  -- isteğe bağlı: konformal tahmin aralığı (ml-engine/train_model_ali.py, %80) ve anomali bayrağı
+  -- (gerçek değer %98 bandın dışında); eski satırlarda NULL
+  interval_low     DECIMAL(14,4) NULL,
+  interval_high    DECIMAL(14,4) NULL,
+  interval_level   DECIMAL(4,3)  NULL,
+  is_anomaly       TINYINT(1)    NULL,
   created_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX ix_mlp_ref (ref_type, ref_id)
 ) ENGINE=InnoDB;

@@ -220,8 +220,11 @@ the actual value and the deviation (absolute and %):
 On the single butchery demo record the baseline is closer for four of six parts. That record was
 written by hand to match the standard lamb recipe split (26/14/20/12/16/12 %), which is almost
 exactly the baseline. One record proves nothing either way; the rolling-origin results above are
-the measurement. With the new optional fields, each row also carries its 80 % interval and the
-`anomaly` flag (see `ml-engine/artifacts/ali/ai_summary_preview.json`).
+the measurement. `GET /ai/summary` also returns each row's 80 % interval (`interval_low`,
+`interval_high`, `interval_level`) and, for packages and part weights, the `anomaly` and
+`outside_interval` flags; the dashboard *AI* tab and the Android *Yield forecasts* screen show them.
+On the demo records nothing is an anomaly; leg and waste of PRC-2026-001 are outside the 80 %
+interval but inside the 98 % band.
 
 ## Limitations
 

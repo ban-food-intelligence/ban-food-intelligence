@@ -212,7 +212,7 @@ The champion models and their point predictions are unchanged. The headline is t
 before, now with evidence: the model roughly halves the error of the historical mean, and the
 CIs are far from overlapping.
 
-## 7. `/ai/summary`: new OPTIONAL fields (needs Go and schema work, not done here)
+## 7. `/ai/summary`: new OPTIONAL fields
 
 All existing fields keep their names, types and meanings. A preview of the payload is in
 `artifacts/ali/ai_summary_preview.json`, built by `ai_summary.py`.
@@ -234,7 +234,12 @@ All existing fields keep their names, types and meanings. A preview of the paylo
 | `anomaly` | bool | actual outside the 98 % band (absent for `ekp`, and when there is no actual) |
 | `outside_interval` | bool | actual outside the shown 80 % interval (informational) |
 
-Needed outside ml-engine (not done; out of scope for this branch):
+Status after the merge into main: the `comparisons[]` fields are live. `ml_prediction` has the nullable
+`interval_low`, `interval_high`, `interval_level`, `is_anomaly` columns, `predict_ali.py --emit-sql` writes
+them, `seed.sql` carries them for the demo records (`ali-1.1.0`), the Go API passes them through, and the
+dashboard and Android app show them. The `metrics[]` fields (CIs, CV) are still only in the preview.
+
+Original plan:
 
 1. **Schema** (`database-mysql/schema.sql`). All columns are nullable, so old rows and old inserts keep working:
    - `ALTER TABLE ml_prediction ADD interval_low DECIMAL(14,4) NULL, ADD interval_high DECIMAL(14,4) NULL, ADD interval_level DECIMAL(4,3) NULL, ADD is_anomaly TINYINT(1) NULL;`

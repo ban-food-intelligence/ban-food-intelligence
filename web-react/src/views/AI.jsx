@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
-import { Async, Group, Mono, Page, Table } from '../lib/ui';
+import { Async, Group, Mono, Page, Pill, Table } from '../lib/ui';
 
 export default function AI() {
   const { t } = useLang();
@@ -110,8 +110,22 @@ function Comparisons({ rows }) {
   const { t, fmt } = useLang();
   const show = (r, v) => (v == null ? '–' : r.target === 'ekp' ? fmt.money(v) : r.target === 'actual_qty' ? fmt.num(v, 1) : fmt.qty(v, 'KG'));
   const dev = (v) => (v == null ? '' : ` (${v > 0 ? '+' : ''}${fmt.pct(v, 1)})`);
+  // interval_* and anomaly are optional in /ai/summary: the columns appear only when the API sends them
+  const level = rows.find((r) => r.interval_level != null)?.interval_level;
+  const hasStatus = rows.some((r) => r.anomaly != null);
+  const extra = [];
+  if (level != null) {
+    extra.push({ key: 'interval', label: t('interval', fmt.num(level * 100, 0)), align: 'num', render: (r) => (r.interval_low == null ? '–' : `${show(r, r.interval_low)} – ${show(r, r.interval_high)}`) });
+  }
+  if (hasStatus) {
+    extra.push({
+      key: 'status', label: t('status'),
+      render: (r) => (r.anomaly == null ? '' : r.anomaly ? <Pill tone="bad">{t('st_anomaly')}</Pill>
+        : r.outside_interval ? <Pill tone="warn">{t('st_outside')}</Pill> : <Pill tone="ok">{t('st_inside')}</Pill>),
+    });
+  }
   return (
-    <Group title={t('predictions')}>
+    <Group title={t('predictions')} footer={level != null ? t('intervalNote') : undefined}>
       <Table
         rows={rows}
         columns={[
@@ -120,6 +134,7 @@ function Comparisons({ rows }) {
           { key: 'actual', label: t('actual'), align: 'num', render: (r) => <strong>{show(r, r.actual)}</strong> },
           { key: 'model', label: t('model'), align: 'num', render: (r) => <>{show(r, r.model_pred)}<span className="cell-sub">{dev(r.model_dev_pct)}</span></> },
           { key: 'base', label: t('baseline'), align: 'num', render: (r) => <>{show(r, r.baseline_pred)}<span className="cell-sub">{dev(r.baseline_dev_pct)}</span></> },
+          ...extra,
         ]}
       />
     </Group>
