@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { API_BASE, apiFetch, useApi } from '../lib/api';
+import { API_BASE, apiWrite, useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { Async, ErrorState, Group, Mono, Page, Pill, Segmented, Table } from '../lib/ui';
 
@@ -120,15 +120,13 @@ function RecallPanel({ lot, recalls }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState(null); // { ok, text } or { error }
+  const [pin, setPin] = useState('');
 
   const start = async () => {
     setBusy(true);
     setOutcome(null);
     try {
-      const res = await apiFetch('/recall', {
-        method: 'POST',
-        body: JSON.stringify({ trigger_lot: lot, reason: t('recallReason'), initiator: 'dashboard' }),
-      });
+      const res = await apiWrite('/recall', { trigger_lot: lot, reason: t('recallReason') }, pin);
       const s = res.recall_summary;
       setOutcome({ ok: true, text: t('recallStarted', s.recall_code, (s.affected_lots || []).length) });
       recalls.reload();
@@ -137,6 +135,7 @@ function RecallPanel({ lot, recalls }) {
     } finally {
       setBusy(false);
       setConfirming(false);
+      setPin('');
     }
   };
 
@@ -154,9 +153,21 @@ function RecallPanel({ lot, recalls }) {
       {confirming && (
         <div className="confirm">
           <p>{t('confirmRecall', lot)}</p>
+          <label className="pin-field">
+            <span>{t('supervisorPin')}</span>
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={12}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+            />
+          </label>
+          <p className="muted">{t('pinHint')}</p>
           <div className="confirm-actions">
             <button className="btn-text" onClick={() => setConfirming(false)}>{t('cancel')}</button>
-            <button className="btn-danger" onClick={start} disabled={busy}>{t('confirm')}</button>
+            <button className="btn-danger" onClick={start} disabled={busy || pin.length < 4}>{t('confirm')}</button>
           </div>
         </div>
       )}

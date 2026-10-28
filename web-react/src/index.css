@@ -228,3 +228,6 @@ button { font: inherit; cursor: pointer; }
   body { background: #fff; color: #000; }
   .group { border: 1px solid #ccc; }
 }
+.pin-field { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.pin-field input { width: 9em; padding: 6px 10px; font: inherit; letter-spacing: 0.2em; border: 1px solid var(--separator); border-radius: 8px; background: var(--bg-elevated, transparent); color: var(--label); }
+.muted { color: var(--secondary); font-size: 13px; margin-top: 6px; }
