@@ -93,20 +93,34 @@ CSV; open print view.
 > İkinci seviye müşteri sadece kayıtlıysa gösteriliyor. Bu listeyi CSV olarak indirip arama
 > listesi olarak kullanabiliyoruz."
 
-**Shot:** phone. Within 30 s the recall stop screen appears (or pull to refresh on *Recall*).
+**Shot:** phone, within 15 s: *Sell* shows "1 aktif geri çağırma". Type `SUC-2026-045` in the
+search: the lot is listed as recalled, sale blocked. *Recall* tab lists ET-2026-001 and
+SUC-2026-045 as blocked. (All 85 packs of SUC-2026-045 went to the markets, so no lot in this
+shop is affected and sales continue.)
 
-> "Kasada geri çağırma hemen görünüyor. Raftaki ürünler kaldırılana kadar satış duruyor."
+> "Kasada geri çağırma hemen görünüyor. Elimdeki bir paketi aratırsam satışın engellendiğini
+> görüyorum. Bu mağazada etkilenen lot yok, bu yüzden diğer satışlar devam ediyor."
+
+**Shot:** dashboard, start a second recall on **ET-2026-002** (its sausage lot SUC-2026-046 has
+3 packs in this shop). Within 15 s the phone shows the *Sales paused* stop screen.
+
+> "Bu sefer geri çağırma mağazadaki bir lotu etkiliyor: satış duruyor ve ürünler raftan
+> kaldırılana kadar bekliyor."
 
 **Shot:** enter a wrong PIN once ("4 attempts left"), then the demo PIN → unlocked. *Sell* tab:
-the recalled lot is shown as blocked and cannot be sold.
+SUC-2026-046 is shown as recalled and opening it shows "sale blocked".
 
 > "Yanlış PIN girersem kalan deneme sayısı gösteriliyor; beş yanlış denemede cihaz beş dakika
 > kilitleniyor. Doğru PIN ile sorumlu kişi rafın boşaltıldığını onaylıyor ve bu bir denetim
 > kaydına yazılıyor. Geri çağrılmış lot satış ekranında kilitli; internet olmasa bile telefondaki
 > önbellekten engelleniyor."
 
-**Shot (optional, 30 s):** airplane mode on, try selling the recalled lot → blocked; sell another
-lot → queued; airplane mode off → *Sync* shows it sent.
+**Shot (optional, 30 s):** cut the connection (`adb reverse --remove tcp:8080`, or stop Wi-Fi when
+using a LAN address): the pill turns *Çevrimdışı* within about 15 s. The recalled lot stays
+blocked; a normal sale shows "Gönderilmeyi bekliyor" on *Sync*. Restore the connection
+(`adb reverse tcp:8080 tcp:8080`): within a few seconds the sale is sent and the pill turns
+*Gönderildi*, without restarting the app. (Airplane mode alone does not cut a USB `adb reverse`
+connection.)
 
 ## 5. AI (11:00 - 13:30)
 
@@ -144,9 +158,9 @@ read fields → user checks and approves.
 
 | Symptom | Fix |
 |---|---|
-| Phone shows "offline" / *Test connection* fails | USB: `adb reverse tcp:8080 tcp:8080` again (needed after every reconnect). Wi-Fi: same network, correct IP, Windows firewall allows port 8080. |
+| Phone shows "offline" / *Test connection* fails | Is the API up (`curl localhost:8080/health`, Docker Desktop running)? USB: `adb reverse tcp:8080 tcp:8080` again (needed after every reconnect); Settings → Server should be *USB cable*. Wi-Fi: same network, correct IP, Windows firewall allows port 8080. |
 | Dashboard shows "Server not reachable" | `docker compose ps`; `docker compose up -d`; check http://localhost:8080/health. |
-| Recall stop does not appear on the phone | Pull to refresh on *Recall*, or wait up to 30 s; the recall must reach a lot that is stocked in the shop (ET-2026-001 does via SUC-2026-045). |
+| Recall stop does not appear on the phone | Wait up to 15 s. The stop screen only appears when the recall reaches a lot stocked in this shop: ET-2026-002 does (SUC-2026-046), ET-2026-001 does not (its packs all went to markets A/B/C). |
 | PIN says "locked" | 5 wrong attempts → wait 5 minutes. `./scripts/demo-reset.sh` restarts the API, which clears the server-side counter; the phone's own counter clears with its app data (`adb shell pm clear com.ban.foodintelligence.pos` or Android Settings → Apps → Storage → Clear). |
 | Sale stays "waiting" on *Sync* | Network required; tap *Send now*. A sale rejected by the server (e.g. not enough stock) is shown with its reason and not retried. |
 | Data from a previous run is visible (extra sales, an active recall) | `./scripts/demo-reset.sh`, then clear the app's data on the phone (see above) or reinstall the APK. |
