@@ -59,3 +59,25 @@ export function useApi(path) {
   }, [path, tick]);
   return { ...state, reload };
 }
+
+// Back-office writes need a supervisor session: POST /auth/session with the PIN returns a
+// 30-minute bearer token. It is kept in memory only (gone on reload), never in storage.
+let session = null; // { token, expiresAt }
+
+/** Calls a write endpoint as the supervisor; asks the API for a token first if needed. */
+export async function apiWrite(path, body, pin) {
+  if (!session || Date.parse(session.expiresAt) - Date.now() < 30_000) {
+    const s = await apiFetch('/auth/session', { method: 'POST', body: JSON.stringify({ pin }) });
+    session = { token: s.token, expiresAt: s.expires_at };
+  }
+  try {
+    return await apiFetch(path, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+  } catch (e) {
+    if (e.code === 'AUTH_REQUIRED') session = null; // API restarted: sign in again next time
+    throw e;
+  }
+}
