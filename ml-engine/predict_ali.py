@@ -9,7 +9,8 @@ doğrudan kullanılabilir (seed örnekleri: ml-engine/data/seed_cases_*.csv).
 
 --emit-sql: sonuçları ml_prediction tablosuna yazan INSERT'ler üretir;
 v_ml_prediction_deviation görünümü React panelinde tahmin/gerçek/sapma gösterir.
-Gerçek değer biliniyorsa ve %90 aralığın dışındaysa satır `anomaly` (aralık dışı) olarak işaretlenir.
+Her tahmin %80 konformal aralıkla gelir (`interval_low` / `interval_high`); gerçek değer biliniyorsa
+`outside_interval` (%80 aralık dışı) ve `anomaly` (%98 bandın dışı: normal kayıtların ~%2'si) işaretlenir.
 Kalibre edilmiş KI uyarısı (düşük üretim verimi / beklenmedik fire) ise anomaly_ali.py dedektörüyle
 üretilir: --alerts ekranda gösterir, --emit-sql ayrıca ml_anomaly_alert INSERT'lerini yazar
 (önce: python ml-engine/anomaly_ali.py).
@@ -31,6 +32,7 @@ import ml_contract as C  # noqa: E402
 import train_model_ali as T  # noqa: E402
 
 ART = HERE / "artifacts" / "ali"
+INTERVAL_LEVEL = 0.80          # kullanıcıya gösterilen konformal aralık
 
 
 def predict_production(df: pd.DataFrame, bundle=None) -> pd.DataFrame:
@@ -48,13 +50,29 @@ def predict_production(df: pd.DataFrame, bundle=None) -> pd.DataFrame:
         "pred_ekp": np.round(C.production_ekp(df, qty), 4),
         "model": bundle["champion"], "version": bundle["version"],
     })
+    # isteğe bağlı API alanları: kullanıcıya gösterilen aralık (%80) ve paket karşılığı; EKP aralığı
+    # paket aralığından formülle çıkar (çok paket -> düşük EKP)
+    q_show, q_anom = _band(bundle, "q80"), _band(bundle, "q98")
+    out["interval_level"] = INTERVAL_LEVEL
+    out["interval_low"] = np.round(C.production_qty_from_yield(df, y - q_show), 1)
+    out["interval_high"] = np.round(C.production_qty_from_yield(df, y + q_show), 1)
+    out["ekp_interval_low"] = np.round(C.production_ekp(df, out.interval_high.to_numpy()), 4)
+    out["ekp_interval_high"] = np.round(C.production_ekp(df, out.interval_low.to_numpy()), 4)
     if "actual_qty" in df and df.actual_qty.notna().all():
         out["actual_qty"] = df.actual_qty.to_numpy()
         out["deviation_qty"] = np.round(out.actual_qty - out.pred_qty, 1)
         out["actual_ekp"] = np.round(C.production_ekp(df, df.actual_qty), 4)
         out["deviation_ekp"] = np.round(out.actual_ekp - out.pred_ekp, 4)
-        out["anomaly"] = (out.actual_qty < out.pred_qty_low90) | (out.actual_qty > out.pred_qty_high90)
+        actual_yield = df.actual_qty.to_numpy() * df.pack_size_kg.to_numpy() / df.meat_kg.to_numpy() * 100
+        out["outside_interval"] = np.abs(actual_yield - y) > q_show
+        # anomali = gösterilen %80 aralığın değil, %98 bandın dışı; aksi halde normal emirlerin %20'si uyarı olur
+        out["anomaly"] = np.abs(actual_yield - y) > q_anom
     return out
+
+
+def _band(bundle, key):
+    """Eski paketlerde (ali-1.0.0) yalnız q90 vardı; geriye uyumlu."""
+    return bundle.get(key, bundle["q90"])
 
 
 def butchery_pct(df: pd.DataFrame, bundle) -> np.ndarray:
@@ -73,14 +91,19 @@ def predict_butchery(df: pd.DataFrame, bundle=None) -> pd.DataFrame:
         for j, part in enumerate(C.BUTCHERY_PARTS):
             pred_kg = P[i, j] * W[i] / 100
             half = bundle["q90"][j] * W[i] / 100
+            show = _band(bundle, "q80")[j] * W[i] / 100
+            anom = _band(bundle, "q98")[j] * W[i] / 100
             r = {"row_id": df.row_id.iloc[i], "part": part, "pred_pct": round(P[i, j], 2),
                  "pred_kg": round(pred_kg, 3), "low90_kg": round(pred_kg - half, 3),
-                 "high90_kg": round(pred_kg + half, 3), "model": bundle["champion"], "version": bundle["version"]}
+                 "high90_kg": round(pred_kg + half, 3), "interval_level": INTERVAL_LEVEL,
+                 "interval_low": round(max(pred_kg - show, 0.0), 3), "interval_high": round(pred_kg + show, 3),
+                 "model": bundle["champion"], "version": bundle["version"]}
             col = f"{part}_kg"
             if col in df and pd.notna(df[col].iloc[i]):
                 r["actual_kg"] = float(df[col].iloc[i])
                 r["deviation_kg"] = round(r["actual_kg"] - pred_kg, 3)
-                r["anomaly"] = abs(r["deviation_kg"]) > half
+                r["outside_interval"] = abs(r["deviation_kg"]) > show
+                r["anomaly"] = abs(r["deviation_kg"]) > anom
             rows.append(r)
     return pd.DataFrame(rows)
 
