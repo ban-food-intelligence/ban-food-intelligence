@@ -146,7 +146,7 @@ func main() {
 	}
 
 	server := &http.Server{
-		Addr:         ":" + port,
+		Addr:              ":" + port,
 		Handler:           withCORSAndLogging(withSecurity(newRateLimiter(rateFromEnv()), mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 		MaxHeaderBytes:    64 << 10,
