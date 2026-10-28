@@ -511,6 +511,16 @@ CREATE TABLE sync_inbox (
   received_at   DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB;
 
+-- POS cihaz anahtarları (ECDSA P-256 SPKI). İlk imzalı senkronda sabitlenir (TOFU) veya
+-- yetkili POST /sync/register-key ile kaydeder/döndürür; farklı anahtarla gelen senkron reddedilir.
+CREATE TABLE pos_device_key (
+  device_id       VARCHAR(64)  PRIMARY KEY,
+  public_key_b64  VARCHAR(255) NOT NULL,
+  fingerprint     CHAR(64)     NOT NULL,                 -- SHA-256(SPKI DER), hex
+  enrolled_by     VARCHAR(64)  NOT NULL,                 -- 'tofu' veya yetkili kullanıcı adı
+  enrolled_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB;
+
 -- =====================================================================
 -- Raporlama görünümleri (maliyet, stok, mutabakat, KI sapması)
 -- =====================================================================
@@ -827,6 +837,24 @@ BEGIN
 END$$
 
 -- Lot durum değişiklikleri denetim günlüğüne
+-- Hammadde girişi: tedarikçi (CHECK ck_lot_purchase_supplier) ve raf ömrü olan üründe SKT zorunlu,
+-- SKT giriş tarihinden önce olamaz (şartname 3: "uygun olduğunda son tüketim tarihi").
+CREATE TRIGGER trg_lot_before_insert
+BEFORE INSERT ON lot
+FOR EACH ROW
+BEGIN
+  DECLARE v_shelf INT;
+  IF NEW.origin_type = 'PURCHASE' THEN
+    SELECT shelf_life_days INTO v_shelf FROM product WHERE id = NEW.product_id;
+    IF v_shelf IS NOT NULL AND NEW.expiry_date IS NULL THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'EXPIRY_REQUIRED: purchased lot of a perishable product needs expiry_date';
+    END IF;
+    IF NEW.expiry_date IS NOT NULL AND NEW.expiry_date < NEW.lot_date THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'EXPIRY_REQUIRED: expiry_date is before lot_date';
+    END IF;
+  END IF;
+END$$
+
 CREATE TRIGGER trg_lot_status_audit
 AFTER UPDATE ON lot
 FOR EACH ROW

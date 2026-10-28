@@ -193,7 +193,8 @@ INSERT INTO product (sku, name, product_type, uom_code, species, standard_purcha
   ('KZ-OMUZ',    'Kuzu omuz',         'CUT',     'KG', 'KUZU', NULL,    18.0000, 5),
   ('KZ-KABURGA', 'Kuzu kaburga',      'CUT',     'KG', 'KUZU', NULL,    14.0000, 5),
   ('KZ-KIYMA',   'Kuzu kıyma',        'CUT',     'KG', 'KUZU', NULL,    16.0000, 2),
-  ('KZ-FIRE',    'Kemik / fire',      'WASTE',   'KG', 'KUZU', NULL,    NULL,    NULL);
+  ('KZ-FIRE',    'Kemik / fire',      'WASTE',   'KG', 'KUZU', NULL,    NULL,    NULL),
+  ('KZ-SAKATAT', 'Kuzu sakatat (ciğer, böbrek)', 'BY_PRODUCT', 'KG', 'KUZU', NULL, 8.0000, 2);
 
 INSERT INTO butchery_recipe (code, name, species, default_allocation) VALUES ('REC-KUZU-STD', 'Standart kuzu parçalama', 'KUZU', 'VALUE');
 INSERT INTO butchery_recipe_line (recipe_id, product_id, output_kind, expected_yield_pct, value_price_per_kg)

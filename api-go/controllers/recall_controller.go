@@ -86,6 +86,9 @@ func (c *RecallController) TriggerRecall(w http.ResponseWriter, r *http.Request)
 	if req.Reason == "" {
 		req.Reason = "Kalite kontrol / mikrobiyolojik uygunsuzluk tespiti"
 	}
+	if u := OperatorFrom(r.Context()); u != "" {
+		req.Initiator = u // the authenticated supervisor, not a free-text field
+	}
 	if req.Initiator == "" {
 		req.Initiator = "kalite_muduru"
 	}
