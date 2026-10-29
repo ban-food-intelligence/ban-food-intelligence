@@ -381,14 +381,32 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 	var inLot, recipeID int64
 	var inCost float64
 	var inType, inStatus string
+	var inExpiry sql.NullTime
+	var inDate time.Time
 	if err := tx.QueryRowContext(ctx,
-		`SELECT l.id, l.unit_cost, p.product_type, l.status FROM lot l JOIN product p ON p.id = l.product_id WHERE l.lot_no = ?`,
-		req.InputLotNo).Scan(&inLot, &inCost, &inType, &inStatus); err != nil {
-		writeAPIError(w, r, http.StatusNotFound, "LOT_NOT_FOUND", "lot "+req.InputLotNo)
+		`SELECT l.id, l.unit_cost, p.product_type, l.status, l.expiry_date, l.lot_date FROM lot l JOIN product p ON p.id = l.product_id WHERE l.lot_no = ? FOR UPDATE`,
+		req.InputLotNo).Scan(&inLot, &inCost, &inType, &inStatus, &inExpiry, &inDate); err != nil {
+		if err == sql.ErrNoRows {
+			writeAPIError(w, r, http.StatusNotFound, "LOT_NOT_FOUND", "lot "+req.InputLotNo)
+		} else {
+			writeDBError(w, r, err)
+		}
 		return
 	}
 	if inType != "CARCASS" {
 		writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fieldErrors{"input_lot_no": "must be a carcass lot"})
+		return
+	}
+	if inStatus == "RECALLED" || inStatus == "BLOCKED" {
+		writeAPIError(w, r, http.StatusConflict, "LOT_BLOCKED", nil)
+		return
+	}
+	if inDate.Format("2006-01-02") > req.OpDate {
+		writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fieldErrors{"op_date": "before carcass receipt"})
+		return
+	}
+	if inExpiry.Valid && inExpiry.Time.Format("2006-01-02") < req.OpDate {
+		writeAPIError(w, r, http.StatusConflict, "LOT_EXPIRED", nil)
 		return
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM butchery_recipe WHERE code = ?`, req.RecipeCode).Scan(&recipeID); err != nil {

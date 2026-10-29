@@ -252,6 +252,13 @@ interval but inside the 98 % band.
 
 ## Limitations
 
+- Both studies now run in the Go API. Study B's live expected-weight column in the entry form
+  is still pending. `TestIntegrationButcheryLiveForecast` verifies preview, dry run, stored
+  model/baseline/actual/interval/anomaly rows, `/ai/summary`, and rollback on a failed record.
+- A production extrapolation with a nonpositive lower package bound or output exceeding the
+  material mass is withheld (`forecast` null/absent). This guard prevents invalid arithmetic;
+  it is not an estimate of accuracy outside the training distribution.
+
 - The training data is synthetic. The results show how well the *process* can be learned, not
   how the model performs in a real plant. They must be re-measured on real orders.
 - The same author wrote the generator and the features (fixed filler loss, summer effect).

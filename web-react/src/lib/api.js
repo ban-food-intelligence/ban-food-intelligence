@@ -43,21 +43,24 @@ export async function apiFetch(path, options = {}) {
 
 /** { data, error, loading, reload } for a GET path; path = null skips the call. */
 export function useApi(path) {
-  const [state, setState] = useState({ data: null, error: null, loading: !!path });
+  const [state, setState] = useState({ path: null, data: null, error: null, loading: !!path });
   const [tick, setTick] = useState(0);
   const reload = useCallback(() => setTick((t) => t + 1), []);
   useEffect(() => {
-    if (!path) return undefined;
+    if (!path) {
+      setState({ path: null, data: null, error: null, loading: false });
+      return undefined;
+    }
     let alive = true;
     setState((s) => ({ ...s, loading: true, error: null }));
     apiFetch(path)
-      .then((data) => alive && setState({ data, error: null, loading: false }))
-      .catch((error) => alive && setState({ data: null, error, loading: false }));
+      .then((data) => alive && setState({ path, data, error: null, loading: false }))
+      .catch((error) => alive && setState({ path, data: null, error, loading: false }));
     return () => {
       alive = false;
     };
   }, [path, tick]);
-  return { ...state, reload };
+  return state.path === path ? { ...state, reload } : { data: null, error: null, loading: !!path, reload };
 }
 
 // Back-office writes need a supervisor session: POST /auth/session with the PIN returns a

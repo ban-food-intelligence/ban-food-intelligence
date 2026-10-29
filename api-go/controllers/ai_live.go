@@ -191,6 +191,11 @@ func forecastOrder(o *orderInputs, m *ridgeModel) *ProductionForecastDto {
 	y := m.predictYield(o.in)
 	half := m.HalfWidth["80"]
 	pk, lo, hi := packages(y), packages(y-half), packages(y+half)
+	// Extrapolation outside the training range can give negative yield or a zero denominator.
+	// Withhold that forecast rather than storing a nonphysical quantity or nonfinite EKP.
+	if math.IsNaN(y) || math.IsInf(y, 0) || round(lo, 1) <= 0 || y*o.in.MeatKg/100 > o.in.MeatKg+o.in.SpiceKg+o.in.CasingKg {
+		return nil
+	}
 	fc := &ProductionForecastDto{
 		Model: m.Model, ModelVersion: m.Version, YieldPct: round(y, 3),
 		Packages: round(pk, 1), PackagesLow: ptr(round(lo, 1)), PackagesHigh: ptr(round(hi, 1)),
