@@ -1031,7 +1031,9 @@ BEGIN
       SELECT l.id, 0, CAST(CONCAT('/', l.lot_no, '/') AS CHAR(1000))
         FROM lot l WHERE l.lot_no = p_lot_no
       UNION ALL
-      SELECT ll.child_lot_id, f.depth + 1, CONCAT(f.path, c.lot_no, '/')
+      -- Join sırası sabit: bulunan lot -> bağlantı -> çocuk. İpucu olmadan optimizer bazen bulunan
+      -- lotları tüm lot tablosuyla çaprazlıyordu (4.000 lotta ~20 sn yerine ~25 ms).
+      SELECT /*+ JOIN_ORDER(f, ll, c) */ ll.child_lot_id, f.depth + 1, CONCAT(f.path, c.lot_no, '/')
         FROM fwd f
         JOIN lot_link ll ON ll.parent_lot_id = f.lot_id
         JOIN lot c       ON c.id = ll.child_lot_id
@@ -1044,7 +1046,7 @@ BEGIN
       SELECT l.id, 0, CAST(CONCAT('/', l.lot_no, '/') AS CHAR(1000))
         FROM lot l WHERE l.lot_no = p_lot_no
       UNION ALL
-      SELECT ll.parent_lot_id, b.depth + 1, CONCAT(b.path, pl.lot_no, '/')
+      SELECT /*+ JOIN_ORDER(b, ll, pl) */ ll.parent_lot_id, b.depth + 1, CONCAT(b.path, pl.lot_no, '/')
         FROM bwd b
         JOIN lot_link ll ON ll.child_lot_id = b.lot_id
         JOIN lot pl      ON pl.id = ll.parent_lot_id
