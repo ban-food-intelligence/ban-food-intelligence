@@ -72,7 +72,7 @@ func NewButcheryController(db *sql.DB) *ButcheryController {
 	return &ButcheryController{db: db}
 }
 
-// ReconcileButchery handles GET /butchery, POST /butchery, and POST /butchery/reconcile
+// ReconcileButchery handles GET /butchery and POST /butchery
 // Calls Ali's MySQL stored procedure `CALL sp_execute_butchery(...)` and queries
 // `v_butchery_reconciliation` + `v_butchery_cost_allocation`.
 func (c *ButcheryController) ReconcileButchery(w http.ResponseWriter, r *http.Request) {

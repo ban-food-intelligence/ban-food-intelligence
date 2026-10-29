@@ -95,24 +95,18 @@ func main() {
 
 	// Task 1: External Production & EKP Cost Calculation
 	mux.HandleFunc("/production", op(productionCtrl.ListOrders))
-	mux.HandleFunc("/api/v1/production", op(productionCtrl.ListOrders))
 	mux.HandleFunc("/purchases", purchasesHandler(reportsCtrl.Purchases, op(entryCtrl.Purchase)))
 
 	// Task 2: Whole Lamb Butchery & Cost Allocation
 	mux.HandleFunc("/butchery", butcheryCtrl.ReconcileButchery)
-	mux.HandleFunc("/butchery/reconcile", butcheryCtrl.ReconcileButchery)
 	mux.HandleFunc("/butchery/allocation", butcheryCtrl.Allocation)
 	mux.HandleFunc("/butchery/operations", op(entryCtrl.ButcheryOperation))
-	mux.HandleFunc("/api/v1/butchery", butcheryCtrl.ReconcileButchery)
 
 	// Task 3: Recursive Lot Traceability & Emergency Recall
 	mux.HandleFunc("/recall", op(recallCtrl.TriggerRecall))
-	mux.HandleFunc("/api/v1/recall", op(recallCtrl.TriggerRecall))
 	mux.HandleFunc("/recall/contacts.csv", recallCtrl.ContactsCSV)
 	mux.HandleFunc("/trace/", traceCtrl.TraceHandler)
-	mux.HandleFunc("/api/v1/trace/", traceCtrl.TraceHandler)
 	mux.HandleFunc("/lots", lotCtrl.ListStockByLot)
-	mux.HandleFunc("/api/v1/lots/trace/", lotCtrl.TraceLot)
 
 	// Supervisor unlock of a recalled POS terminal (bcrypt, lockout, audit)
 	mux.HandleFunc("/auth/supervisor/verify", authCtrl.Verify)
@@ -132,12 +126,9 @@ func main() {
 	// Task 4: ML Yield Predictions & Deviation Telemetry
 	mux.HandleFunc("/yield", yieldCtrl.PredictYield)
 	mux.HandleFunc("/ai/summary", aiCtrl.Summary)
-	mux.HandleFunc("/api/v1/yield/predict", yieldCtrl.PredictYield)
 
 	// Offline Edge POS Synchronization (Hardware ECDSA P-256 + UUIDv7 Idempotency)
 	mux.HandleFunc("/sync", syncCtrl.IngestOutbox)
-	mux.HandleFunc("/v1/sync", syncCtrl.IngestOutbox)
-	mux.HandleFunc("/api/v1/sync", syncCtrl.IngestOutbox)
 	mux.HandleFunc("/sync/register-key", op(syncCtrl.RegisterDeviceKey))
 
 	port := os.Getenv("PORT")
