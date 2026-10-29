@@ -95,7 +95,10 @@ Notes:
   build). Signatures protect sale integrity, not confidentiality.
 - **Trust on first use** for POS keys: the first device to sync under a `device_id` pins it.
   Set `POS_ENROLLMENT=closed` to require supervisor provisioning (`POST /sync/register-key`).
-  A reinstalled app has a new key: re-register it (or `./scripts/demo-reset.sh` in the demo).
+  Each installation has its own random `device_id` (`DeviceIdentity`, kept with the app data like
+  the Keystore key), so a second phone or a reinstall is pinned under a new id on its first sync;
+  the old id stays in `pos_device_key` until it is removed. Until 2026-10-29 every phone used the
+  fixed id `POS-TERM-NURI-001`, so a second phone was refused with `KEY_MISMATCH`.
 - **Reads are unauthenticated** (lots, trace, reports) so the dashboard needs no login.
 - Rate limits and PIN lockouts are in memory per API instance and reset on restart.
 - The session secret is random per process unless `API_SESSION_SECRET` is set.

@@ -5,7 +5,6 @@ import androidx.compose.runtime.LaunchedEffect
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.provider.Settings
 import android.view.KeyEvent
 import android.view.WindowManager
 import android.widget.Toast
@@ -56,6 +55,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ban.foodintelligence.pos.R
+import com.ban.foodintelligence.pos.security.DeviceIdentity
 import com.ban.foodintelligence.pos.security.KioskController
 import com.ban.foodintelligence.pos.security.LockIncident
 import com.ban.foodintelligence.pos.security.SupervisorAuth
@@ -173,9 +173,8 @@ private fun LockScreen(incident: LockIncident, onUnlocked: (LockIncident, String
     var showPin by remember { mutableStateOf(false) }
     var pin by remember { mutableStateOf("") }
     var state by remember { mutableStateOf<UnlockState>(UnlockState.Idle) }
-    val deviceId = remember {
-        Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "POS"
-    }
+    // Same id as the terminal's signed sales, so unlocks and sales of one phone line up in the audit log.
+    val deviceId = remember { DeviceIdentity.id(context) }
 
     fun submit() {
         if (pin.length < 4 || state == UnlockState.Checking) return

@@ -57,50 +57,9 @@ abstract class AppDatabase {
     abstract fun outboxDao(): OutboxDao
 
     /**
-     * Signs an offline yield prediction with the hardware-backed ECDSA key and
-     * enqueues it with a fresh UUIDv7. Runs on `Dispatchers.IO`.
-     */
-    suspend fun enqueueSignedYieldPrediction(
-        batchId: String,
-        predictedYield: Float,
-        tenantId: String = "MARKET-TIER-A-IST-01",
-        deviceId: String = "POS-TERM-NURI-001",
-        actorRole: String = "ROLE_POS_DEVICE"
-    ): SyncOutboxQueue = withContext(Dispatchers.IO) {
-        val uuidV7Timestamp = SyncOutboxQueue.generateUuidV7()
-
-        val canonicalPayload = KeystoreManager.buildCanonicalYieldPayload(
-            tenantId = tenantId,
-            deviceId = deviceId,
-            actorRole = actorRole,
-            batchId = batchId,
-            predictedYield = predictedYield,
-            timestampUuidV7 = uuidV7Timestamp
-        )
-
-        Log.i(TAG, "🔏 Signing yield record Batch=$batchId (UUIDv7=$uuidV7Timestamp) with ECDSA P-256...")
-        val signature = KeystoreManager.signPayload(canonicalPayload)
-
-        val record = SyncOutboxQueue(
-            timestamp = uuidV7Timestamp,
-            batchId = batchId,
-            predictedYield = predictedYield,
-            hmacSignature = signature,
-            tenantId = tenantId,
-            deviceId = deviceId,
-            actorRole = actorRole,
-            status = SyncOutboxQueue.STATUS_PENDING,
-            retryCount = 0
-        )
-
-        outboxDao().enqueue(record)
-        Log.i(TAG, "📥 Enqueued offline record -> Batch=$batchId Yield=$predictedYield% UUIDv7=$uuidV7Timestamp")
-        record
-    }
-
-    /**
      * Phase 3: Atomically records a lot-tracked POS `SALE` movement into local SQLite WAL
      * (`local_stock_movements` + `pos_outbox` + `sync_outbox_queue`) signed with ECDSA P-256.
+     * [deviceId] is this terminal's [com.ban.foodintelligence.pos.security.DeviceIdentity].
      */
     open suspend fun recordPosSale(
         lotNo: String,
@@ -109,7 +68,7 @@ abstract class AppDatabase {
         uom: String,
         unitPriceEur: Double,
         tenantId: String = "MARKET-TIER-A-IST-01",
-        deviceId: String = "POS-TERM-NURI-001"
+        deviceId: String
     ): StockMovementRecord = withContext(Dispatchers.IO) {
         val uuidV7 = SyncOutboxQueue.generateUuidV7()
         val nowMs = System.currentTimeMillis()
@@ -165,7 +124,7 @@ abstract class AppDatabase {
         uom: String,
         unitCostEur: Double,
         tenantId: String = "MARKET-TIER-A-IST-01",
-        deviceId: String = "POS-TERM-NURI-001"
+        deviceId: String
     ): StockMovementRecord =
         throw UnsupportedOperationException("Stock receipts require the SQLite WAL engine")
 
