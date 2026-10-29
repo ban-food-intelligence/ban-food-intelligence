@@ -51,7 +51,7 @@ with a burst of 120 (`429 RATE_LIMITED`, `Retry-After`). See [SECURITY.md](SECUR
 
 `GET /health`
 ```json
-{"service":"ban-food-intelligence-api-go","version":"1.2.0","status":"UP","mysql_status":"CONNECTED","server_time":"2026-10-27T20:21:52Z"}
+{"service":"ban-food-intelligence-api-go","version":"1.3.0","status":"UP","mysql_status":"CONNECTED","sync_crypto":"ECDSA-P256-SHA256 (crypto/ecdsa + crypto/x509)","server_time":"2026-10-28T20:21:52Z"}
 ```
 
 ## Task 1: production and real cost (EKP)

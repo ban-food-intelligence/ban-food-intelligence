@@ -20,7 +20,8 @@ with exact lot traceability and recall. Built for the AVATAR Yapay Zeka Yarışm
 - **Security** Supervisor sessions for every back-office write, ECDSA-signed POS sync with pinned
   device keys and replay detection, rate limits and PIN lockout ([docs/SECURITY.md](docs/SECURITY.md)).
 
-Every bullet of the brief with its proof: [docs/SPEC_COMPLIANCE.md](docs/SPEC_COMPLIANCE.md).
+The brief: [docs/ASSESSMENT.md](docs/ASSESSMENT.md). Every bullet of it with its proof:
+[docs/SPEC_COMPLIANCE.md](docs/SPEC_COMPLIANCE.md).
 Sample records (lots, orders, butchery, sales, the ET-2026-001 recall): [docs/samples/](docs/samples/).
 
 | Sell (phone) | Recall stop | Offline, sale queued | Dashboard |
@@ -144,7 +145,7 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 
 ## Spec requirements → where they are implemented
 
-| Spec (AVATAR_Assessment.pdf) | Implementation |
+| Spec ([docs/ASSESSMENT.md](docs/ASSESSMENT.md)) | Implementation |
 |---|---|
 | Raw material cards, purchase prices, units, lots, stock | `product`, `lot`, `purchase_receipt(_line)`, `stock_balance` (schema.sql); `GET/POST /purchases` (supplier and expiry enforced), `GET /lots`; dashboard *Purchases* (list + *New receipt* form, supervisor PIN) |
 | External production order, material shipment, service cost, receipt, quantity variance | `production_order/_input/_output`, `sp_production_add_input`, `sp_production_complete`; `GET/POST /production`; dashboard *Production* |
