@@ -460,3 +460,227 @@ function ButcheryResult({ res }) {
     </>
   );
 }
+
+// ---------------------------------------------------------------- production order
+
+/** AI forecast of an order (packages, EKP, 80 % interval, baseline) and, once received, its deviation. */
+export function ForecastKpis({ forecast: f }) {
+  const { t, fmt } = useLang();
+  if (!f) return null;
+  const between = (lo, hi, show) => (lo == null || hi == null ? null : t('pr_fcRange', `${show(lo)} – ${show(hi)}`));
+  const dev = f.actual_packages == null ? null : f.actual_packages - f.packages;
+  return (
+    <div className="kpi-row">
+      <Kpi label={t('pr_fcPackages')} value={fmt.num(f.packages, 1)} sub={between(f.packages_low, f.packages_high, (v) => fmt.num(v, 1))} />
+      <Kpi label={t('pr_fcEkp')} value={fmt.money(f.ekp)} sub={between(f.ekp_low, f.ekp_high, fmt.money)} />
+      <Kpi label={t('baseline')} value={fmt.num(f.baseline_packages, 1)} sub={fmt.money(f.baseline_ekp)} />
+      {dev != null && (
+        <Kpi
+          label={t('pr_fcDeviation')}
+          value={`${dev > 0 ? '+' : ''}${fmt.num(dev, 1)}`}
+          tone={f.anomaly ? 'warn' : 'ok'}
+          sub={f.anomaly ? t('st_anomaly') : t('pr_fcWithin')}
+        />
+      )}
+    </div>
+  );
+}
+
+const emptyInput = () => ({ lot_no: '', qty: '' });
+
+export function ProductionOrderForm({ onDone, onCancel }) {
+  const { t, fmt } = useLang();
+  const lots = useApi('/lots');
+  const [head, setHead] = useState({
+    order_no: '', product_sku: 'MM-SUCUK-1KG', subcontractor_code: 'FAS-01', planned_qty: '85',
+    service_unit_price: '5,50', drying_days: '5', order_date: today(),
+  });
+  const [inputs, setInputs] = useState([emptyInput()]);
+  const [pin, setPin] = useState('');
+  const [saved, setSaved] = useState(null);
+  const { busy, error, fieldErrors: fe, run } = useSubmit();
+
+  // raw material in the cold store: what can be sent to the subcontractor
+  const stock = (lots.data || []).filter((l) => l.warehouse_code === 'ANA-DEPO' && l.sku.startsWith('HM-') && l.qty > 0);
+  const byLot = Object.fromEntries(stock.map((l) => [l.lot_no, l]));
+  const products = unique((lots.data || []).filter((l) => l.sku.startsWith('MM-')).map((l) => l.sku));
+  const setInput = (i, k, v) => setInputs((xs) => xs.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const material = inputs.reduce((a, x) => a + (parseNum(x.qty) * (byLot[x.lot_no.trim().toUpperCase()]?.unit_cost ?? NaN) || 0), 0);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const body = {
+      ...head,
+      order_no: head.order_no.trim().toUpperCase(),
+      product_sku: head.product_sku.trim().toUpperCase(),
+      subcontractor_code: head.subcontractor_code.trim().toUpperCase(),
+      planned_qty: toJsonNum(head.planned_qty),
+      service_unit_price: toJsonNum(head.service_unit_price),
+      drying_days: head.drying_days === '' ? null : toJsonNum(head.drying_days),
+      inputs: inputs.map((x) => ({ lot_no: x.lot_no.trim().toUpperCase(), qty: toJsonNum(x.qty) })),
+    };
+    const res = await run(() => apiWrite('/production/orders', body, pin));
+    if (res) {
+      setSaved(res);
+      setPin('');
+      onDone?.();
+    }
+  };
+
+  if (saved) {
+    return (
+      <Group title={t('pr_orderTitle')} aside={<Pill tone="ok">{t('pr_atSubcontractor')}</Pill>}>
+        <p className="notice notice-ok">{t('pr_orderSaved', saved.order_no, fmt.money(saved.material_cost))}</p>
+        <ForecastKpis forecast={saved.forecast} />
+        <div className="confirm-actions entry-pad">
+          <button className="btn-text" onClick={onCancel}>{t('en_close')}</button>
+        </div>
+      </Group>
+    );
+  }
+
+  return (
+    <Group title={t('pr_orderTitle')} footer={t('pr_orderNote')}>
+      <form onSubmit={submit} noValidate>
+        <div className="toolbar">
+          <Field label={t('pr_orderNo')} error={fe.order_no}>
+            <input value={head.order_no} onChange={(e) => setHead({ ...head, order_no: e.target.value })} placeholder="URT-2026-…" spellCheck={false} required />
+          </Field>
+          <Field label={t('product')} error={fe.product_sku}>
+            <input list="pr-products" value={head.product_sku} onChange={(e) => setHead({ ...head, product_sku: e.target.value })} spellCheck={false} required />
+            <datalist id="pr-products">{products.map((s) => <option key={s} value={s} />)}</datalist>
+          </Field>
+          <Field label={t('pr_subcontractor')} error={fe.subcontractor_code}>
+            <input value={head.subcontractor_code} onChange={(e) => setHead({ ...head, subcontractor_code: e.target.value })} spellCheck={false} required />
+          </Field>
+          <Field label={t('date')} error={fe.order_date}>
+            <input type="date" value={head.order_date} onChange={(e) => setHead({ ...head, order_date: e.target.value })} required />
+          </Field>
+          <Field label={t('pr_plannedQty')} error={fe.planned_qty}>
+            <input inputMode="decimal" value={head.planned_qty} onChange={(e) => setHead({ ...head, planned_qty: e.target.value })} required />
+          </Field>
+          <Field label={t('pr_servicePrice')} error={fe.service_unit_price}>
+            <input inputMode="decimal" value={head.service_unit_price} onChange={(e) => setHead({ ...head, service_unit_price: e.target.value })} required />
+          </Field>
+          <Field label={t('pr_dryingDays')} error={fe.drying_days}>
+            <input inputMode="numeric" value={head.drying_days} onChange={(e) => setHead({ ...head, drying_days: e.target.value })} />
+          </Field>
+        </div>
+
+        <datalist id="pr-lots">
+          {stock.map((l) => <option key={l.lot_no} value={l.lot_no}>{`${l.product_name} · ${fmt.qty(l.qty, l.uom_code)}`}</option>)}
+        </datalist>
+        <div className="table-scroll">
+          <table className="table entry-lines">
+            <thead>
+              <tr>
+                <th>{t('lot')}</th>
+                <th>{t('product')}</th>
+                <th className="num">{t('pr_available')}</th>
+                <th className="num">{t('qty')}</th>
+                <th className="num">{t('unitPrice')}</th>
+                <th className="num">{t('amount')}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {inputs.map((x, i) => {
+                const k = `inputs[${i}].`;
+                const lot = byLot[x.lot_no.trim().toUpperCase()];
+                const amount = parseNum(x.qty) * (lot?.unit_cost ?? NaN);
+                return (
+                  <tr key={i}>
+                    <td><CellInput list="pr-lots" value={x.lot_no} onChange={(e) => setInput(i, 'lot_no', e.target.value)} error={fe[`${k}lot_no`]} aria-label={t('lot')} spellCheck={false} /></td>
+                    <td>{lot?.product_name || '–'}</td>
+                    <td className="num">{lot ? fmt.qty(lot.qty, lot.uom_code) : '–'}</td>
+                    <td className="num"><CellInput inputMode="decimal" value={x.qty} onChange={(e) => setInput(i, 'qty', e.target.value)} error={fe[`${k}qty`]} aria-label={t('qty')} /></td>
+                    <td className="num">{lot ? fmt.money(lot.unit_cost) : '–'}</td>
+                    <td className="num">{Number.isNaN(amount) ? '–' : fmt.money(amount)}</td>
+                    <td>
+                      {inputs.length > 1 && (
+                        <button type="button" className="btn-text muted" onClick={() => setInputs((xs) => xs.filter((_, j) => j !== i))} aria-label={t('en_removeLine')}>×</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={5}>
+                  <button type="button" className="btn-text" onClick={() => setInputs((xs) => [...xs, emptyInput()])}>{t('en_addLine')}</button>
+                </td>
+                <td className="num">{fmt.money(material)}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {fe.inputs && <p className="field-error entry-pad">{fe.inputs}</p>}
+
+        {error && <ErrorState error={error} />}
+        <SubmitBar
+          pin={pin}
+          setPin={setPin}
+          busy={busy}
+          onCancel={onCancel}
+          actions={<button type="submit" className="btn-primary" disabled={busy || pin.length < 4}>{t('pr_saveOrder')}</button>}
+        />
+      </form>
+    </Group>
+  );
+}
+
+const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+
+/** Receives the finished goods of an order that is at the subcontractor (POST /production). */
+export function ReceiveProductionForm({ order, onDone, onCancel }) {
+  const { t } = useLang();
+  const [form, setForm] = useState({ actual_qty: '', output_lot_no: '', lot_date: today(), expiry_date: inDays(90), invoice_no: '' });
+  const [pin, setPin] = useState('');
+  const { busy, error, fieldErrors: fe, run } = useSubmit();
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const body = {
+      ...form,
+      order_no: order.order_no,
+      actual_qty: toJsonNum(form.actual_qty),
+      output_lot_no: form.output_lot_no.trim().toUpperCase(),
+      invoice_no: form.invoice_no.trim(),
+    };
+    const res = await run(() => apiWrite('/production', body, pin));
+    if (res) onDone?.();
+  };
+
+  return (
+    <form onSubmit={submit} noValidate className="entry-pad">
+      <p className="muted">{t('pr_receiveNote')}</p>
+      <div className="toolbar">
+        <Field label={t('pr_actualQty')} error={fe.actual_qty}>
+          <input inputMode="decimal" value={form.actual_qty} onChange={(e) => setForm({ ...form, actual_qty: e.target.value })} required />
+        </Field>
+        <Field label={t('outputLot')} error={fe.output_lot_no}>
+          <input value={form.output_lot_no} onChange={(e) => setForm({ ...form, output_lot_no: e.target.value })} placeholder="SUC-2026-…" spellCheck={false} required />
+        </Field>
+        <Field label={t('date')}>
+          <input type="date" value={form.lot_date} onChange={(e) => setForm({ ...form, lot_date: e.target.value })} />
+        </Field>
+        <Field label={t('expiry')}>
+          <input type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} />
+        </Field>
+        <Field label={t('invoice')}>
+          <input value={form.invoice_no} onChange={(e) => setForm({ ...form, invoice_no: e.target.value })} spellCheck={false} />
+        </Field>
+      </div>
+      {error && <ErrorState error={error} />}
+      <SubmitBar
+        pin={pin}
+        setPin={setPin}
+        busy={busy}
+        onCancel={onCancel}
+        actions={<button type="submit" className="btn-primary" disabled={busy || pin.length < 4}>{t('pr_saveReceive')}</button>}
+      />
+    </form>
+  );
+}

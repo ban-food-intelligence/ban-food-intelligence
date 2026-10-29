@@ -1,0 +1,163 @@
+{
+  "model": "ali_ridge",
+  "version": "ali-1.1.0",
+  "target": "yield_pct",
+  "trained_on": "data/train_task4a_ali.csv, time split, 1198 training orders (synthetic)",
+  "features": {
+    "categorical": [
+      "product_sku",
+      "subcontractor_code",
+      "meat_supplier_code"
+    ],
+    "numeric": [
+      "pack_size_kg",
+      "meat_kg",
+      "spice_kg",
+      "casing_kg",
+      "meat_fat_pct",
+      "meat_age_days",
+      "drying_days",
+      "planned_qty",
+      "month_sin",
+      "month_cos",
+      "is_summer",
+      "inv_meat_kg",
+      "spice_ratio",
+      "casing_ratio"
+    ]
+  },
+  "intercept": 83.34574853049129,
+  "categorical": [
+    {
+      "name": "product_sku",
+      "coef": {
+        "MM-SUCUK-1KG": 0.06137424542135741,
+        "MM-SUCUK-500G": -0.06137424542132266
+      }
+    },
+    {
+      "name": "subcontractor_code",
+      "coef": {
+        "FAS-01": 0.29352998553524867,
+        "FAS-02": -1.3848695993161535,
+        "FAS-03": 1.0913396137816709
+      }
+    },
+    {
+      "name": "meat_supplier_code",
+      "coef": {
+        "TED-ET-01": 0.05775055606501941,
+        "TED-ET-02": -0.6810466089346912,
+        "TED-ET-03": 0.6232960528695476
+      }
+    }
+  ],
+  "numeric": [
+    {
+      "name": "pack_size_kg",
+      "median": 1.0,
+      "mean": 0.8944073455759599,
+      "scale": 0.20407478664378237,
+      "coef": 0.15037194557624922
+    },
+    {
+      "name": "meat_kg",
+      "median": 110.0,
+      "mean": 119.41986644407345,
+      "scale": 43.53362838829245,
+      "coef": 0.44812758465597613
+    },
+    {
+      "name": "spice_kg",
+      "median": 2.23,
+      "mean": 2.3834557595993324,
+      "scale": 0.8813063669822893,
+      "coef": -0.17799336323462747
+    },
+    {
+      "name": "casing_kg",
+      "median": 5.61,
+      "mean": 5.968656093489147,
+      "scale": 2.2130134042683105,
+      "coef": -0.42897188511415363
+    },
+    {
+      "name": "meat_fat_pct",
+      "median": 21.9,
+      "mean": 21.94966611018364,
+      "scale": 2.7207842313248163,
+      "coef": 1.0859629056041253
+    },
+    {
+      "name": "meat_age_days",
+      "median": 3.0,
+      "mean": 2.5868113522537564,
+      "scale": 1.6966213158176513,
+      "coef": -0.39010649233801026
+    },
+    {
+      "name": "drying_days",
+      "median": 5.0,
+      "mean": 5.207846410684474,
+      "scale": 0.7834079928460416,
+      "coef": -0.9137194745985412
+    },
+    {
+      "name": "planned_qty",
+      "median": 106.0,
+      "mean": 122.67696160267111,
+      "scale": 62.75188963586393,
+      "coef": 0.06140431153681935
+    },
+    {
+      "name": "month_sin",
+      "median": 0.49999999999999994,
+      "mean": 0.10566434046748617,
+      "scale": 0.7105656159468491,
+      "coef": 0.04108553958827164
+    },
+    {
+      "name": "month_cos",
+      "median": 6.123233995736766e-17,
+      "mean": 0.03242636687589112,
+      "scale": 0.6948957355739609,
+      "coef": 0.03614146810950538
+    },
+    {
+      "name": "is_summer",
+      "median": 0.0,
+      "mean": 0.21035058430717862,
+      "scale": 0.40755762290602193,
+      "coef": -0.3862494453096372
+    },
+    {
+      "name": "inv_meat_kg",
+      "median": 0.00909090909090909,
+      "mean": 0.009493238593248634,
+      "scale": 0.0034260970700534217,
+      "coef": -0.36354267769257925
+    },
+    {
+      "name": "spice_ratio",
+      "median": 0.019897368421052632,
+      "mean": 0.01995538918635707,
+      "scale": 0.0011829963603685947,
+      "coef": 0.06513239923543508
+    },
+    {
+      "name": "casing_ratio",
+      "median": 0.049950956937799044,
+      "mean": 0.04995496113048354,
+      "scale": 0.0025254732323223778,
+      "coef": 0.08522920581641001
+    }
+  ],
+  "interval_half_width": {
+    "80": 1.4300399194879247,
+    "98": 3.8721714567664947
+  },
+  "baseline_hist_mean_yield_pct": {
+    "MM-SUCUK-1KG": 83.34921904761904,
+    "MM-SUCUK-500G": 82.95124505928854
+  }
+}

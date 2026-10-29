@@ -719,6 +719,36 @@ WHERE po.status IN ('RECEIVED','CLOSED') AND po.actual_qty > 0
 GROUP BY po.id, po.order_no, po.order_date, p.sku, p.pack_size_kg, sub.code, po.drying_days,
          po.service_unit_price, po.planned_qty, po.actual_qty;
 
+-- Aynı girdiler her durumdaki emir için (hedef kolonları yok): API yeni bir emrin verimini
+-- ve EKP'sini malzeme sevk edilir edilmez buradan tahmin eder (api-go ai_live.go).
+CREATE OR REPLACE VIEW v_ml_production_order_inputs AS
+SELECT po.id                                                  AS order_id,
+       po.order_no,
+       po.status,
+       po.order_date,
+       p.sku                                                  AS product_sku,
+       p.pack_size_kg,
+       sub.code                                               AS subcontractor_code,
+       MAX(IF(rp.sku = 'HM-ET-DANA', ms.code, NULL))          AS meat_supplier_code,
+       SUM(IF(rp.sku = 'HM-ET-DANA',  pi.qty_consumed, 0))    AS meat_kg,
+       SUM(IF(rp.sku = 'HM-BAHARAT',  pi.qty_consumed, 0))    AS spice_kg,
+       SUM(IF(rp.sku = 'HM-BAGIRSAK', pi.qty_consumed, 0))    AS casing_kg,
+       MAX(IF(rp.sku = 'HM-ET-DANA', l.fat_pct, NULL))        AS meat_fat_pct,
+       MAX(IF(rp.sku = 'HM-ET-DANA', DATEDIFF(po.order_date, l.lot_date), NULL)) AS meat_age_days,
+       po.drying_days,
+       po.planned_qty,
+       po.service_unit_price,
+       SUM(pi.line_cost)                                      AS material_cost
+FROM production_order po
+JOIN product p   ON p.id = po.product_id
+LEFT JOIN supplier sub ON sub.id = po.subcontractor_id
+JOIN production_input pi ON pi.production_order_id = po.id
+JOIN lot l       ON l.id = pi.lot_id
+JOIN product rp  ON rp.id = l.product_id
+LEFT JOIN supplier ms ON ms.id = l.supplier_id
+GROUP BY po.id, po.order_no, po.status, po.order_date, p.sku, p.pack_size_kg, sub.code, po.drying_days,
+         po.planned_qty, po.service_unit_price;
+
 CREATE OR REPLACE VIEW v_ml_butchery_features AS
 SELECT CONCAT('DB-B-', bo.op_no)          AS row_id,
        'db'                               AS source,
@@ -919,32 +949,44 @@ END$$
 -- ---------------------------------------------------------------------
 
 -- Hammadde lotunu fasona sevk et (transfer + üretim girdisi, maliyet snapshot)
-CREATE PROCEDURE sp_production_add_input(
+-- Hammaddeyi fasona sevk eder (transfer + maliyet snapshot'ı). Transaction açmaz: çağıranın
+-- transaction'ına katılır, böylece API emri ve tüm girdilerini tek seferde kaydedebilir.
+CREATE PROCEDURE sp_production_send_input(
   IN p_order_no VARCHAR(30), IN p_lot_no VARCHAR(30), IN p_qty DECIMAL(14,3),
-  IN p_from_wh VARCHAR(20), IN p_to_wh VARCHAR(20))
+  IN p_from_wh VARCHAR(20), IN p_to_wh VARCHAR(20), IN p_user VARCHAR(64))
 BEGIN
   DECLARE v_order INT UNSIGNED; DECLARE v_status VARCHAR(20);
   DECLARE v_lot INT UNSIGNED;   DECLARE v_cost DECIMAL(14,4);
   DECLARE v_from INT UNSIGNED;  DECLARE v_to INT UNSIGNED;
-  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
 
-  START TRANSACTION;
   SELECT id, status INTO v_order, v_status FROM production_order WHERE order_no = p_order_no FOR UPDATE;
   IF v_order IS NULL OR v_status NOT IN ('PLANNED','MATERIAL_SENT') THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ORDER_STATE: order not found or already received';
   END IF;
   SELECT id, unit_cost INTO v_lot, v_cost FROM lot WHERE lot_no = p_lot_no;
+  IF v_lot IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'LOT_NOT_FOUND: input lot does not exist';
+  END IF;
   SELECT id INTO v_from FROM warehouse WHERE code = p_from_wh;
   SELECT id INTO v_to   FROM warehouse WHERE code = p_to_wh;
 
-  INSERT INTO stock_movement (lot_id, warehouse_id, movement_type, qty, unit_cost, ref_type, ref_id, note)
-  VALUES (v_lot, v_from, 'TRANSFER_OUT', -p_qty, v_cost, 'production_order', v_order, CONCAT('Fasona sevk ', p_order_no)),
-         (v_lot, v_to,   'TRANSFER_IN',   p_qty, v_cost, 'production_order', v_order, CONCAT('Fasona sevk ', p_order_no));
+  INSERT INTO stock_movement (lot_id, warehouse_id, movement_type, qty, unit_cost, ref_type, ref_id, created_by, note)
+  VALUES (v_lot, v_from, 'TRANSFER_OUT', -p_qty, v_cost, 'production_order', v_order, p_user, CONCAT('Fasona sevk ', p_order_no)),
+         (v_lot, v_to,   'TRANSFER_IN',   p_qty, v_cost, 'production_order', v_order, p_user, CONCAT('Fasona sevk ', p_order_no));
 
   INSERT INTO production_input (production_order_id, lot_id, qty_sent, unit_cost)
   VALUES (v_order, v_lot, p_qty, v_cost);
 
   UPDATE production_order SET status = 'MATERIAL_SENT' WHERE id = v_order;
+END$$
+
+CREATE PROCEDURE sp_production_add_input(
+  IN p_order_no VARCHAR(30), IN p_lot_no VARCHAR(30), IN p_qty DECIMAL(14,3),
+  IN p_from_wh VARCHAR(20), IN p_to_wh VARCHAR(20))
+BEGIN
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
+  START TRANSACTION;
+  CALL sp_production_send_input(p_order_no, p_lot_no, p_qty, p_from_wh, p_to_wh, 'system');
   COMMIT;
 END$$
 
