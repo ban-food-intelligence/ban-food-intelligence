@@ -46,10 +46,10 @@ def run_sql_file(path):
         subprocess.run(_cli_args(), stdin=fh, check=True, stdout=subprocess.DEVNULL)
 
 
-def connect():
+def connect(database="food_intel"):
     password = os.getenv("MYSQL_PASSWORD", "ban")
     kwargs = dict(user=os.getenv("MYSQL_USER", "root"), password=password,
-                  database="food_intel", charset="utf8mb4", autocommit=True,
+                  database=database, charset="utf8mb4", autocommit=True,
                   cursorclass=pymysql.cursors.DictCursor)
     if os.getenv("MYSQL_SOCKET"):
         kwargs["unix_socket"] = os.environ["MYSQL_SOCKET"]
