@@ -1,0 +1,818 @@
+[
+  {
+    "row_id": "DB-B-PRC-2026-001",
+    "inputs": {
+      "op_date": "2026-10-13",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-1",
+      "sex": "E",
+      "carcass_weight_kg": 25.0,
+      "age_months": 5.0,
+      "fat_score": 3.0,
+      "conformation_score": 3,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      27.175704256259632,
+      14.527830998656947,
+      20.00576552655179,
+      11.829977397211657,
+      16.03217691247338,
+      10.428544908846606
+    ]
+  },
+  {
+    "row_id": "SYN-B-NO-CHILL-NO-FAT",
+    "inputs": {
+      "op_date": "2026-10-13",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-1",
+      "sex": "E",
+      "carcass_weight_kg": 25.0,
+      "age_months": 5.0,
+      "fat_score": null,
+      "conformation_score": 3,
+      "chill_hours": null
+    },
+    "shares_pct": [
+      27.175704256259632,
+      14.527830998656947,
+      20.00576552655179,
+      11.829977397211657,
+      16.03217691247338,
+      10.428544908846606
+    ]
+  },
+  {
+    "row_id": "ALI-B-002004",
+    "inputs": {
+      "op_date": "2026-03-13",
+      "species": "KUZU",
+      "breed": "AKKARAMAN",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-1",
+      "sex": "E",
+      "carcass_weight_kg": 15.14,
+      "age_months": 5.7,
+      "fat_score": 1.0,
+      "conformation_score": 2,
+      "chill_hours": 12.0
+    },
+    "shares_pct": [
+      26.162079037742636,
+      13.557700055572187,
+      20.552170103868825,
+      11.5025904037342,
+      14.426940533009612,
+      13.798519866072551
+    ]
+  },
+  {
+    "row_id": "ALI-B-002017",
+    "inputs": {
+      "op_date": "2026-03-20",
+      "species": "KUZU",
+      "breed": "KARAYAKA",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-1",
+      "sex": "D",
+      "carcass_weight_kg": 22.95,
+      "age_months": 4.4,
+      "fat_score": 4.0,
+      "conformation_score": 5,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      26.020610466093647,
+      14.286852974930948,
+      19.857694688331993,
+      12.308645464469693,
+      17.207290834422015,
+      10.318905571751694
+    ]
+  },
+  {
+    "row_id": "ALI-B-002033",
+    "inputs": {
+      "op_date": "2026-03-24",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-1",
+      "sex": "D",
+      "carcass_weight_kg": 21.18,
+      "age_months": 4.7,
+      "fat_score": 4.0,
+      "conformation_score": 4,
+      "chill_hours": 18.0
+    },
+    "shares_pct": [
+      26.565367406770704,
+      14.604191651616684,
+      19.791950811326462,
+      12.1681535735958,
+      16.219657856686894,
+      10.65067870000345
+    ]
+  },
+  {
+    "row_id": "ALI-B-002047",
+    "inputs": {
+      "op_date": "2026-03-28",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-03",
+      "operator_code": "OP-1",
+      "sex": "E",
+      "carcass_weight_kg": 28.27,
+      "age_months": 4.9,
+      "fat_score": 4.0,
+      "conformation_score": 2,
+      "chill_hours": 18.0
+    },
+    "shares_pct": [
+      25.8680837389249,
+      14.164861893837134,
+      19.78252138235269,
+      12.417368174107759,
+      17.188992457496106,
+      10.578172353281419
+    ]
+  },
+  {
+    "row_id": "ALI-B-002064",
+    "inputs": {
+      "op_date": "2026-04-04",
+      "species": "KUZU",
+      "breed": "MERINOS",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-4",
+      "sex": "E",
+      "carcass_weight_kg": 27.6,
+      "age_months": 3.9,
+      "fat_score": 4.0,
+      "conformation_score": 3,
+      "chill_hours": 36.0
+    },
+    "shares_pct": [
+      25.656477770036243,
+      14.029732839408775,
+      19.795767123806996,
+      12.515289441601247,
+      16.59651968341499,
+      11.406213141731747
+    ]
+  },
+  {
+    "row_id": "ALI-B-002081",
+    "inputs": {
+      "op_date": "2026-04-09",
+      "species": "KUZU",
+      "breed": "AKKARAMAN",
+      "supplier_code": "TED-HAY-02",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 22.81,
+      "age_months": 5.0,
+      "fat_score": 4.0,
+      "conformation_score": 4,
+      "chill_hours": 48.0
+    },
+    "shares_pct": [
+      25.35146843530413,
+      14.055068289628679,
+      20.143045981662464,
+      12.686628392216429,
+      17.254001086529303,
+      10.509787814658987
+    ]
+  },
+  {
+    "row_id": "ALI-B-002097",
+    "inputs": {
+      "op_date": "2026-04-15",
+      "species": "KOYUN",
+      "breed": "KARAYAKA",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 31.68,
+      "age_months": 58.5,
+      "fat_score": 2.0,
+      "conformation_score": 2,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      23.26302554694774,
+      12.47650152284557,
+      20.261016938491842,
+      12.916495534619221,
+      19.152595358402387,
+      11.930365098693223
+    ]
+  },
+  {
+    "row_id": "ALI-B-002113",
+    "inputs": {
+      "op_date": "2026-04-18",
+      "species": "OGLAK",
+      "breed": "KIL_KECISI",
+      "supplier_code": "TED-HAY-03",
+      "operator_code": "OP-2",
+      "sex": "E",
+      "carcass_weight_kg": 15.56,
+      "age_months": 5.5,
+      "fat_score": 3.0,
+      "conformation_score": 3,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      24.757170941207203,
+      13.080022071255417,
+      21.00665299295475,
+      11.021143537650966,
+      13.9494329578593,
+      16.185577499072366
+    ]
+  },
+  {
+    "row_id": "ALI-B-002129",
+    "inputs": {
+      "op_date": "2026-04-28",
+      "species": "KOYUN",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-2",
+      "sex": "E",
+      "carcass_weight_kg": 27.45,
+      "age_months": 34.7,
+      "fat_score": 3.0,
+      "conformation_score": 4,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      25.262918865573,
+      13.613504566832201,
+      20.06352508470753,
+      12.675993352203406,
+      18.07701378410313,
+      10.307044346580728
+    ]
+  },
+  {
+    "row_id": "ALI-B-002143",
+    "inputs": {
+      "op_date": "2026-05-04",
+      "species": "KUZU",
+      "breed": "AKKARAMAN",
+      "supplier_code": "TED-HAY-02",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 23.35,
+      "age_months": 7.8,
+      "fat_score": 2.0,
+      "conformation_score": 4,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      26.666436830772238,
+      14.206137666393433,
+      20.326367506570705,
+      11.94157343270971,
+      15.684468326772231,
+      11.175016236781683
+    ]
+  },
+  {
+    "row_id": "ALI-B-002161",
+    "inputs": {
+      "op_date": "2026-05-13",
+      "species": "OGLAK",
+      "breed": "SAANEN",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-3",
+      "sex": "E",
+      "carcass_weight_kg": 17.52,
+      "age_months": 4.8,
+      "fat_score": 5.0,
+      "conformation_score": 4,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      24.69411069114533,
+      13.146099730959058,
+      20.735865274254284,
+      11.72199986196295,
+      15.597171384666954,
+      14.104753057011418
+    ]
+  },
+  {
+    "row_id": "ALI-B-002177",
+    "inputs": {
+      "op_date": "2026-05-21",
+      "species": "KUZU",
+      "breed": "AKKARAMAN",
+      "supplier_code": "TED-HAY-02",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 24.11,
+      "age_months": 7.2,
+      "fat_score": 3.0,
+      "conformation_score": 3,
+      "chill_hours": 48.0
+    },
+    "shares_pct": [
+      25.407023399226215,
+      13.834340771854423,
+      20.286647381058646,
+      12.456957549416733,
+      16.83995208550819,
+      11.175078812935782
+    ]
+  },
+  {
+    "row_id": "ALI-B-002193",
+    "inputs": {
+      "op_date": "2026-05-28",
+      "species": "OGLAK",
+      "breed": "SAANEN",
+      "supplier_code": "TED-HAY-02",
+      "operator_code": "OP-3",
+      "sex": "D",
+      "carcass_weight_kg": 16.06,
+      "age_months": 5.7,
+      "fat_score": 3.0,
+      "conformation_score": 2,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      24.334583518827152,
+      12.605069665411005,
+      21.052832158363984,
+      11.273242869435254,
+      14.739975515258944,
+      15.99429627270367
+    ]
+  },
+  {
+    "row_id": "ALI-B-002209",
+    "inputs": {
+      "op_date": "2026-06-03",
+      "species": "KUZU",
+      "breed": "AKKARAMAN",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 21.26,
+      "age_months": 5.1,
+      "fat_score": 4.0,
+      "conformation_score": 3,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      24.909992041345323,
+      13.727077752600598,
+      19.995478250016582,
+      12.723611730441602,
+      17.33471231050464,
+      11.309127915091256
+    ]
+  },
+  {
+    "row_id": "ALI-B-002223",
+    "inputs": {
+      "op_date": "2026-06-09",
+      "species": "KUZU",
+      "breed": "AKKARAMAN",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-2",
+      "sex": "E",
+      "carcass_weight_kg": 20.22,
+      "age_months": 7.9,
+      "fat_score": 4.0,
+      "conformation_score": 2,
+      "chill_hours": 36.0
+    },
+    "shares_pct": [
+      24.517638427804638,
+      13.4571375973915,
+      20.141169701303436,
+      12.706103979973488,
+      17.2224523592185,
+      11.955497934308438
+    ]
+  },
+  {
+    "row_id": "ALI-B-002243",
+    "inputs": {
+      "op_date": "2026-06-16",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-1",
+      "sex": "E",
+      "carcass_weight_kg": 16.44,
+      "age_months": 3.3,
+      "fat_score": 2.0,
+      "conformation_score": 4,
+      "chill_hours": 12.0
+    },
+    "shares_pct": [
+      27.932844949322675,
+      14.688042809697087,
+      20.14484568148449,
+      11.19963118806372,
+      13.905466861218523,
+      12.129168510213491
+    ]
+  },
+  {
+    "row_id": "ALI-B-002257",
+    "inputs": {
+      "op_date": "2026-06-24",
+      "species": "OGLAK",
+      "breed": "KIL_KECISI",
+      "supplier_code": "TED-HAY-02",
+      "operator_code": "OP-1",
+      "sex": "E",
+      "carcass_weight_kg": 12.31,
+      "age_months": 4.8,
+      "fat_score": 2.0,
+      "conformation_score": 4,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      26.062270882880988,
+      13.518716029136995,
+      21.239662305475182,
+      10.4911901305324,
+      12.76088642505726,
+      15.927274226917154
+    ]
+  },
+  {
+    "row_id": "ALI-B-002271",
+    "inputs": {
+      "op_date": "2026-06-29",
+      "species": "KUZU",
+      "breed": "MERINOS",
+      "supplier_code": "TED-HAY-03",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 18.38,
+      "age_months": 7.8,
+      "fat_score": 1.0,
+      "conformation_score": 3,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      27.212943066643795,
+      14.277917084546136,
+      20.278616575502618,
+      11.192559900091227,
+      14.174714806928318,
+      12.863248566287893
+    ]
+  },
+  {
+    "row_id": "ALI-B-002289",
+    "inputs": {
+      "op_date": "2026-07-06",
+      "species": "KUZU",
+      "breed": "AKKARAMAN",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 24.7,
+      "age_months": 3.8,
+      "fat_score": 2.0,
+      "conformation_score": 2,
+      "chill_hours": 18.0
+    },
+    "shares_pct": [
+      25.478651011230404,
+      13.498223880151555,
+      20.173199771899988,
+      12.197982464858907,
+      16.07133803906298,
+      12.580604832796173
+    ]
+  },
+  {
+    "row_id": "ALI-B-002306",
+    "inputs": {
+      "op_date": "2026-07-13",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-1",
+      "sex": "E",
+      "carcass_weight_kg": 20.8,
+      "age_months": 3.3,
+      "fat_score": 4.0,
+      "conformation_score": 3,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      26.45889593100873,
+      14.417192695279367,
+      19.891803454972603,
+      12.120579341817749,
+      16.426166312534406,
+      10.68536226438713
+    ]
+  },
+  {
+    "row_id": "ALI-B-002321",
+    "inputs": {
+      "op_date": "2026-07-21",
+      "species": "KUZU",
+      "breed": "AKKARAMAN",
+      "supplier_code": "TED-HAY-02",
+      "operator_code": "OP-1",
+      "sex": "D",
+      "carcass_weight_kg": 16.95,
+      "age_months": 5.1,
+      "fat_score": 2.0,
+      "conformation_score": 2,
+      "chill_hours": 12.0
+    },
+    "shares_pct": [
+      25.44229950250453,
+      13.53588135333875,
+      20.323470570743844,
+      11.985280937086173,
+      15.5967543853298,
+      13.116313250996892
+    ]
+  },
+  {
+    "row_id": "ALI-B-002340",
+    "inputs": {
+      "op_date": "2026-07-28",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 21.96,
+      "age_months": 6.6,
+      "fat_score": 3.0,
+      "conformation_score": 4,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      27.19462766847926,
+      14.64858342654044,
+      19.94151704065887,
+      11.775368498132254,
+      15.487005628133257,
+      10.952897738055935
+    ]
+  },
+  {
+    "row_id": "ALI-B-002353",
+    "inputs": {
+      "op_date": "2026-08-04",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-4",
+      "sex": "D",
+      "carcass_weight_kg": 22.85,
+      "age_months": 4.4,
+      "fat_score": 4.0,
+      "conformation_score": 3,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      25.76285422798578,
+      14.051097752305347,
+      19.7509817769014,
+      12.27867937290252,
+      16.15762974994529,
+      11.99875711995967
+    ]
+  },
+  {
+    "row_id": "ALI-B-002369",
+    "inputs": {
+      "op_date": "2026-08-08",
+      "species": "KUZU",
+      "breed": "AKKARAMAN",
+      "supplier_code": "TED-HAY-03",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 26.85,
+      "age_months": 7.0,
+      "fat_score": 4.0,
+      "conformation_score": 4,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      25.683647284053357,
+      14.132205604331956,
+      19.931425210307186,
+      12.676507685379713,
+      17.595352692435068,
+      9.980861523492718
+    ]
+  },
+  {
+    "row_id": "ALI-B-002385",
+    "inputs": {
+      "op_date": "2026-08-13",
+      "species": "OGLAK",
+      "breed": "KIL_KECISI",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-1",
+      "sex": "D",
+      "carcass_weight_kg": 17.36,
+      "age_months": 4.8,
+      "fat_score": 3.0,
+      "conformation_score": 3,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      24.839509425704254,
+      13.156126685897197,
+      20.932771193408968,
+      11.172990298645411,
+      14.552740449866787,
+      15.345861946477388
+    ]
+  },
+  {
+    "row_id": "ALI-B-002401",
+    "inputs": {
+      "op_date": "2026-08-20",
+      "species": "KUZU",
+      "breed": "AKKARAMAN",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-1",
+      "sex": "D",
+      "carcass_weight_kg": 17.07,
+      "age_months": 6.5,
+      "fat_score": 1.0,
+      "conformation_score": 3,
+      "chill_hours": 36.0
+    },
+    "shares_pct": [
+      26.65916043125297,
+      13.899624846977664,
+      20.602156447720162,
+      11.502495237663966,
+      14.865866617945033,
+      12.470696418440198
+    ]
+  },
+  {
+    "row_id": "ALI-B-002416",
+    "inputs": {
+      "op_date": "2026-08-28",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 25.5,
+      "age_months": 7.9,
+      "fat_score": 3.0,
+      "conformation_score": 3,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      26.741820913606247,
+      14.404525400798997,
+      19.90737666630139,
+      11.957054491138031,
+      16.072519802436975,
+      10.916702725718343
+    ]
+  },
+  {
+    "row_id": "ALI-B-002436",
+    "inputs": {
+      "op_date": "2026-09-03",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-03",
+      "operator_code": "OP-1",
+      "sex": "D",
+      "carcass_weight_kg": 18.24,
+      "age_months": 5.8,
+      "fat_score": 2.0,
+      "conformation_score": 4,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      27.8201528015135,
+      14.741103679663066,
+      20.18760756229473,
+      11.245091188696298,
+      14.691868911148086,
+      11.314175856684336
+    ]
+  },
+  {
+    "row_id": "ALI-B-002449",
+    "inputs": {
+      "op_date": "2026-09-08",
+      "species": "KUZU",
+      "breed": "MERINOS",
+      "supplier_code": "TED-HAY-02",
+      "operator_code": "OP-1",
+      "sex": "D",
+      "carcass_weight_kg": 23.54,
+      "age_months": 3.9,
+      "fat_score": 3.0,
+      "conformation_score": 4,
+      "chill_hours": 48.0
+    },
+    "shares_pct": [
+      26.929059586434207,
+      14.645973120330877,
+      20.066709027395078,
+      11.970477377517623,
+      16.15505177360136,
+      10.232729114720852
+    ]
+  },
+  {
+    "row_id": "ALI-B-002465",
+    "inputs": {
+      "op_date": "2026-09-15",
+      "species": "KUZU",
+      "breed": "KARAYAKA",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-2",
+      "sex": "E",
+      "carcass_weight_kg": 21.95,
+      "age_months": 8.0,
+      "fat_score": 2.0,
+      "conformation_score": 2,
+      "chill_hours": 24.0
+    },
+    "shares_pct": [
+      25.601296244901242,
+      13.428277864771752,
+      20.18186435262763,
+      11.714786014771297,
+      15.768890018368129,
+      13.304885504559953
+    ]
+  },
+  {
+    "row_id": "ALI-B-002481",
+    "inputs": {
+      "op_date": "2026-09-22",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-03",
+      "operator_code": "OP-2",
+      "sex": "E",
+      "carcass_weight_kg": 21.49,
+      "age_months": 6.9,
+      "fat_score": 3.0,
+      "conformation_score": 3,
+      "chill_hours": 36.0
+    },
+    "shares_pct": [
+      26.805244268416285,
+      14.377352364269205,
+      20.07570584828081,
+      11.704085850603743,
+      15.504958104324707,
+      11.53265356410525
+    ]
+  },
+  {
+    "row_id": "ALI-B-002499",
+    "inputs": {
+      "op_date": "2026-09-30",
+      "species": "KUZU",
+      "breed": "KIVIRCIK",
+      "supplier_code": "TED-HAY-01",
+      "operator_code": "OP-2",
+      "sex": "D",
+      "carcass_weight_kg": 22.01,
+      "age_months": 3.5,
+      "fat_score": 2.0,
+      "conformation_score": 3,
+      "chill_hours": 36.0
+    },
+    "shares_pct": [
+      27.136613843021454,
+      14.357734135279806,
+      20.139675557607095,
+      11.512163893262903,
+      15.030041333139957,
+      11.82377123768878
+    ]
+  }
+]

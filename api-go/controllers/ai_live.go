@@ -20,9 +20,9 @@ import (
 //go:embed aimodel/production_ridge.json
 var productionModelJSON []byte
 
-type ridgeModel struct {
-	Model       string  `json:"model"`
-	Version     string  `json:"version"`
+// linearModel is one exported sklearn Ridge pipeline: one-hot categories (an unknown category
+// adds nothing, like OneHotEncoder(handle_unknown="ignore")) and median-imputed, standardised numbers.
+type linearModel struct {
 	Intercept   float64 `json:"intercept"`
 	Categorical []struct {
 		Name string             `json:"name"`
@@ -35,6 +35,33 @@ type ridgeModel struct {
 		Scale  float64 `json:"scale"`
 		Coef   float64 `json:"coef"`
 	} `json:"numeric"`
+}
+
+// eval returns the model output; a nil, NaN or infinite number takes the training median.
+func (m *linearModel) eval(cats map[string]string, nums map[string]*float64) float64 {
+	y := m.Intercept
+	for _, c := range m.Categorical {
+		y += c.Coef[cats[c.Name]]
+	}
+	for _, n := range m.Numeric {
+		x := n.Median
+		if v := nums[n.Name]; v != nil && !math.IsNaN(*v) && !math.IsInf(*v, 0) {
+			x = *v
+		}
+		y += n.Coef * (x - n.Mean) / n.Scale
+	}
+	return y
+}
+
+func monthFeatures(d time.Time) (sin, cos float64) {
+	month := float64(d.Month())
+	return math.Sin(2 * math.Pi * month / 12), math.Cos(2 * math.Pi * month / 12)
+}
+
+type ridgeModel struct {
+	linearModel
+	Model     string             `json:"model"`
+	Version   string             `json:"version"`
 	HalfWidth map[string]float64 `json:"interval_half_width"` // yield points, "80" and "98"
 	HistMean  map[string]float64 `json:"baseline_hist_mean_yield_pct"`
 }
@@ -66,38 +93,24 @@ type ProductionInputs struct {
 	PlannedQty        float64
 }
 
-// predictYield returns the expected yield (finished kg per 100 kg meat). An unknown category
-// adds nothing, like the OneHotEncoder(handle_unknown="ignore") it was trained with.
+// predictYield returns the expected yield (finished kg per 100 kg meat).
 func (m *ridgeModel) predictYield(in ProductionInputs) float64 {
-	month := float64(in.OrderDate.Month())
 	summer := 0.0
-	if month >= 6 && month <= 8 {
+	if mo := in.OrderDate.Month(); mo >= 6 && mo <= 8 {
 		summer = 1
 	}
-	val := func(v float64) *float64 { return &v }
+	msin, mcos := monthFeatures(in.OrderDate)
 	cats := map[string]string{
 		"product_sku": in.ProductSKU, "subcontractor_code": in.SubcontractorCode, "meat_supplier_code": in.MeatSupplierCode,
 	}
 	nums := map[string]*float64{
-		"pack_size_kg": val(in.PackSizeKg), "meat_kg": val(in.MeatKg), "spice_kg": val(in.SpiceKg),
-		"casing_kg": val(in.CasingKg), "meat_fat_pct": in.MeatFatPct, "meat_age_days": in.MeatAgeDays,
-		"drying_days": in.DryingDays, "planned_qty": val(in.PlannedQty),
-		"month_sin": val(math.Sin(2 * math.Pi * month / 12)), "month_cos": val(math.Cos(2 * math.Pi * month / 12)),
-		"is_summer": val(summer), "inv_meat_kg": val(1 / in.MeatKg),
-		"spice_ratio": val(in.SpiceKg / in.MeatKg), "casing_ratio": val(in.CasingKg / in.MeatKg),
+		"pack_size_kg": ptr(in.PackSizeKg), "meat_kg": ptr(in.MeatKg), "spice_kg": ptr(in.SpiceKg),
+		"casing_kg": ptr(in.CasingKg), "meat_fat_pct": in.MeatFatPct, "meat_age_days": in.MeatAgeDays,
+		"drying_days": in.DryingDays, "planned_qty": ptr(in.PlannedQty),
+		"month_sin": ptr(msin), "month_cos": ptr(mcos), "is_summer": ptr(summer), "inv_meat_kg": ptr(1 / in.MeatKg),
+		"spice_ratio": ptr(in.SpiceKg / in.MeatKg), "casing_ratio": ptr(in.CasingKg / in.MeatKg),
 	}
-	y := m.Intercept
-	for _, c := range m.Categorical {
-		y += c.Coef[cats[c.Name]]
-	}
-	for _, n := range m.Numeric {
-		x := n.Median
-		if v := nums[n.Name]; v != nil && !math.IsNaN(*v) && !math.IsInf(*v, 0) {
-			x = *v
-		}
-		y += n.Coef * (x - n.Mean) / n.Scale
-	}
-	return y
+	return m.eval(cats, nums)
 }
 
 // ProductionForecastDto is the forecast of one external production order, in packages and EKP.
