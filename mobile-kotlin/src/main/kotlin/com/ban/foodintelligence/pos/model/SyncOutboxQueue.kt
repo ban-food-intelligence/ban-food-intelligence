@@ -8,17 +8,18 @@ import java.security.SecureRandom
 
 /**
  * ============================================================================
- * BAN Food Intelligence - Offline Outbox Queue Room Entity (`SyncOutboxQueue`)
+ * BAN Food Intelligence - Offline sale outbox (`SyncOutboxQueue`)
  * Author: Nuri (Principal Android Security Engineer & Lead POS Architect)
  * ============================================================================
  *
- * Stores cryptographically signed Edge AI retail yield predictions while the
- * POS terminal operates offline.
+ * One signed POS sale line per row, kept in SQLite until `POST /sync` acknowledges it.
+ * Written by the SQLite engine in `AppDatabase`; the Room annotations only describe the table.
  *
  * Schema Columns:
  * - `timestamp`       : Time-ordered RFC 9562 UUIDv7 primary key & idempotency token
- * - `batch_id`        : Retail lot identifier (e.g., "BATCH-GM-00042" or "SUC-2026-045")
- * - `predicted_yield` : ONNX Edge AI predicted retention yield percentage
+ * - `batch_id`        : Lot number of the sold item (e.g. "SUC-2026-045")
+ * - `predicted_yield` : Sold quantity in the lot's unit (legacy name kept: it is part of the
+ *                       signed payload and the `/sync` JSON)
  * - `hmac_signature`  : Base64 ASN.1 ECDSA-P256 signature from the Keystore private key
  *                       (legacy column name kept to avoid a schema migration)
  * - `tenant_id`       : Store/Market tenant scope for anti-IDOR verification
