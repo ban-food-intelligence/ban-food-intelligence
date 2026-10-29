@@ -7,20 +7,11 @@ import (
 )
 
 type LotController struct {
-	db    *sql.DB
-	trace *TraceController
+	db *sql.DB
 }
 
 func NewLotController(db *sql.DB) *LotController {
-	return &LotController{
-		db:    db,
-		trace: NewTraceController(db),
-	}
-}
-
-// TraceLot delegates to TraceController backed by MySQL `sp_trace_forward` / `sp_trace_backward`.
-func (c *LotController) TraceLot(w http.ResponseWriter, r *http.Request) {
-	c.trace.TraceHandler(w, r)
+	return &LotController{db: db}
 }
 
 // ListStockByLot handles GET /lots
