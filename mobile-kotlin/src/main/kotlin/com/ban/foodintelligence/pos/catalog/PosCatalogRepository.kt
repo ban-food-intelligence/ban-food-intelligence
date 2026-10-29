@@ -29,7 +29,9 @@ data class PosInventoryLot(
     /** "2026-10-19"; empty when the lot has no expiry date. */
     val expiryDate: String = "",
     /** Recall reason text, when recalled. */
-    val recallReason: String? = null
+    val recallReason: String? = null,
+    /** Stable product identity: FEFO recommendations never mix products with the same name. */
+    val sku: String = ""
 ) {
     val isBlocked: Boolean get() = status == "RECALLED" || status == "BLOCKED" || recallCode != null
 
@@ -46,6 +48,20 @@ data class PosInventoryLot(
 /** Lots the Sell screen may offer: not blocked by a recall, not expired, with stock left. */
 fun sellableLots(lots: List<PosInventoryLot>, today: LocalDate = LocalDate.now()): List<PosInventoryLot> =
     lots.filter { !it.isBlocked && !it.isExpiredOn(today) && it.availableQty > 0.0 }
+
+private fun expiryOrder(lot: PosInventoryLot): LocalDate =
+    runCatching { LocalDate.parse(lot.expiryDate) }.getOrDefault(LocalDate.MAX)
+
+/** Earliest valid expiry first for each product; unknown expiry comes last. */
+fun fefoSaleLots(lots: List<PosInventoryLot>, today: LocalDate = LocalDate.now()): List<PosInventoryLot> =
+    sellableLots(lots, today).sortedWith(compareBy({ it.productName }, { it.sku }, { expiryOrder(it) }, { it.lotNo }))
+
+fun fefoRecommendedLotNos(lots: List<PosInventoryLot>, today: LocalDate = LocalDate.now()): Set<String> =
+    sellableLots(lots, today).filter { it.sku.isNotBlank() }
+        .groupBy { it.sku }.values.mapNotNull { group ->
+            group.minWithOrNull(compareBy({ expiryOrder(it) }, { it.lotNo }))
+                ?.takeIf { expiryOrder(it) != LocalDate.MAX }?.lotNo
+        }.toSet()
 
 /** Where the lot list on screen came from. */
 enum class CatalogSource { LIVE, CACHED, NONE }
@@ -184,7 +200,8 @@ object PosCatalogRepository {
                         recallCode = recall?.recallCode,
                         recallRootLot = recall?.triggerLot,
                         expiryDate = o.optString("expiry_date"),
-                        recallReason = recall?.reason
+                        recallReason = recall?.reason,
+                        sku = o.optString("sku")
                     )
                 )
             }

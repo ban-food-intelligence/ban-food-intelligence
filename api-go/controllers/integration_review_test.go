@@ -59,7 +59,7 @@ func TestIntegrationReviewConcurrentReturns(t *testing.T) {
 		go func(warehouse string) {
 			<-start
 			code, _ := call(t, ctrl.Return, "POST", "/movements/return", ReturnRequest{
-				LotNo: "SUC-2026-045", CustomerCode: "MKT-C", Warehouse: warehouse, Qty: 30})
+				LotNo: "SUC-2026-045", CustomerCode: "MKT-C", Warehouse: warehouse, Qty: 20})
 			results <- code
 		}(wh)
 	}
