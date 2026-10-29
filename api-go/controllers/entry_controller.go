@@ -266,7 +266,8 @@ type ButcheryOperationResultDto struct {
 	AllocationMethod string                          `json:"allocation_method"`
 	WeightCheck      WeightCheckDto                  `json:"weight_check"`
 	Allocation       ButcheryKeyResultDto            `json:"allocation"`
-	Comparison       map[string]ButcheryKeyResultDto `json:"allocation_by_key"` // both keys, for the decision
+	Comparison       map[string]ButcheryKeyResultDto `json:"allocation_by_key"`  // both keys, for the decision
+	Forecast         *ButcheryForecastDto            `json:"forecast,omitempty"` // AI 4B: expected vs recorded part weights
 }
 
 // allocateButchery spreads totalCents over the outputs with the chosen key. Waste carries no
@@ -463,6 +464,12 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 		},
 	}
 	result.Allocation = result.Comparison[req.AllocationMethod]
+	if in, ptype, err := loadCarcass(ctx, tx, req.InputLotNo); err == nil && ptype == "CARCASS" {
+		in.CarcassWeightKg, in.OperatorCode = req.InputWeightKg, req.OperatorName
+		in.OpDate, _ = time.Parse("2006-01-02", req.OpDate)
+		result.Forecast = forecastButchery(in, butcheryForecastModel)
+		applyButcheryActuals(result.Forecast, req.Outputs)
+	}
 	if req.DryRun {
 		result.Status = "DRY_RUN"
 		writeJSON(w, result)
@@ -518,6 +525,12 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO butchery_output (operation_id, product_id, lot_id, output_kind, weight_kg, allocation_basis, allocated_cost)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`, opID, products[i], lotID, o.Kind, o.WeightKg, line.Basis, line.Cost); err != nil {
+			writeDBError(w, r, err)
+			return
+		}
+	}
+	if result.Forecast != nil {
+		if err := storeButcheryForecast(ctx, tx, opID, result.Forecast); err != nil {
 			writeDBError(w, r, err)
 			return
 		}
