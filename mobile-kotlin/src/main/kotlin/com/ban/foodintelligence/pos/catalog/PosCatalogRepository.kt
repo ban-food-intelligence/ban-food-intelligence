@@ -12,6 +12,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONException
 import java.io.IOException
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
 /** A lot on sale at this terminal's store, as reported by the Go API. */
@@ -31,11 +32,20 @@ data class PosInventoryLot(
     val recallReason: String? = null
 ) {
     val isBlocked: Boolean get() = status == "RECALLED" || status == "BLOCKED" || recallCode != null
+
+    /**
+     * Past its expiry date on [today]; the expiry day itself is still sellable, as in the
+     * database rule. No (or an unreadable) date never blocks here; the API still checks.
+     */
+    fun isExpiredOn(today: LocalDate): Boolean =
+        runCatching { LocalDate.parse(expiryDate).isBefore(today) }.getOrDefault(false)
+
+    val isExpired: Boolean get() = isExpiredOn(LocalDate.now())
 }
 
-/** Lots the Sell screen may offer: not blocked by a recall and with stock left. */
-fun sellableLots(lots: List<PosInventoryLot>): List<PosInventoryLot> =
-    lots.filter { !it.isBlocked && it.availableQty > 0.0 }
+/** Lots the Sell screen may offer: not blocked by a recall, not expired, with stock left. */
+fun sellableLots(lots: List<PosInventoryLot>, today: LocalDate = LocalDate.now()): List<PosInventoryLot> =
+    lots.filter { !it.isBlocked && !it.isExpiredOn(today) && it.availableQty > 0.0 }
 
 /** Where the lot list on screen came from. */
 enum class CatalogSource { LIVE, CACHED, NONE }

@@ -127,6 +127,9 @@
     <string name="lot_recalled_pill">Geri çağrıldı</string>
     <string name="lot_recalled_reason">%2$s kaynak lotundan %1$s geri çağırması. Satış engellendi.</string>
     <string name="lot_blocked_reason">Bu lot bloke. Satış engellendi.</string>
+    <string name="sell_section_expired">SKT geçti, satış engellendi</string>
+    <string name="lot_expired_pill">SKT geçti</string>
+    <string name="lot_expired_reason">Son tüketim tarihi %1$s idi. Lotu raftan kaldırın ve fire olarak kaydedin.</string>
     <string name="sell_sheet_quantity">Miktar</string>
     <string name="sell_sheet_price">Fiyat</string>
     <string name="sell_sheet_total">Toplam</string>
