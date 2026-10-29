@@ -106,6 +106,8 @@ func main() {
 	// Task 3: Recursive Lot Traceability & Emergency Recall
 	mux.HandleFunc("/recall", op(recallCtrl.TriggerRecall))
 	mux.HandleFunc("/recall/contacts.csv", recallCtrl.ContactsCSV)
+	mux.HandleFunc("/recall/progress", recallCtrl.Progress)
+	mux.HandleFunc("/recall/followup", op(recallCtrl.Followup))
 	mux.HandleFunc("/trace/", traceCtrl.TraceHandler)
 	mux.HandleFunc("/lots", lotCtrl.ListStockByLot)
 
@@ -117,6 +119,7 @@ func main() {
 	// Reports: purchases, lot movement ledger, POS sales
 	mux.HandleFunc("/movements", reportsCtrl.Movements)
 	mux.HandleFunc("/sales", reportsCtrl.Sales)
+	mux.HandleFunc("/reports/assessment", reportsCtrl.Assessment)
 
 	// Lot movements: transfer, customer return, waste, rework (sale/shipment/production elsewhere)
 	mux.HandleFunc("/movements/transfer", op(movementsCtrl.Transfer))

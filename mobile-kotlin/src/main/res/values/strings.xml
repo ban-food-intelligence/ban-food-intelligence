@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="fefo_recommended">Sell first · FEFO</string>
+    <string name="fefo_note">For each product, the sellable lot expiring soonest is recommended. You can still choose another lot. Undated lots come last.</string>
     <!-- Application Identity -->
     <string name="app_name">BAN Shop</string>
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->

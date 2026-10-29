@@ -19,6 +19,10 @@ with exact lot traceability and recall. Built for the AVATAR Yapay Zeka Yarışm
   with NVIDIA Nemotron VL and human approval.
 - **Security** Supervisor sessions for every back-office write, ECDSA-signed POS sync with pinned
   device keys and replay detection, rate limits and PIN lockout ([docs/SECURITY.md](docs/SECURITY.md)).
+- **Operations** Android recommends the earliest-expiring sellable lot per product (FEFO).
+  Recall follow-up records customer contact and physical returns separately; the dashboard's
+  *Assessment report (PDF)* exports the three tasks and AI evidence with Turkish text.
+  See [docs/FEATURES.md](docs/FEATURES.md) for usage and the existing-database migration.
 
 The brief: [docs/ASSESSMENT.md](docs/ASSESSMENT.md). Every bullet of it with its proof:
 [docs/SPEC_COMPLIANCE.md](docs/SPEC_COMPLIANCE.md).

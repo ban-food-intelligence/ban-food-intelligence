@@ -2,6 +2,7 @@ import React from 'react';
 import { useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { Async, Group, Kpi, Page } from '../lib/ui';
+import AssessmentReportButton from './AssessmentReportButton';
 
 const ORDER = 'URT-2026-045';
 
@@ -16,6 +17,7 @@ export default function Overview({ onOpen }) {
 
   return (
     <Page title={t('ov_title')} subtitle={t('ov_sub')}>
+      <AssessmentReportButton />
       <div className="grid-2">
         <Group title={t('ov_production', ORDER)} aside={<button className="btn-text" onClick={() => onOpen('production')}>›</button>}>
           <Async result={production} rows={2}>

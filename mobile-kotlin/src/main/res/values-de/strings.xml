@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="fefo_recommended">Zuerst verkaufen · FEFO</string>
+    <string name="fefo_note">Je Produkt wird die verkäufliche Charge mit dem frühesten Verbrauchsdatum empfohlen. Andere Chargen bleiben wählbar. Undatierte Chargen stehen am Ende.</string>
     <!-- Application Identity -->
     <string name="app_name">BAN Laden</string>
     <!-- Red Recall Lockdown Screen (21st.dev Brutalist Terminal) -->

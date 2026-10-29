@@ -133,14 +133,15 @@ func (c *MovementsController) Return(w http.ResponseWriter, r *http.Request) {
 		}
 		// lotID holds the lot row lock before any snapshot read: concurrent returns cannot
 		// both claim the same delivered goods, even when they go to different warehouses.
-		var delivered, returned float64
+		var delivered, returned, forwarded float64
 		if err := tx.QueryRowContext(r.Context(), `SELECT
 		    (SELECT COALESCE(SUM(sl.qty),0) FROM shipment_line sl JOIN shipment sh ON sh.id=sl.shipment_id WHERE sl.lot_id=? AND sh.customer_id=?),
-		    (SELECT COALESCE(SUM(sm.qty),0) FROM stock_movement sm WHERE sm.lot_id=? AND sm.movement_type='RETURN' AND sm.ref_type='customer' AND sm.ref_id=?)`,
-			lot, customer, lot, customer).Scan(&delivered, &returned); err != nil {
+		    (SELECT COALESCE(SUM(sm.qty),0) FROM stock_movement sm WHERE sm.lot_id=? AND sm.movement_type='RETURN' AND sm.ref_type='customer' AND sm.ref_id=?),
+		    (SELECT COALESCE(SUM(sl.qty),0) FROM shipment_line sl JOIN shipment sh ON sh.id=sl.shipment_id WHERE sl.lot_id=? AND sh.from_customer_id=?)`,
+			lot, customer, lot, customer, lot, customer).Scan(&delivered, &returned, &forwarded); err != nil {
 			return nil, err
 		}
-		if round3(returned+req.Qty) > delivered {
+		if round3(returned+forwarded+req.Qty) > delivered {
 			return nil, movementConflict("return exceeds the customer's recorded delivered quantity")
 		}
 		if err := insertMovement(r.Context(), tx, lot, wh, "RETURN", req.Qty, cost, "customer", &customer,
