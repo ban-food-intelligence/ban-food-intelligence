@@ -50,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -63,6 +64,7 @@ import com.ban.foodintelligence.pos.R
 import com.ban.foodintelligence.pos.catalog.CatalogSource
 import com.ban.foodintelligence.pos.catalog.PosInventoryLot
 import com.ban.foodintelligence.pos.catalog.sellableLots
+import com.ban.foodintelligence.pos.security.DeviceIdentity
 import com.ban.foodintelligence.pos.ui.design.Figure
 import com.ban.foodintelligence.pos.ui.design.Fmt
 import com.ban.foodintelligence.pos.ui.design.InsetGroup
@@ -270,6 +272,7 @@ fun LotRow(lot: PosInventoryLot, onClick: () -> Unit) {
 private fun SellSheet(lot: PosInventoryLot, state: PosAppState, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val view = LocalView.current
+    val deviceId = DeviceIdentity.id(LocalContext.current)
     var input by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var soldQty by remember { mutableStateOf<Double?>(null) }
@@ -354,7 +357,8 @@ private fun SellSheet(lot: PosInventoryLot, state: PosAppState, onDismiss: () ->
                     saving = true
                     scope.launch {
                         state.appDb.recordPosSale(
-                            lotNo = lot.lotNo, productName = lot.productName, qty = q, uom = lot.uom, unitPriceEur = lot.unitPriceEur
+                            lotNo = lot.lotNo, productName = lot.productName, qty = q, uom = lot.uom, unitPriceEur = lot.unitPriceEur,
+                            deviceId = deviceId
                         )
                         view.performHapticFeedback(
                             if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.KEYBOARD_TAP

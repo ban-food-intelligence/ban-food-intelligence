@@ -23,7 +23,7 @@ import java.security.SecureRandom
  * - `hmac_signature`  : Base64 ASN.1 ECDSA-P256 signature from the Keystore private key
  *                       (legacy column name kept to avoid a schema migration)
  * - `tenant_id`       : Store/Market tenant scope for anti-IDOR verification
- * - `device_id`       : Bound POS terminal hardware ID for anti-BFLA/IDOR validation
+ * - `device_id`       : This installation's DeviceIdentity; the API pins the signing key to it
  * - `actor_role`      : Least-privilege RBAC role (`ROLE_POS_DEVICE`)
  * - `status`          : Synchronization lifecycle state (`PENDING`, `SYNCED`, `FAILED`)
  * - `retry_count`     : Exponential backoff attempt counter
@@ -53,7 +53,7 @@ data class SyncOutboxQueue(
     val tenantId: String = "MARKET-TIER-A-IST-01",
 
     @ColumnInfo(name = "device_id")
-    val deviceId: String = "POS-TERM-NURI-001",
+    val deviceId: String,
 
     @ColumnInfo(name = "actor_role")
     val actorRole: String = "ROLE_POS_DEVICE",

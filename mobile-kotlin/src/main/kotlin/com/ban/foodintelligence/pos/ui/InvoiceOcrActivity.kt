@@ -90,6 +90,7 @@ import com.ban.foodintelligence.pos.R
 import com.ban.foodintelligence.pos.database.AppDatabase
 import com.ban.foodintelligence.pos.ocr.InvoiceExtraction
 import com.ban.foodintelligence.pos.ocr.NvidiaVisionOcrClient
+import com.ban.foodintelligence.pos.security.DeviceIdentity
 import com.ban.foodintelligence.pos.security.TerminalLockStore
 import com.ban.foodintelligence.pos.worker.SyncWorker
 import kotlinx.coroutines.Dispatchers
@@ -365,7 +366,8 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                                             productName = item.productName,
                                             qty = item.quantity,
                                             uom = item.unit,
-                                            unitCostEur = item.unitCost
+                                            unitCostEur = item.unitCost,
+                                            deviceId = DeviceIdentity.id(context)
                                         )
                                     }
                                 runCatching { SyncWorker.enqueueWhenNetworkConnected(context) }

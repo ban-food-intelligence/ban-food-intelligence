@@ -98,7 +98,11 @@ class SyncWorker(
                 return@withContext Result.success()
             }
 
-            val pending = outboxDao.getPendingItems(limit = BATCH_SIZE)
+            // One envelope per device id: the API requires every item's device_id to match the
+            // envelope, and sales queued before an app update can still carry an older id.
+            val pending = outboxDao.getPendingItems(limit = BATCH_SIZE).let { rows ->
+                rows.filter { it.deviceId == rows.firstOrNull()?.deviceId }
+            }
             if (pending.isEmpty()) break
 
             val syncingStatus = applicationContext.getString(R.string.sync_status_syncing, pending.size)
