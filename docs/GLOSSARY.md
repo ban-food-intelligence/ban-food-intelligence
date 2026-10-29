@@ -20,6 +20,7 @@ error messages and the docs.
 | supplier | Tedarikçi | Lieferant |
 | shipment | Sevkiyat | Lieferung |
 | expiry date | Son tüketim tarihi (SKT) | Mindesthaltbarkeitsdatum (MHD) |
+| expired (past expiry date) | SKT geçti | Abgelaufen / MHD überschritten |
 | stock movement | Stok hareketi | Lagerbewegung |
 | sync | Senkronizasyon (tab: "Senkron") | Synchronisierung (tab: "Sync") |
 | goods receipt | Mal kabulü | Wareneingang |

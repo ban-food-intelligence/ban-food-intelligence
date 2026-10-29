@@ -20,7 +20,7 @@ Money values are EUR, quantities are in the lot's unit (`KG`, `PAKET`).
 | 403 | `SIGNATURE_REJECTED` (sync signature checks) |
 | 404 | `NOT_FOUND`, `LOT_NOT_FOUND` |
 | 405 | `METHOD_NOT_ALLOWED` |
-| 409 | `INSUFFICIENT_STOCK`, `LOT_BLOCKED` (recalled/blocked lot), `ORDER_STATE`, `CONFLICT` |
+| 409 | `INSUFFICIENT_STOCK`, `LOT_BLOCKED` (recalled/blocked lot), `LOT_EXPIRED` (sale or shipment after the expiry date), `ORDER_STATE`, `CONFLICT` |
 | 422 | `INVALID_INPUT` (rejected by a database rule) |
 | 429 | `LOCKED_OUT` (too many wrong PINs) |
 | 500 | `DB_ERROR` |
@@ -191,7 +191,7 @@ sale line trigger writes the SALE stock movement. Replays are acknowledged witho
  "status":"PARTIAL","signature_verified":true}
 ```
 Only acknowledged ids are removed from the device queue. `rejected` codes `INSUFFICIENT_STOCK`,
-`LOT_BLOCKED`, `INVALID_INPUT`, `CONFLICT` are permanent (the POS stops retrying and shows the reason);
+`LOT_BLOCKED`, `LOT_EXPIRED`, `INVALID_INPUT`, `CONFLICT` are permanent (the POS stops retrying and shows the reason);
 `DB_ERROR` is retried; `REPLAY_MISMATCH` (a known UUIDv7 with different data) is permanent too.
 
 Security: the envelope header `X-Signature` (ECDSA over `tenant:device:role:uuid:body`) is

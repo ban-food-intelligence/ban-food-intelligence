@@ -72,6 +72,8 @@ A `BEFORE INSERT` trigger enforces the rules for every client:
 
 - the sign matches the type (in > 0, out < 0);
 - a recalled or blocked lot cannot be sold, shipped or consumed (returns and quarantine moves are allowed);
+- a lot past its expiry date cannot be sold or shipped (`LOT_EXPIRED`); the date that counts is the
+  movement's own time, so an offline sale made before the expiry is still accepted when it syncs later;
 - the balance may never go negative (the balance row is locked `FOR UPDATE`, so concurrent sales cannot both pass).
 
 `stock_balance` is a cache maintained by the `AFTER INSERT` trigger; `v_stock_ledger_check`
@@ -107,7 +109,7 @@ consistent. The approach:
    inserted. Sending the same batch twice therefore never books a sale twice.
 5. **Acknowledge only what was applied.** The response lists `acknowledged_ids`; only those are
    marked SYNCED on the phone. Records MySQL refuses come back in `rejected` with a code:
-   - permanent (`INSUFFICIENT_STOCK`, `LOT_BLOCKED`, `INVALID_INPUT`, `CONFLICT`): the phone marks
+   - permanent (`INSUFFICIENT_STOCK`, `LOT_BLOCKED`, `LOT_EXPIRED`, `INVALID_INPUT`, `CONFLICT`): the phone marks
      them REJECTED, shows the reason on the Sync tab and stops retrying;
    - temporary (`DB_ERROR`, network): they stay queued and are retried.
 6. **Conflicts.** The phone may sell from a cached stock figure while offline. MySQL decides: the
