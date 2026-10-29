@@ -40,8 +40,8 @@ curl -X POST localhost:8080/recall -H "Authorization: Bearer $TOKEN" -d '{"trigg
 
 `POST /auth/session` `{"pin","device_id"?}` → `200 {"token","token_type":"Bearer","expires_at","username","display_name"}`
 (30 minutes); `401 INVALID_PIN` / `429 LOCKED_OUT` as for the supervisor unlock. Protected:
-`POST /recall`, `/movements/transfer|return|waste`, `/rework`, `/production`, `/purchases`,
-`/butchery/operations`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
+`POST /recall`, `/movements/transfer|return|waste`, `/rework`, `/production`, `/production/orders`,
+`/purchases`, `/butchery/operations`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
 The recall initiator and the movements' `created_by` are the signed-in supervisor.
 
 Limits for every request: body ≤ 1 MiB (`413 PAYLOAD_TOO_LARGE`), 20 requests/s per client IP
@@ -57,7 +57,9 @@ with a burst of 120 (`429 RATE_LIMITED`, `Retry-After`). See [SECURITY.md](SECUR
 ## Task 1: production and real cost (EKP)
 
 `GET /production[?order_no=URT-2026-045]` - orders with EKP, VKP, gross profit, margin, quantity
-variance and the cost breakdown (from `v_production_cost`, `v_production_cost_breakdown`).
+variance and the cost breakdown (from `v_production_cost`, `v_production_cost_breakdown`); orders
+whose material is still at the subcontractor (`MATERIAL_SENT`) follow with `planned_qty`,
+`input_kg` and `material_cost`. Every order with a forecast carries `forecast` (see below).
 ```json
 {"order_no":"URT-2026-045","status":"RECEIVED","planned_qty":85,"actual_qty":85,"qty_variance":0,
  "material_cost":1076,"service_cost":467.5,"total_cost":1543.5,"ekp":18.1588,"ekp_display":18.16,
@@ -66,13 +68,35 @@ variance and the cost breakdown (from `v_production_cost`, `v_production_cost_br
  "breakdown":[{"lot_no":"ET-2026-001","cost_element":"Dana et (sucukluk)","qty":100,"uom_code":"KG","unit_cost":9.7,"amount":970}, "..."]}
 ```
 
-`POST /production` - complete an order whose material was sent (`sp_production_complete`):
+`POST /production/orders` - record an external production order and send its raw material to the
+subcontractor, in one transaction: the order, a `TRANSFER_OUT`/`TRANSFER_IN` pair per lot with
+its cost snapshot (`sp_production_send_input`), and the AI forecast stored in `ml_prediction`.
 ```json
-{"order_no":"URT-2026-099","actual_qty":1,"output_lot_no":"SUC-2026-099","invoice_no":"FAS-FTR-099",
+{"order_no":"URT-2026-047","product_sku":"MM-SUCUK-1KG","subcontractor_code":"FAS-01","planned_qty":85,
+ "service_unit_price":5.5,"drying_days":5,"order_date":"2026-10-29",
+ "inputs":[{"lot_no":"ET-2026-003","qty":100},{"lot_no":"BAH-2026-002","qty":2},{"lot_no":"BAG-2026-002","qty":5}]}
+```
+`201`:
+```json
+{"order_no":"URT-2026-047","status":"MATERIAL_SENT","material_cost":1096,"inputs":["..."],
+ "forecast":{"model":"ali_ridge","model_version":"ali-1.1.0","yield_pct":84.44,"packages":84.4,
+  "packages_low":83,"packages_high":85.9,"ekp":18.4796,"ekp_low":18.2634,"ekp_high":18.7032,
+  "interval_level":0.8,"baseline_packages":83.3,"baseline_ekp":18.6495}}
+```
+`422 INVALID_INPUT` per field (e.g. `inputs[1].lot_no`: lot listed twice; the product must be a
+finished good, the partner a subcontractor); `404 LOT_NOT_FOUND`, `409 INSUFFICIENT_STOCK` /
+`LOT_BLOCKED` / `CONFLICT` (order number exists). On any error nothing is written. `forecast` is
+`null` when no meat was sent (nothing to forecast).
+
+`POST /production` - receive the finished goods of an order whose material was sent (`sp_production_complete`):
+```json
+{"order_no":"URT-2026-047","actual_qty":82,"output_lot_no":"SUC-2026-047","invoice_no":"FAS-FTR-2026-047",
  "sub_warehouse":"FASON-01","target_wh":"ANA-DEPO"}
 ```
-Returns the computed order (as above). `409 ORDER_STATE` if already received,
-`409 INSUFFICIENT_STOCK` if the material is not at the subcontractor.
+Returns the computed order (as above); its `forecast` now has `actual_packages`, `actual_ekp` and
+`anomaly` (actual outside the 98 % band). `409 ORDER_STATE` if already received,
+`409 INSUFFICIENT_STOCK` if the material is not at the subcontractor, `409 CONFLICT` if the
+finished lot number exists.
 
 ## Task 2: butchery
 
@@ -216,6 +240,7 @@ baselines) and, per demo record and target, the actual value, model and baseline
 their deviations (abs and %). Optional per comparison (absent when the row has none):
 `interval_low` / `interval_high` / `interval_level` (80 % conformal interval of `model_pred`, same
 unit), `anomaly` (actual outside the 98 % band; not for `ekp`) and `outside_interval` (actual
-outside the 80 % interval). See [AI.md](AI.md).
+outside the 80 % interval). See [AI.md](AI.md). Orders recorded through `POST /production/orders`
+appear here too: with predictions only until they are received, then with actuals.
 
 `GET /yield` - raw `v_ml_prediction_deviation` rows (kept for compatibility).
