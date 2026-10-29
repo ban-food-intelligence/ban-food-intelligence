@@ -2,7 +2,6 @@ package com.ban.foodintelligence.pos.ui
 
 import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,54 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ban.foodintelligence.pos.R
 import java.util.Locale
-
-/**
- * Minimal Apple HIG / Stripe Terminal Quick Guide (?) trigger button
- * placed in the top-right corner of the POS Sales and Recall Lock screens.
- */
-@Composable
-fun QuickGuideHelpButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = CircleShape,
-        color = SoftPosColors.BackgroundOffWhite,
-        border = BorderStroke(1.dp, SoftPosColors.OutlineSubtle)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = SoftPosColors.PrimaryIndigo,
-                modifier = Modifier.size(18.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "?",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                    )
-                }
-            }
-            Text(
-                text = LocalContext.current.getString(R.string.quick_guide_button_label),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    color = SoftPosColors.TextPrimarySlate,
-                    fontWeight = FontWeight.SemiBold
-                ),
-                maxLines = 1
-            )
-        }
-    }
-}
 
 /**
  * Trilingual (TR / EN / DE) BottomSheet displaying the 3-step Quick Guide
