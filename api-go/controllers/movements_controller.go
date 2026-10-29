@@ -131,6 +131,18 @@ func (c *MovementsController) Return(w http.ResponseWriter, r *http.Request) {
 		if err := tx.QueryRowContext(r.Context(), `SELECT id FROM customer WHERE code = ?`, req.CustomerCode).Scan(&customer); err != nil {
 			return nil, notFound("customer " + req.CustomerCode)
 		}
+		// lotID holds the lot row lock before any snapshot read: concurrent returns cannot
+		// both claim the same delivered goods, even when they go to different warehouses.
+		var delivered, returned float64
+		if err := tx.QueryRowContext(r.Context(), `SELECT
+		    (SELECT COALESCE(SUM(sl.qty),0) FROM shipment_line sl JOIN shipment sh ON sh.id=sl.shipment_id WHERE sl.lot_id=? AND sh.customer_id=?),
+		    (SELECT COALESCE(SUM(sm.qty),0) FROM stock_movement sm WHERE sm.lot_id=? AND sm.movement_type='RETURN' AND sm.ref_type='customer' AND sm.ref_id=?)`,
+			lot, customer, lot, customer).Scan(&delivered, &returned); err != nil {
+			return nil, err
+		}
+		if round3(returned+req.Qty) > delivered {
+			return nil, movementConflict("return exceeds the customer's recorded delivered quantity")
+		}
 		if err := insertMovement(r.Context(), tx, lot, wh, "RETURN", req.Qty, cost, "customer", &customer,
 			nonEmpty(req.Note, "return from "+req.CustomerCode)); err != nil {
 			return nil, err
@@ -215,6 +227,9 @@ func (c *MovementsController) Rework(w http.ResponseWriter, r *http.Request) {
 // --- helpers ---------------------------------------------------------------
 
 type notFoundError string
+type movementConflict string
+
+func (e movementConflict) Error() string { return string(e) }
 
 func (e notFoundError) Error() string { return string(e) + " not found" }
 func notFound(what string) error      { return notFoundError(what) }
@@ -231,6 +246,11 @@ func (c *MovementsController) inTx(w http.ResponseWriter, r *http.Request, fn fu
 		err = tx.Commit()
 	}
 	if err != nil {
+		var conflict movementConflict
+		if errors.As(err, &conflict) {
+			writeAPIError(w, r, http.StatusConflict, "CONFLICT", conflict.Error())
+			return
+		}
 		var nf notFoundError
 		if errors.As(err, &nf) {
 			writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", err.Error())
@@ -247,7 +267,10 @@ func (c *MovementsController) inTx(w http.ResponseWriter, r *http.Request, fn fu
 func lotID(ctx context.Context, tx *sql.Tx, lotNo string) (int64, float64, error) {
 	var id int64
 	var cost float64
-	if err := tx.QueryRowContext(ctx, `SELECT id, unit_cost FROM lot WHERE lot_no = ?`, lotNo).Scan(&id, &cost); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT id, unit_cost FROM lot WHERE lot_no = ? FOR UPDATE`, lotNo).Scan(&id, &cost); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return 0, 0, err
+		}
 		return 0, 0, notFound("lot " + lotNo)
 	}
 	return id, cost, nil

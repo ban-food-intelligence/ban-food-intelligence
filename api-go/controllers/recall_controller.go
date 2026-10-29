@@ -17,7 +17,7 @@ type RecallTriggerRequest struct {
 	Severity       string `json:"severity"`         // "CLASS_I"
 	Reason         string `json:"reason"`           // e.g. "Salmonella / Quality Issue"
 	Initiator      string `json:"initiator"`        // e.g. "kalite_muduru"
-	BroadcastToPOS bool   `json:"broadcast_to_pos"` // Enforces Recall Lock Screen on POS
+	BroadcastToPOS bool   `json:"broadcast_to_pos"` // Legacy field; POS currently learns recalls by polling.
 }
 
 type RecallMarketLineDto struct {
@@ -60,8 +60,7 @@ func NewRecallController(db *sql.DB) *RecallController {
 }
 
 // TriggerRecall handles POST /recall
-// Calls Ali's MySQL stored procedure `CALL sp_recall_by_lot(?, ?, ?, ?)`
-// (which invokes `sp_recall_initiate` and `sp_recall_report` in a single workflow).
+// Calls sp_recall_initiate; the idempotent report wrapper cannot distinguish duplicate POSTs.
 func (c *RecallController) TriggerRecall(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		c.GetActiveRecalls(w, r)
@@ -77,11 +76,26 @@ func (c *RecallController) TriggerRecall(w http.ResponseWriter, r *http.Request)
 		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "invalid request payload")
 		return
 	}
-	if req.TriggerLot == "" {
-		req.TriggerLot = "ET-2026-001"
+	req.TriggerLot = strings.TrimSpace(req.TriggerLot)
+	fe := fieldErrors{}
+	if req.TriggerLot == "" || len(req.TriggerLot) > 30 {
+		fe["trigger_lot"] = "required, max 30 characters"
+	}
+	if len(req.RecallCode) > 30 {
+		fe["recall_code"] = "max 30 characters"
+	}
+	if len(req.Reason) > 500 {
+		fe["reason"] = "max 500 characters"
+	}
+	if req.Severity != "" && req.Severity != "CLASS_I" {
+		fe["severity"] = "currently CLASS_I only"
+	}
+	if len(fe) > 0 {
+		writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fe)
+		return
 	}
 	if req.RecallCode == "" {
-		req.RecallCode = fmt.Sprintf("RCL-%s-%d", req.TriggerLot, time.Now().Unix()%10000)
+		req.RecallCode = fmt.Sprintf("RCL-%d", time.Now().UnixNano())
 	}
 	if req.Reason == "" {
 		req.Reason = "Kalite kontrol / mikrobiyolojik uygunsuzluk tespiti"
@@ -93,19 +107,15 @@ func (c *RecallController) TriggerRecall(w http.ResponseWriter, r *http.Request)
 		req.Initiator = "kalite_muduru"
 	}
 
-	// Invoke `CALL sp_recall_by_lot(?, ?, ?, ?)` in MySQL
+	// Insert once. A duplicate code is a conflict, including under concurrent requests.
 	_, err := c.db.ExecContext(
 		r.Context(),
-		`CALL sp_recall_by_lot(?, ?, ?, ?)`,
+		`CALL sp_recall_initiate(?, ?, ?, ?)`,
 		req.RecallCode, req.TriggerLot, req.Reason, req.Initiator,
 	)
-	if err != nil && !strings.Contains(err.Error(), "Duplicate entry") {
-		log.Printf("[WARN] [MYSQL-RECALL] sp_recall_by_lot warning: %v", err)
-		status := http.StatusInternalServerError
-		if strings.Contains(err.Error(), "LOT_NOT_FOUND") {
-			status = http.StatusNotFound
-		}
-		writeJSONError(w, status, "sp_recall_by_lot failed: "+err.Error())
+	if err != nil {
+		log.Printf("[WARN] [MYSQL-RECALL] sp_recall_initiate warning: %v", err)
+		writeDBError(w, r, err)
 		return
 	}
 	log.Printf("[WARN] [RECALL] Emergency recall triggered for lot=%s (code=%s)", req.TriggerLot, req.RecallCode)
@@ -120,7 +130,7 @@ func (c *RecallController) TriggerRecall(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":         "LOCKDOWN_ACTIVATED",
-		"message":        "Emergency recall executed in MySQL via sp_recall_by_lot. POS lockdown broadcast active.",
+		"message":        "Recall recorded and affected lots blocked. POS terminals refresh recalls by polling.",
 		"recall_summary": event,
 	})
 }
@@ -140,22 +150,30 @@ func (c *RecallController) GetActiveRecalls(w http.ResponseWriter, r *http.Reque
 	}
 	defer rows.Close()
 
-	var events []RecallEventDto
+	type recallRef struct{ code, lot string }
+	var refs []recallRef
 	for rows.Next() {
 		var rcNo, status, severity, reason, rootLot, initiatedBy string
 		var initiatedAt time.Time
 		if err := rows.Scan(&rcNo, &status, &severity, &reason, &rootLot, &initiatedBy, &initiatedAt); err != nil {
-			continue
+			writeDBError(w, r, err)
+			return
 		}
-		ev, err := c.loadRecallEventFromDB(r, rcNo, rootLot)
-		if err == nil {
-			events = append(events, ev)
-		}
+		refs = append(refs, recallRef{rcNo, rootLot})
 	}
-
-	// No recall yet -> empty list. What a recall would affect comes from GET /trace.
-	if events == nil {
-		events = []RecallEventDto{}
+	if err := rows.Err(); err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	rows.Close() // details queries must not wait for a connection held by the outer rows
+	events := []RecallEventDto{}
+	for _, ref := range refs {
+		ev, err := c.loadRecallEventFromDB(r, ref.code, ref.lot)
+		if err != nil {
+			writeDBError(w, r, err)
+			return
+		}
+		events = append(events, ev)
 	}
 	writeJSON(w, events)
 }
@@ -193,43 +211,55 @@ func (c *RecallController) loadRecallEventFromDB(r *http.Request, recallNo strin
 		 ORDER BY rl.depth ASC, l.lot_no ASC`,
 		recallNo,
 	)
-	if err == nil {
-		for lotRows.Next() {
-			var ln string
-			if err := lotRows.Scan(&ln); err == nil {
-				ev.AffectedLots = append(ev.AffectedLots, ln)
-			}
-		}
-		lotRows.Close()
+	if err != nil {
+		return ev, err
 	}
+	defer lotRows.Close()
+	for lotRows.Next() {
+		var ln string
+		if err := lotRows.Scan(&ln); err != nil {
+			return ev, err
+		}
+		ev.AffectedLots = append(ev.AffectedLots, ln)
+	}
+	if err := lotRows.Err(); err != nil {
+		return ev, err
+	}
+	lotRows.Close()
 
 	// Execute `CALL sp_recall_report(?)` to get Market A/B/C quantities & contacts
 	repRows, err := c.db.QueryContext(r.Context(), `CALL sp_recall_report(?)`, recallNo)
-	if err == nil {
-		for repRows.Next() {
-			var m RecallMarketLineDto
-			var contact, phone, email, via, address sql.NullString
-			var onward bool
-			if err := repRows.Scan(
-				&m.Tier, &m.CustomerCode, &m.CustomerName,
-				&contact, &phone, &email, &via, &address, &onward,
-				&m.Lots, &m.QtyShipped, &m.QtyReturned,
-			); err == nil {
-				m.ContactPerson = contact.String
-				m.Phone = phone.String
-				m.Email = email.String
-				m.ReceivedVia = via.String
-				m.Address = address.String
-				m.SecondTier = "NOT_RECORDED"
-				if onward {
-					m.SecondTier = "RECORDED"
-				}
-				ev.AffectedMarkets = append(ev.AffectedMarkets, m)
-				ev.TargetMarkets = append(ev.TargetMarkets, fmt.Sprintf("%s (%s) - %.0f PAKET", m.CustomerName, m.CustomerCode, m.QtyShipped))
-			}
-		}
-		repRows.Close()
+	if err != nil {
+		return ev, err
 	}
+	defer repRows.Close()
+	for repRows.Next() {
+		var m RecallMarketLineDto
+		var contact, phone, email, via, address sql.NullString
+		var onward bool
+		if err := repRows.Scan(
+			&m.Tier, &m.CustomerCode, &m.CustomerName,
+			&contact, &phone, &email, &via, &address, &onward,
+			&m.Lots, &m.QtyShipped, &m.QtyReturned,
+		); err != nil {
+			return ev, err
+		}
+		m.ContactPerson = contact.String
+		m.Phone = phone.String
+		m.Email = email.String
+		m.ReceivedVia = via.String
+		m.Address = address.String
+		m.SecondTier = "NOT_RECORDED"
+		if onward {
+			m.SecondTier = "RECORDED"
+		}
+		ev.AffectedMarkets = append(ev.AffectedMarkets, m)
+		ev.TargetMarkets = append(ev.TargetMarkets, fmt.Sprintf("%s (%s) - %.0f PAKET", m.CustomerName, m.CustomerCode, m.QtyShipped))
+	}
+	if err := repRows.Err(); err != nil {
+		return ev, err
+	}
+	repRows.Close()
 
 	return ev, nil
 }
@@ -244,7 +274,11 @@ func (c *RecallController) ContactsCSV(w http.ResponseWriter, r *http.Request) {
 	}
 	ev, err := c.loadRecallEventFromDB(r, code, "")
 	if err != nil {
-		writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "recall "+code)
+		if err == sql.ErrNoRows {
+			writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "recall "+code)
+		} else {
+			writeDBError(w, r, err)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")

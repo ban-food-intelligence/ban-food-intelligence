@@ -91,6 +91,14 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecal
     var blocked by remember { mutableStateOf<PosInventoryLot?>(null) }
     val scope = rememberCoroutineScope()
     val catalog = state.catalog
+    LaunchedEffect(catalog) {
+        val open = selling ?: return@LaunchedEffect
+        val current = state.lots.firstOrNull { it.lotNo == open.lotNo }
+        if (current == null || current.isBlocked || current.isExpired || current.availableQty <= 0) {
+            selling = null
+            if (current?.isBlocked == true || current?.isExpired == true) blocked = current
+        }
+    }
     val lots = state.lots.filter {
         query.isBlank() || it.productName.contains(query, ignoreCase = true) || it.lotNo.contains(query, ignoreCase = true)
     }
@@ -276,13 +284,15 @@ private fun SellSheet(lot: PosInventoryLot, state: PosAppState, onDismiss: () ->
     var input by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var soldQty by remember { mutableStateOf<Double?>(null) }
-    val check = SaleQuantityValidator.check(input, lot.uom, lot.availableQty)
+    val currentLot = state.lots.firstOrNull { it.lotNo == lot.lotNo }
+    val availableQty = currentLot?.availableQty ?: 0.0
+    val check = SaleQuantityValidator.check(input, lot.uom, availableQty)
     val qty = (check as? QtyCheck.Valid)?.qty
     val isKg = lot.uom == "KG"
 
     fun step(delta: Double) {
         val current = input.replace(',', '.').toDoubleOrNull() ?: 0.0
-        val next = (current + delta).coerceIn(0.0, lot.availableQty)
+        val next = (current + delta).coerceIn(0.0, availableQty)
         input = if (isKg) String.format(Locale.getDefault(), "%.2f", next) else next.toLong().toString()
     }
 
@@ -305,7 +315,7 @@ private fun SellSheet(lot: PosInventoryLot, state: PosAppState, onDismiss: () ->
             }
             InsetGroup {
                 row { ListRow(stringResource(R.string.sell_sheet_price), value = "${Fmt.money(lot.unitPriceEur)} / ${Fmt.unit(lot.uom)}") }
-                row { ListRow(stringResource(R.string.sell_sheet_in_stock), value = Fmt.qty(lot.availableQty, lot.uom)) }
+                row { ListRow(stringResource(R.string.sell_sheet_in_stock), value = Fmt.qty(availableQty, lot.uom)) }
                 if (lot.expiryDate.isNotBlank()) row { ListRow(stringResource(R.string.lot_expiry, "").trim(), value = expiryLabel(lot.expiryDate)) }
             }
             InsetGroup(header = stringResource(R.string.sell_sheet_quantity)) {
@@ -351,9 +361,11 @@ private fun SellSheet(lot: PosInventoryLot, state: PosAppState, onDismiss: () ->
             PrimaryButton(
                 text = stringResource(R.string.sell_confirm),
                 icon = Icons.Rounded.ShoppingCart,
-                enabled = qty != null && !saving,
+                enabled = qty != null && !saving && currentLot != null && !currentLot.isBlocked && !currentLot.isExpired,
                 onClick = {
-                    val q = qty ?: return@PrimaryButton
+                    val latest = state.lots.firstOrNull { it.lotNo == lot.lotNo } ?: return@PrimaryButton
+                    if (latest.isBlocked || latest.isExpired) return@PrimaryButton
+                    val q = (SaleQuantityValidator.check(input, latest.uom, latest.availableQty) as? QtyCheck.Valid)?.qty ?: return@PrimaryButton
                     saving = true
                     scope.launch {
                         state.appDb.recordPosSale(

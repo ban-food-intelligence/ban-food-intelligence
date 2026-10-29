@@ -238,7 +238,7 @@ func (c *SyncController) IngestOutbox(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[INFO] [SYNC-ENROLL] device=%s pinned to key sha256=%s on first signed sync", req.DeviceID, offeredFP)
 	}
 
-	var ackIDs []string
+	ackIDs := []string{} // no accepted records is [], never null (clients must not infer success)
 	rejected := []models.SyncRejectionDto{}
 	for _, item := range req.OutboxItems {
 		if item.Timestamp == "" {

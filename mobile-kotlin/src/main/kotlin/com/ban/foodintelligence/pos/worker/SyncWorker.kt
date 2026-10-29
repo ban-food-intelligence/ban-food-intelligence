@@ -229,17 +229,14 @@ class SyncWorker(
         responseBody: String
     ): BatchOutcome {
         SyncState.markContacted(applicationContext)
-        val ackedIds = parseAcknowledgedIds(responseBody)
+        val acknowledgement = parseSyncAcknowledgement(responseBody, verified.map { it.timestamp }.toSet())
+            ?: return BatchOutcome.Retry(verified.map { it.timestamp }, "missing or invalid acknowledgement")
+        val ackedIds = acknowledgement.accepted
         // Permanent rejections (recalled lot, not enough stock, invalid data) stop retrying and
         // show their reason on the Sync tab; anything else stays queued for a retry.
-        val permanent = parseRejected(responseBody).filterValues { it.first in PERMANENT_REJECTIONS }
+        val permanent = acknowledgement.rejected.filterValues { it.first in PERMANENT_REJECTIONS }
         if (permanent.isNotEmpty()) {
             AppDatabase.getInstance(applicationContext).markRejected(permanent.mapValues { it.value.second })
-        }
-        if (ackedIds == null) {
-            outboxDao.markAcknowledged(verified.map { it.timestamp })
-            outboxDao.purgeSyncedRecords()
-            return BatchOutcome.Sent(verified.size)
         }
         val acked = verified.filter { it.timestamp in ackedIds }
         val rejected = verified.filter { it.timestamp !in ackedIds && it.timestamp !in permanent }
@@ -251,29 +248,6 @@ class SyncWorker(
             BatchOutcome.Sent(acked.size)
         } else {
             BatchOutcome.Retry(rejected.map { it.timestamp }, "partial ack: ${rejected.size} rejected")
-        }
-    }
-
-    /** id -> (code, localised message) from the server's "rejected" list. */
-    private fun parseRejected(body: String): Map<String, Pair<String, String>> = try {
-        val array = JSONObject(body).optJSONArray("rejected") ?: JSONArray()
-        buildMap {
-            for (i in 0 until array.length()) {
-                val o = array.getJSONObject(i)
-                put(o.getString("id"), o.optString("code") to o.optString("message"))
-            }
-        }
-    } catch (_: org.json.JSONException) {
-        emptyMap()
-    }
-
-    private fun parseAcknowledgedIds(body: String): Set<String>? {
-        if (body.isBlank()) return null
-        return try {
-            val array = JSONObject(body).optJSONArray("acknowledged_ids") ?: return null
-            buildSet { for (i in 0 until array.length()) add(array.getString(i)) }
-        } catch (_: org.json.JSONException) {
-            null
         }
     }
 

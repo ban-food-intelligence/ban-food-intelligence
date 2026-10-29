@@ -209,7 +209,7 @@ func (c *AIController) ButcheryForecast(w http.ResponseWriter, r *http.Request) 
 	if q.Get("input_lot_no") == "" {
 		fe["input_lot_no"] = "required"
 	}
-	if err != nil || weight <= 0 || weight > 500 {
+	if err != nil || math.IsNaN(weight) || math.IsInf(weight, 0) || weight <= 0 || weight > 500 {
 		fe["input_weight_kg"] = "0 < kg <= 500"
 	}
 	date := nonEmpty(q.Get("op_date"), time.Now().Format("2006-01-02"))

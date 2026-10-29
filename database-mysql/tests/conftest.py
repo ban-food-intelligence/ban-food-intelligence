@@ -22,7 +22,7 @@ SQL_FILES = [DB_DIR / "schema.sql", DB_DIR / "seed.sql"]
 def _cli_args():
     password = os.getenv("MYSQL_PASSWORD", "ban")
     args = shlex.split(os.getenv("MYSQL_CLI", "mysql")) + [
-        "--default-character-set=utf8mb4", "-u", os.getenv("MYSQL_USER", "root")]
+        "--comments", "--default-character-set=utf8mb4", "-u", os.getenv("MYSQL_USER", "root")]
     if password:
         args.append(f"-p{password}")
     if os.getenv("MYSQL_SOCKET"):

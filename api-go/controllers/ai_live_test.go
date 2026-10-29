@@ -74,6 +74,16 @@ func TestForecastOfTheSpecOrder(t *testing.T) {
 	}
 }
 
+func TestProductionForecastWithholdsNonphysicalExtrapolation(t *testing.T) {
+	// The review reproduced a negative package count for a very old meat lot.
+	age := 10000.0
+	order := &orderInputs{in: ProductionInputs{OrderDate: time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC),
+		ProductSKU: "MM-SUCUK-1KG", MeatKg: 1, PackSizeKg: 1, MeatAgeDays: &age}, materialCost: 10, serviceUnit: 1}
+	if fc := forecastOrder(order, productionModel); fc != nil {
+		t.Fatalf("nonphysical forecast %+v", fc)
+	}
+}
+
 // Study B: the Go evaluation of the six exported share models (clip at 0.1 %, rescale to 100 %)
 // gives sklearn's shares on 34 golden rows, incl. a carcass without chill hours and fat score.
 func TestLiveButcherySharesMatchTheTrainedModel(t *testing.T) {
