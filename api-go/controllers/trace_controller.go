@@ -7,7 +7,7 @@ import (
 )
 
 type TraceController struct {
-	db *sql.DB
+	db sqlRunner
 }
 
 func NewTraceController(db *sql.DB) *TraceController {
