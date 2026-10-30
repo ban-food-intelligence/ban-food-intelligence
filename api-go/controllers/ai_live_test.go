@@ -73,3 +73,82 @@ func TestForecastOfTheSpecOrder(t *testing.T) {
 		t.Fatal("an order without meat has nothing to forecast")
 	}
 }
+
+func TestProductionForecastWithholdsNonphysicalExtrapolation(t *testing.T) {
+	// The review reproduced a negative package count for a very old meat lot.
+	age := 10000.0
+	order := &orderInputs{in: ProductionInputs{OrderDate: time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC),
+		ProductSKU: "MM-SUCUK-1KG", MeatKg: 1, PackSizeKg: 1, MeatAgeDays: &age}, materialCost: 10, serviceUnit: 1}
+	if fc := forecastOrder(order, productionModel); fc != nil {
+		t.Fatalf("nonphysical forecast %+v", fc)
+	}
+}
+
+// Study B: the Go evaluation of the six exported share models (clip at 0.1 %, rescale to 100 %)
+// gives sklearn's shares on 34 golden rows, incl. a carcass without chill hours and fat score.
+func TestLiveButcherySharesMatchTheTrainedModel(t *testing.T) {
+	raw, err := os.ReadFile("aimodel/butchery_ridge_golden.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var golden []struct {
+		RowID  string `json:"row_id"`
+		Inputs struct {
+			OpDate            string   `json:"op_date"`
+			Species           string   `json:"species"`
+			Breed             string   `json:"breed"`
+			SupplierCode      string   `json:"supplier_code"`
+			OperatorCode      string   `json:"operator_code"`
+			Sex               string   `json:"sex"`
+			CarcassWeightKg   float64  `json:"carcass_weight_kg"`
+			AgeMonths         *float64 `json:"age_months"`
+			FatScore          *float64 `json:"fat_score"`
+			ConformationScore *float64 `json:"conformation_score"`
+			ChillHours        *float64 `json:"chill_hours"`
+		} `json:"inputs"`
+		Shares []float64 `json:"shares_pct"`
+	}
+	if err := json.Unmarshal(raw, &golden); err != nil || len(golden) < 30 {
+		t.Fatalf("golden file: %v (%d rows)", err, len(golden))
+	}
+	for _, g := range golden {
+		d, _ := time.Parse("2006-01-02", g.Inputs.OpDate)
+		got := butcheryForecastModel.predictShares(ButcheryInputs{OpDate: d, Species: g.Inputs.Species, Breed: g.Inputs.Breed,
+			SupplierCode: g.Inputs.SupplierCode, OperatorCode: g.Inputs.OperatorCode, Sex: g.Inputs.Sex,
+			CarcassWeightKg: g.Inputs.CarcassWeightKg, AgeMonths: g.Inputs.AgeMonths, FatScore: g.Inputs.FatScore,
+			ConformationScore: g.Inputs.ConformationScore, ChillHours: g.Inputs.ChillHours})
+		for j := range got {
+			if math.Abs(got[j]-g.Shares[j]) > 1e-9 {
+				t.Errorf("%s share %d: Go %.12f, sklearn %.12f", g.RowID, j, got[j], g.Shares[j])
+			}
+		}
+	}
+}
+
+// PRC-2026-001 (25 kg lamb) gives the seeded part forecast (leg 6.794 kg, 6.565 - 7.023), parts +
+// waste = input, and the recorded weights are within the 98 % band.
+func TestForecastOfTheSeedCarcass(t *testing.T) {
+	age, fat, conf, chill := 5.0, 3.0, 3.0, 24.0
+	fc := forecastButchery(ButcheryInputs{OpDate: time.Date(2026, 10, 13, 0, 0, 0, 0, time.UTC), Species: "KUZU",
+		Breed: "KIVIRCIK", SupplierCode: "TED-HAY-01", OperatorCode: "OP-1", Sex: "E", CarcassWeightKg: 25,
+		AgeMonths: &age, FatScore: &fat, ConformationScore: &conf, ChillHours: &chill}, butcheryForecastModel)
+	leg := fc.Parts[0]
+	if leg.Part != "but" || leg.SKU != "KZ-BUT" || leg.Kg != 6.794 || leg.KgLow != 6.565 || leg.KgHigh != 7.023 {
+		t.Fatalf("leg forecast %+v", leg)
+	}
+	sum := 0.0
+	for _, p := range fc.Parts {
+		sum += p.SharePct
+	}
+	if math.Abs(sum-100) > 0.006 { // six shares, each rounded to 0.001
+		t.Fatalf("shares sum to %.6f", sum)
+	}
+	applyButcheryActuals(fc, []ButcheryOutputRequest{{SKU: "KZ-BUT", Kind: "CUT", WeightKg: 6.5}, {SKU: "KZ-SIRT", Kind: "CUT", WeightKg: 3.5},
+		{SKU: "KZ-OMUZ", Kind: "CUT", WeightKg: 5}, {SKU: "KZ-KABURGA", Kind: "CUT", WeightKg: 3}, {SKU: "KZ-KIYMA", Kind: "CUT", WeightKg: 4},
+		{SKU: "KZ-FIRE", Kind: "WASTE", WeightKg: 3}})
+	for _, p := range fc.Parts {
+		if p.ActualKg == nil || p.Anomaly == nil || *p.Anomaly {
+			t.Fatalf("part %s: actual %v anomaly %v", p.Part, p.ActualKg, p.Anomaly)
+		}
+	}
+}

@@ -127,6 +127,7 @@ func main() {
 	// Task 4: ML Yield Predictions & Deviation Telemetry
 	mux.HandleFunc("/yield", yieldCtrl.PredictYield)
 	mux.HandleFunc("/ai/summary", aiCtrl.Summary)
+	mux.HandleFunc("/ai/forecast/butchery", aiCtrl.ButcheryForecast)
 
 	// Offline Edge POS Synchronization (Hardware ECDSA P-256 + UUIDv7 Idempotency)
 	mux.HandleFunc("/sync", syncCtrl.IngestOutbox)

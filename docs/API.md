@@ -25,7 +25,7 @@ Money values are EUR, quantities are in the lot's unit (`KG`, `PAKET`).
 | 429 | `LOCKED_OUT` (too many wrong PINs) |
 | 500 | `DB_ERROR` |
 
-**CORS.** Allowed for the dashboard origins (ports 5173, 3000, 4173 on any host) or the list in
+**CORS.** Allowed for dashboard origins (ports 5173, 3000, 4173 on localhost/private LAN hosts) or the list in
 `CORS_ALLOWED_ORIGINS`. **Logging:** one line per request with status and duration.
 **Shutdown:** SIGINT/SIGTERM drain in-flight requests (10 s).
 
@@ -71,6 +71,9 @@ whose material is still at the subcontractor (`MATERIAL_SENT`) follow with `plan
 `POST /production/orders` - record an external production order and send its raw material to the
 subcontractor, in one transaction: the order, a `TRANSFER_OUT`/`TRANSFER_IN` pair per lot with
 its cost snapshot (`sp_production_send_input`), and the AI forecast stored in `ml_prediction`.
+Inputs must be raw-material lots received by the order date, not blocked/recalled, and valid
+on that date. Rejections roll back the order (`409 LOT_BLOCKED` / `LOT_EXPIRED`,
+`422 INVALID_INPUT` for the wrong product type, receipt date or identical warehouses).
 ```json
 {"order_no":"URT-2026-047","product_sku":"MM-SUCUK-1KG","subcontractor_code":"FAS-01","planned_qty":85,
  "service_unit_price":5.5,"drying_days":5,"order_date":"2026-10-29",
@@ -86,7 +89,7 @@ its cost snapshot (`sp_production_send_input`), and the AI forecast stored in `m
 `422 INVALID_INPUT` per field (e.g. `inputs[1].lot_no`: lot listed twice; the product must be a
 finished good, the partner a subcontractor); `404 LOT_NOT_FOUND`, `409 INSUFFICIENT_STOCK` /
 `LOT_BLOCKED` / `CONFLICT` (order number exists). On any error nothing is written. `forecast` is
-`null` when no meat was sent (nothing to forecast).
+`null` when no meat was sent or the model extrapolates to nonphysical quantities or bounds.
 
 `POST /production` - receive the finished goods of an order whose material was sent (`sp_production_complete`):
 ```json
@@ -97,6 +100,9 @@ Returns the computed order (as above); its `forecast` now has `actual_packages`,
 `anomaly` (actual outside the 98 % band). `409 ORDER_STATE` if already received,
 `409 INSUFFICIENT_STOCK` if the material is not at the subcontractor, `409 CONFLICT` if the
 finished lot number exists.
+Incomplete receipt fields, nonpositive quantities, invalid dates or an expiry before the lot
+date return `422 INVALID_INPUT`. An explicit `order_no` is required. An order-only request
+still calculates its existing cost.
 
 ## Task 2: butchery
 
@@ -127,6 +133,15 @@ by-products get a lot each; waste gets none. The weight balance must hold (10 g 
 `422 WEIGHT_IMBALANCE` with the `weight_check` and nothing is written. The response shows the
 allocation with the chosen key and with both keys (`allocation_by_key`); `"dry_run": true` only
 calculates.
+Both previews and posted records reject blocked/recalled carcasses (`409 LOT_BLOCKED`), an
+expiry before `op_date` (`409 LOT_EXPIRED`), and an operation before receipt (`422 INVALID_INPUT`).
+
+The response also includes `forecast`: six expected part weights, their 80% prediction
+intervals and species baseline, recorded weights, and flags for actuals outside the 98% band.
+A posted operation stores six model and six baseline rows in `ml_prediction`; a dry run
+stores none. By-products are outside the model; cuts match by SKU and waste by output kind.
+
+Example operation request:
 ```json
 {"op_no":"PRC-2026-002","input_lot_no":"KUZU-2026-002","input_weight_kg":24,"allocation_method":"QUANTITY",
  "op_date":"2026-10-28","outputs":[{"sku":"KZ-BUT","output_kind":"CUT","weight_kg":6.2,"lot_no":"KZB-2026-002"}, "...",
@@ -135,6 +150,11 @@ calculates.
 ```
 `201 {"status":"POSTED","total_cost":283.2,"weight_check":{"status":"BALANCED",...},"allocation":{...},
 "allocation_by_key":{"QUANTITY":{"allocated_total":283.2,"sums_exact":true,...},"VALUE":{...}}}`.
+
+`GET /ai/forecast/butchery?input_lot_no=KUZU-2026-001&input_weight_kg=25[&op_date=2026-10-29&operator_name=OP-1]`
+previews the forecast without saving. Weight must be finite and `0 < kg <= 500`. Unknown lots
+return `404 LOT_NOT_FOUND`, non-carcass lots or invalid fields `422 INVALID_INPUT`.
+The dashboard's live expected-weight column is still pending.
 
 ## Task 3: traceability and recall
 
@@ -160,7 +180,11 @@ transaction); the initiator is the signed-in supervisor:
 ```json
 {"recall_code":"RCL-2026-001","trigger_lot":"ET-2026-001","reason":"Quality problem"}
 ```
-`201` with `recall_summary`; `404 LOT_NOT_FOUND` for an unknown lot.
+`201` with `recall_summary`; `404 LOT_NOT_FOUND` for an unknown lot. `trigger_lot` is required
+(`422 INVALID_INPUT`); a reused recall code returns `409 CONFLICT`. Only `CLASS_I` is currently
+supported. POS terminals poll while the app is open (normally every 15 seconds); the legacy
+`broadcast_to_pos` field does not enable push notifications. Failed detail/contact queries
+return an error rather than an incomplete recall list.
 
 `GET /recall/contacts.csv?recall_code=RCL-2026-001` - the contact list as CSV (UTF-8 with BOM).
 
@@ -206,9 +230,17 @@ lots cannot be consumed). Each returns `201` with the balances after the movemen
 
 ## POS sync (SQLite -> MySQL)
 
+Customer returns through `/movements/return` cannot exceed recorded deliveries for the same
+customer and lot minus earlier returns, across all warehouses (`409 CONFLICT`). Concurrent
+returns are serialized on the lot row. Unrecorded deliveries must be investigated before
+stock can be restored as a customer return.
+
 `POST /sync` - signed outbox batch from the Android POS. Each item is verified (ECDSA P-256), then
 applied once: `sync_inbox` (UUIDv7 primary key) + `sale` + `sale_line` in one transaction; the
 sale line trigger writes the SALE stock movement. Replays are acknowledged without inserting.
+`acknowledged_ids` is always an array, including `[]` when no item was accepted. The POS only
+clears explicitly acknowledged IDs from its submitted batch; a missing, malformed or
+contradictory acknowledgement keeps the batch pending for retry.
 ```json
 {"processed_count":1,"acknowledged_ids":["019a3000-..."],"rejected":[
   {"id":"019a3000-...","code":"LOT_BLOCKED","message":"Bu lot geri çağrıldı veya bloke. Satış engellendi."}],
