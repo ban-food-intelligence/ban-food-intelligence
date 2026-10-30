@@ -279,3 +279,20 @@ test('AI tab keeps the synthetic test apart from the records and labels their or
   const box = page.locator('.group-wrap').filter({ hasText: 'Yapay zekâ (sentetik test)' });
   await expect(box.getByText('saha başarımı ölçülmedi')).toBeVisible();
 });
+
+test('trace shows the lot flow and a mass balance that documents every quantity', async ({ page }) => {
+  await page.goto('/#trace?lot=ET-2026-001');
+  const flow = page.getByRole('group', { name: 'ET-2026-001 lotunun akış diyagramı' });
+  await expect(flow).toBeVisible();
+  await expect(flow).toContainText('100,00 kg → 85 paket');
+  for (const market of ['Market A', 'Market B', 'Market C']) await expect(flow).toContainText(market);
+  const balance = page.locator('.group-wrap').filter({ has: page.getByText('Kütle dengesi', { exact: true }) });
+  await expect(balance.getByText('Her miktar belgeli')).toBeVisible();
+  const meat = balance.getByRole('row').filter({ hasText: 'ET-2026-001' });
+  await expect(meat.getByRole('cell').nth(1)).toHaveText('100,00 kg'); // lot quantity
+  await expect(meat.getByRole('cell').nth(2)).toHaveText('100,00 kg'); // all of it went into the sausage order
+  await page.screenshot({ path: 'test-results/trace-flow.png', fullPage: true });
+
+  await flow.getByRole('button', { name: /^SUC-2026-045/ }).click(); // a lot box opens the lot card
+  await expect(page.getByRole('dialog')).toContainText('SUC-2026-045');
+});

@@ -40,6 +40,9 @@ export function ExpiryText({ expiry }) {
   );
 }
 
+/** The lot card opener (null outside LotPanelProvider), for lot references that are not links. */
+export const useOpenLot = () => useContext(LotPanelContext);
+
 export function LotLink({ lot }) {
   const open = useContext(LotPanelContext);
   if (!lot || lot === '–' || !open) return <Mono>{lot || '–'}</Mono>;

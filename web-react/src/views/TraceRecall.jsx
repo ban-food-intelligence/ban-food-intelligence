@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { API_BASE, apiWrite, useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
-import { Async, ErrorState, Group, Mono, Page, Pill, Segmented, Table } from '../lib/ui';
+import { Async, ErrorState, Group, Kpi, Mono, Page, Pill, Segmented, Table } from '../lib/ui';
 import RecallProgress from './RecallProgress';
 import { LotLink, LotLinks } from './LotPanel';
+import TraceFlow from './TraceFlow';
 
 // #trace?lot=SUC-2026-045 (from the lot panel) starts on that lot; the mandatory scenario otherwise.
 const initialLot = () => new URLSearchParams(window.location.hash.split('?')[1] || '').get('lot') || 'ET-2026-001';
@@ -51,6 +52,10 @@ function TraceResult({ tr }) {
   const { t, fmt } = useLang();
   return (
     <>
+      <Group title={t('fl_title')} footer={t(tr.direction === 'forward' ? 'fl_noteForward' : 'fl_noteBackward')}>
+        <TraceFlow tr={tr} />
+      </Group>
+      {tr.mass_balance && <MassBalance mb={tr.mass_balance} />}
       <Group title={t('lotsReached')}>
         <Table
           rows={tr.lots}
@@ -117,6 +122,47 @@ function TraceResult({ tr }) {
         </>
       )}
     </>
+  );
+}
+
+const MB_COLUMNS = [['used_in_lots', 'mb_used'], ['shipped', 'mb_shipped'], ['sold', 'mb_sold'], ['wasted', 'mb_wasted'],
+  ['returned', 'mb_returned'], ['in_stock', 'mb_inStock'], ['count_diff', 'mb_countDiff']];
+
+/** Where every recorded quantity of the traced lots is now; a gap is what no document explains. */
+function MassBalance({ mb }) {
+  const { t, fmt } = useLang();
+  const q = (v, uom) => (Math.abs(v) > 0.0005 ? fmt.qty(v, uom) : '–');
+  const shown = mb.totals.filter((x) => ['at_customers', 'sold', 'wasted', 'in_stock', 'unexplained'].some((k) => Math.abs(x[k]) > 0.0005));
+  return (
+    <Group
+      title={t('mb_title')}
+      aside={<Pill tone={mb.balanced ? 'ok' : 'bad'}>{t(mb.balanced ? 'mb_balanced' : 'mb_gap')}</Pill>}
+      footer={t('mb_note')}
+    >
+      {shown.map((x) => (
+        <div className="kpi-row" key={x.uom_code}>
+          <Kpi label={t('mb_atCustomers')} value={q(x.at_customers, x.uom_code)} />
+          <Kpi label={t('mb_sold')} value={q(x.sold, x.uom_code)} />
+          <Kpi label={t('mb_inStock')} value={q(x.in_stock, x.uom_code)}
+            sub={Math.abs(x.at_subcontractor) > 0.0005 ? t('mb_atSub', fmt.qty(x.at_subcontractor, x.uom_code)) : null} />
+          <Kpi label={t('mb_wasted')} value={q(x.wasted, x.uom_code)} />
+          <Kpi label={t('mb_unexplained')} value={fmt.qty(x.unexplained, x.uom_code)} tone={Math.abs(x.unexplained) > 0.0005 ? 'bad' : 'ok'} />
+        </div>
+      ))}
+      <Table
+        rows={mb.lines}
+        rowKey={(l) => l.lot_no}
+        rowTone={(l) => (Math.abs(l.unexplained) > 0.0005 ? 'bad' : '')}
+        columns={[
+          { key: 'lot_no', label: t('lot'), render: (l) => <><LotLink lot={l.lot_no} /><div className="cell-sub">{l.product_name}</div></> },
+          { key: 'declared', label: t('mb_declared'), align: 'num', render: (l) => <strong>{fmt.qty(l.declared_qty, l.uom_code)}</strong> },
+          // a movement kind no lot has would only add an empty column
+          ...MB_COLUMNS.filter(([field]) => mb.lines.some((l) => Math.abs(l[field]) > 0.0005)).map(([field, label]) => (
+            { key: field, label: t(label), align: 'num', render: (l) => q(l[field], l.uom_code) })),
+          { key: 'gap', label: t('mb_unexplained'), align: 'num', render: (l) => <strong className={Math.abs(l.unexplained) > 0.0005 ? 'tone-bad' : ''}>{q(l.unexplained, l.uom_code)}</strong> },
+        ]}
+      />
+    </Group>
   );
 }
 
