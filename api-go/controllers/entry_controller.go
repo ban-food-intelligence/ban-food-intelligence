@@ -266,7 +266,8 @@ type ButcheryOperationResultDto struct {
 	AllocationMethod string                          `json:"allocation_method"`
 	WeightCheck      WeightCheckDto                  `json:"weight_check"`
 	Allocation       ButcheryKeyResultDto            `json:"allocation"`
-	Comparison       map[string]ButcheryKeyResultDto `json:"allocation_by_key"` // both keys, for the decision
+	Comparison       map[string]ButcheryKeyResultDto `json:"allocation_by_key"`  // both keys, for the decision
+	Forecast         *ButcheryForecastDto            `json:"forecast,omitempty"` // AI 4B: expected vs recorded part weights
 }
 
 // allocateButchery spreads totalCents over the outputs with the chosen key. Waste carries no
@@ -380,14 +381,32 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 	var inLot, recipeID int64
 	var inCost float64
 	var inType, inStatus string
+	var inExpiry sql.NullTime
+	var inDate time.Time
 	if err := tx.QueryRowContext(ctx,
-		`SELECT l.id, l.unit_cost, p.product_type, l.status FROM lot l JOIN product p ON p.id = l.product_id WHERE l.lot_no = ?`,
-		req.InputLotNo).Scan(&inLot, &inCost, &inType, &inStatus); err != nil {
-		writeAPIError(w, r, http.StatusNotFound, "LOT_NOT_FOUND", "lot "+req.InputLotNo)
+		`SELECT l.id, l.unit_cost, p.product_type, l.status, l.expiry_date, l.lot_date FROM lot l JOIN product p ON p.id = l.product_id WHERE l.lot_no = ? FOR UPDATE`,
+		req.InputLotNo).Scan(&inLot, &inCost, &inType, &inStatus, &inExpiry, &inDate); err != nil {
+		if err == sql.ErrNoRows {
+			writeAPIError(w, r, http.StatusNotFound, "LOT_NOT_FOUND", "lot "+req.InputLotNo)
+		} else {
+			writeDBError(w, r, err)
+		}
 		return
 	}
 	if inType != "CARCASS" {
 		writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fieldErrors{"input_lot_no": "must be a carcass lot"})
+		return
+	}
+	if inStatus == "RECALLED" || inStatus == "BLOCKED" {
+		writeAPIError(w, r, http.StatusConflict, "LOT_BLOCKED", nil)
+		return
+	}
+	if inDate.Format("2006-01-02") > req.OpDate {
+		writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fieldErrors{"op_date": "before carcass receipt"})
+		return
+	}
+	if inExpiry.Valid && inExpiry.Time.Format("2006-01-02") < req.OpDate {
+		writeAPIError(w, r, http.StatusConflict, "LOT_EXPIRED", nil)
 		return
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM butchery_recipe WHERE code = ?`, req.RecipeCode).Scan(&recipeID); err != nil {
@@ -463,6 +482,12 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 		},
 	}
 	result.Allocation = result.Comparison[req.AllocationMethod]
+	if in, ptype, err := loadCarcass(ctx, tx, req.InputLotNo); err == nil && ptype == "CARCASS" {
+		in.CarcassWeightKg, in.OperatorCode = req.InputWeightKg, req.OperatorName
+		in.OpDate, _ = time.Parse("2006-01-02", req.OpDate)
+		result.Forecast = forecastButchery(in, butcheryForecastModel)
+		applyButcheryActuals(result.Forecast, req.Outputs)
+	}
 	if req.DryRun {
 		result.Status = "DRY_RUN"
 		writeJSON(w, result)
@@ -518,6 +543,12 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO butchery_output (operation_id, product_id, lot_id, output_kind, weight_kg, allocation_basis, allocated_cost)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`, opID, products[i], lotID, o.Kind, o.WeightKg, line.Basis, line.Cost); err != nil {
+			writeDBError(w, r, err)
+			return
+		}
+	}
+	if result.Forecast != nil {
+		if err := storeButcheryForecast(ctx, tx, opID, result.Forecast); err != nil {
 			writeDBError(w, r, err)
 			return
 		}

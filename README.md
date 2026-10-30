@@ -121,7 +121,7 @@ rotated and no longer works.
 ```
 
 Runs, then restores the clean seed. Needs the compose stack running, Python 3, JDK 17 + Android
-SDK and Node 18+. Go, pytest and a mysql client are **not** needed on the host: Go runs in a
+SDK and Node 20.x / 22.x / 24+ (Vitest 4). Go, pytest and a mysql client are **not** needed on the host: Go runs in a
 container, and the DB tests install pytest into `.venv` and use the mysql client inside the
 compose container. Only the database tests: `./scripts/test-db.sh` (or `make test-db`).
 

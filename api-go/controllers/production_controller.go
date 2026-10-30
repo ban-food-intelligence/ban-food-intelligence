@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -171,18 +172,40 @@ func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWrit
 		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "invalid JSON request body")
 		return
 	}
-	if req.OrderNo == "" {
-		req.OrderNo = "URT-2026-045"
+	fe := fieldErrors{}
+	if strings.TrimSpace(req.OrderNo) == "" {
+		fe["order_no"] = "required"
+	}
+	if req.ActualQty != 0 || req.OutputLotNo != "" || req.LotDate != "" || req.ExpiryDate != "" {
+		if !(req.ActualQty > 0) {
+			fe["actual_qty"] = "must be > 0"
+		}
+		if strings.TrimSpace(req.OutputLotNo) == "" || len(req.OutputLotNo) > 30 {
+			fe["output_lot_no"] = "required, max 30 characters"
+		}
+		if req.LotDate == "" {
+			req.LotDate = time.Now().UTC().Format("2006-01-02")
+		}
+		if !validDate(req.LotDate) {
+			fe["lot_date"] = "YYYY-MM-DD"
+		}
+		if req.ExpiryDate == "" && validDate(req.LotDate) {
+			d, _ := time.Parse("2006-01-02", req.LotDate)
+			req.ExpiryDate = d.AddDate(0, 6, 0).Format("2006-01-02")
+		}
+		if !validDate(req.ExpiryDate) {
+			fe["expiry_date"] = "YYYY-MM-DD"
+		} else if validDate(req.LotDate) && req.ExpiryDate < req.LotDate {
+			fe["expiry_date"] = "before lot_date"
+		}
+	}
+	if len(fe) > 0 {
+		writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fe)
+		return
 	}
 
 	// If an unreceived order is being completed, invoke sp_production_complete first
 	if req.ActualQty > 0 && req.OutputLotNo != "" {
-		if req.LotDate == "" {
-			req.LotDate = time.Now().Format("2006-01-02")
-		}
-		if req.ExpiryDate == "" {
-			req.ExpiryDate = time.Now().AddDate(0, 6, 0).Format("2006-01-02")
-		}
 		// Warehouse codes from seed.sql: subcontractor stock and main cold store.
 		if req.SubWarehouse == "" {
 			req.SubWarehouse = "FASON-01"

@@ -5,7 +5,7 @@
 #   ./scripts/check-all.sh
 #
 # Needs: the compose stack running, Python 3 (scripts/test-db.sh installs pytest into .venv),
-# JDK 17 + Android SDK, Node 18+. Go is taken from PATH or run in a golang container.
+# JDK 17 + Android SDK, Node 20.x / 22.x / 24+. Go is taken from PATH or run in a golang container.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # Git Bash on Windows would rewrite "-w /src" into a Windows path.

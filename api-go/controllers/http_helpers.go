@@ -94,7 +94,7 @@ func classifyDBError(err error) (int, string) {
 		return http.StatusConflict, "LOT_EXPIRED"
 	case strings.Contains(msg, "ORDER_STATE"):
 		return http.StatusConflict, "ORDER_STATE"
-	case strings.Contains(msg, "ACTUAL_QTY"), strings.Contains(msg, "MOVEMENT_SIGN"), strings.Contains(msg, "EXPIRY_REQUIRED"), strings.Contains(msg, "Check constraint"):
+	case strings.Contains(msg, "INVALID_INPUT"), strings.Contains(msg, "ACTUAL_QTY"), strings.Contains(msg, "MOVEMENT_SIGN"), strings.Contains(msg, "EXPIRY_REQUIRED"), strings.Contains(msg, "Check constraint"):
 		return http.StatusUnprocessableEntity, "INVALID_INPUT"
 	case strings.Contains(msg, "Duplicate entry"):
 		return http.StatusConflict, "CONFLICT"
