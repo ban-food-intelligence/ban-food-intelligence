@@ -25,6 +25,7 @@ var errorMessages = map[string]map[string]string{
 	"INSUFFICIENT_STOCK":  {"en": "Not enough stock for this lot.", "tr": "Bu lot için yeterli stok yok.", "de": "Nicht genügend Bestand für diese Charge."},
 	"LOT_BLOCKED":         {"en": "This lot is recalled or blocked. Sale blocked.", "tr": "Bu lot geri çağrıldı veya bloke. Satış engellendi.", "de": "Diese Charge ist zurückgerufen oder gesperrt. Verkauf gesperrt."},
 	"LOT_EXPIRED":         {"en": "This lot is past its expiry date. Sale blocked.", "tr": "Bu lotun son tüketim tarihi geçti. Satış engellendi.", "de": "Das Haltbarkeitsdatum dieser Charge ist überschritten. Verkauf gesperrt."},
+	"EXCEEDS_DELIVERED":   {"en": "More than the customer's recorded deliveries (minus onward deliveries and returns).", "tr": "Müşteriye kayıtlı teslimattan fazla (ileri sevk ve iadeler düşülür).", "de": "Mehr als die erfassten Lieferungen an den Kunden (abzüglich Weiterlieferungen und Rücknahmen)."},
 	"ORDER_STATE":         {"en": "The production order is not in the right state for this step.", "tr": "Üretim emri bu adım için uygun durumda değil.", "de": "Der Fertigungsauftrag ist für diesen Schritt nicht im richtigen Status."},
 	"INVALID_PIN":         {"en": "Wrong PIN.", "tr": "PIN hatalı.", "de": "Falsche PIN."},
 	"LOCKED_OUT":          {"en": "Too many wrong attempts. Try again later.", "tr": "Çok fazla hatalı deneme. Daha sonra tekrar deneyin.", "de": "Zu viele Fehlversuche. Bitte später erneut versuchen."},
