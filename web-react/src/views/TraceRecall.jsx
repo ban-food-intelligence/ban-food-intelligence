@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { API_BASE, apiWrite, useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { Async, ErrorState, Group, Mono, Page, Pill, Segmented, Table } from '../lib/ui';
+import RecallProgress from './RecallProgress';
 
 export default function TraceRecall() {
   const { t } = useLang();
@@ -219,6 +220,7 @@ function RecallPanel({ lot, recalls }) {
                     },
                   ]}
                 />
+                <RecallProgress recall={rc} onChanged={recalls.reload} />
               </div>
             ))
           )

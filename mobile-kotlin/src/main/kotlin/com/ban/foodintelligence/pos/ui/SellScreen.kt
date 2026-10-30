@@ -63,7 +63,8 @@ import androidx.compose.ui.unit.dp
 import com.ban.foodintelligence.pos.R
 import com.ban.foodintelligence.pos.catalog.CatalogSource
 import com.ban.foodintelligence.pos.catalog.PosInventoryLot
-import com.ban.foodintelligence.pos.catalog.sellableLots
+import com.ban.foodintelligence.pos.catalog.fefoSaleLots
+import com.ban.foodintelligence.pos.catalog.fefoRecommendedLotNos
 import com.ban.foodintelligence.pos.security.DeviceIdentity
 import com.ban.foodintelligence.pos.ui.design.Figure
 import com.ban.foodintelligence.pos.ui.design.Fmt
@@ -102,7 +103,8 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecal
     val lots = state.lots.filter {
         query.isBlank() || it.productName.contains(query, ignoreCase = true) || it.lotNo.contains(query, ignoreCase = true)
     }
-    val available = sellableLots(lots)
+    val available = fefoSaleLots(lots)
+    val recommended = fefoRecommendedLotNos(state.lots)
     val recalled = lots.filter { it.isBlocked }
     val expired = lots.filter { !it.isBlocked && it.isExpired }
     // Recalled lots that are not stocked in this shop (e.g. SUC-2026-045, all shipped to
@@ -142,9 +144,9 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecal
             }
             else -> {
                 if (available.isNotEmpty()) item(key = "available") {
-                    InsetGroup(header = stringResource(R.string.sell_section_available)) {
+                    InsetGroup(header = stringResource(R.string.sell_section_available), footer = stringResource(R.string.fefo_note)) {
                         available.forEach { lot ->
-                            row { LotRow(lot) { selling = lot } }
+                            row { LotRow(lot, recommended = lot.lotNo in recommended) { selling = lot } }
                         }
                     }
                 }
@@ -243,7 +245,7 @@ fun expiryLabel(iso: String): String = runCatching {
 }.getOrDefault(iso)
 
 @Composable
-fun LotRow(lot: PosInventoryLot, onClick: () -> Unit) {
+fun LotRow(lot: PosInventoryLot, recommended: Boolean = false, onClick: () -> Unit) {
     val subtitle = buildString {
         append(lot.lotNo)
         // Expiry on its own line; the date itself never splits ("18 Oct" / "2026").
@@ -270,6 +272,7 @@ fun LotRow(lot: PosInventoryLot, onClick: () -> Unit) {
                     color = palette.label
                 )
                 Text(Fmt.qty(lot.availableQty, lot.uom), style = PosType.footnote.copy(fontFeatureSettings = "tnum"), color = palette.secondaryLabel)
+                if (recommended) StatusPill(stringResource(R.string.fefo_recommended), PillKind.Ok)
             }
         }
     }

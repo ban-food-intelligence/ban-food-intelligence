@@ -5,6 +5,8 @@ mobile-kotlin/.idea/
 mobile-kotlin/local.properties
 web-react/node_modules/
 web-react/dist/
+web-react/test-results/
+web-react/playwright-report/
 __pycache__/
 .pytest_cache/
 # Eğitilmiş büyük ikili modeller çalışma anında yeniden üretilir

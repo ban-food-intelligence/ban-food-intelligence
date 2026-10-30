@@ -415,6 +415,20 @@ CREATE TABLE recall_lot (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
+-- Recall contact follow-up; physical recovery quantities always come from the stock ledger.
+CREATE TABLE recall_customer_followup (
+  id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  recall_id      INT UNSIGNED NOT NULL,
+  customer_id    INT UNSIGNED NOT NULL,
+  contact_status ENUM('PENDING','CONTACTED','CONFIRMED') NOT NULL DEFAULT 'PENDING',
+  note           VARCHAR(500) NOT NULL DEFAULT '',
+  updated_by     VARCHAR(64) NOT NULL,
+  updated_at     DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_rcf_customer (recall_id, customer_id),
+  CONSTRAINT fk_rcf_recall FOREIGN KEY (recall_id) REFERENCES recall(id),
+  CONSTRAINT fk_rcf_customer FOREIGN KEY (customer_id) REFERENCES customer(id)
+) ENGINE=InnoDB;
+
 -- 9. KI tahminleri (tahmin + gerçek + sapma birlikte saklanır)
 -- ---------------------------------------------------------------------
 CREATE TABLE ml_prediction (

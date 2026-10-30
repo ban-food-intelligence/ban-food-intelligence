@@ -102,6 +102,15 @@ jobs:
   web:
     name: React dashboard (vitest + build)
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ban
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pban"
+          --health-interval=5s --health-timeout=5s --health-retries=30
     defaults:
       run:
         working-directory: web-react
@@ -115,6 +124,42 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm test
       - run: npm run build
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: api-go/go.sum
+      - name: Seed browser-test database and start API
+        working-directory: api-go
+        run: |
+          mysql -h 127.0.0.1 -uroot -pban --comments --default-character-set=utf8mb4 < ../database-mysql/schema.sql
+          mysql -h 127.0.0.1 -uroot -pban --comments --default-character-set=utf8mb4 < ../database-mysql/seed.sql
+          go build -o "$RUNNER_TEMP/ban-api" .
+          "$RUNNER_TEMP/ban-api" > "$RUNNER_TEMP/ban-api.log" 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/health; then exit 0; fi
+            echo "Waiting for API ($i/30)"
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/ban-api.log"
+          exit 1
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify PDF evidence and Turkish text
+        run: |
+          python -m pip install pypdf
+          python ../scripts/verify-assessment-pdf.py test-results/assessment-tr.pdf
+      - name: Browser reports and exported PDF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-feature-evidence
+          path: |
+            web-react/test-results/
+            web-react/playwright-report/
+          if-no-files-found: ignore
 
   ml:
     name: ML engine tests (manual run only, slow)

@@ -188,6 +188,25 @@ return an error rather than an incomplete recall list.
 
 `GET /recall/contacts.csv?recall_code=RCL-2026-001` - the contact list as CSV (UTF-8 with BOM).
 
+`GET /recall/progress?recall_code=...` - customer/lot recovery lines and totals **per unit**.
+Each line includes `qty_received`, `qty_forwarded`, `qty_to_recover`, `qty_returned`,
+`qty_pending`, `contact_status`, `note`, `updated_by`, `updated_at`, and `quantity_warning`.
+Responsibility is received minus recorded onward shipment; pending subtracts physical returns
+from that responsibility. A 30-pack tier-1 delivery followed by 10 packs to tier 2 is 20 + 10,
+not 40 to recover. Quantities come from recorded shipments and the stock ledger. Contact
+confirmation never changes quantities or unblocks sales. Inconsistent historical quantities
+are flagged and cannot produce `all_recovered: true`; no deliveries also means false.
+
+`POST /recall/followup` (session):
+```json
+{"recall_code":"RCL-2026-001","customer_code":"MKT-A","contact_status":"CONTACTED","note":"Called branch manager"}
+```
+`contact_status` is `PENDING`, `CONTACTED` or `CONFIRMED`; note max 500 characters.
+The customer must have a recorded affected delivery. Closed recalls reject updates (`409`);
+unknown recall/unaffected customer returns `404`. Each change records the supervisor and an
+append-only audit entry. Record actual recovered goods with `POST /movements/return` into
+`KARANTINA`, not by changing contact status.
+
 `GET /lots` - stock per lot and warehouse with status, sale price (VKP) and expiry date.
 
 ## Raw-material receipt
@@ -205,6 +224,15 @@ supplier / product; `409 CONFLICT` for a used receipt or lot number. The databas
 purchased perishable lot without expiry as well (`EXPIRY_REQUIRED`).
 
 ## Reports and lot movements
+
+`GET /reports/assessment` returns the complete assessment evidence as one JSON snapshot;
+the dashboard renders it as a downloadable PDF. Default selectors are
+`order_no=URT-2026-045`, `root_lot=ET-2026-001`, `rejected_op=PRC-2026-000`,
+`posted_op=PRC-2026-001`. All may be overridden with query parameters. A required record
+missing from the snapshot returns `404` rather than a partial report. Includes production
+costs/breakdown, both butchery findings/allocations, forward/backward trace, recorded customer
+deliveries/contact details, recall recovery lines, model/reference metrics and sample predictions.
+The report never initiates a recall or books a stock movement. ML evidence is labelled synthetic.
 
 | Endpoint | Content |
 |---|---|
@@ -231,7 +259,8 @@ lots cannot be consumed). Each returns `201` with the balances after the movemen
 ## POS sync (SQLite -> MySQL)
 
 Customer returns through `/movements/return` cannot exceed recorded deliveries for the same
-customer and lot minus earlier returns, across all warehouses (`409 CONFLICT`). Concurrent
+customer and lot minus recorded onward shipments and earlier returns, across all warehouses
+(`409 CONFLICT`). Concurrent
 returns are serialized on the lot row. Unrecorded deliveries must be investigated before
 stock can be restored as a customer return.
 
