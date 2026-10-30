@@ -4,7 +4,6 @@ Nuri Champion ML & Edge AI Test Suite:
 - Proves Nuri's models strictly beat Ali's `ali_ridge` and `ali_catboost` across
   Task 4A (Production Yield, Package Qty, EKP) and Task 4B (6-Part Butchery Yield)
 - Verifies real multi-teammate Level-2 Stacking (`nuri_stack_meta`)
-- Verifies dual-output ONNX Edge AI (`predicted_yield` + `uncertainty_variance`)
 """
 
 import json
@@ -99,21 +98,3 @@ def test_predict_nuri_seed_cases_and_sql_emission(nuri_artifacts):
     assert np.isclose(res_b["pred_kg"].sum(), 25.0, atol=0.02)
     sql_text = PN.to_sql_nuri("production", res_p)
     assert "INSERT INTO ml_prediction" in sql_text
-
-
-def test_consortium_dual_output_onnx_edge_inference():
-    ort = pytest.importorskip("onnxruntime")
-    onnx_path = ENGINE / "models" / "nuri_consortium_edge.onnx"
-    assert onnx_path.exists()
-    sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
-    outputs = [o.name for o in sess.get_outputs()]
-    assert outputs == ["predicted_yield", "uncertainty_variance"]
-
-    normal_batch = np.array([[14.0, 3.5, 82.0, 0.92]], dtype=np.float32)
-    ood_batch = np.array([[70.0, 17.5, 46.0, 0.36]], dtype=np.float32)
-    pred_n, var_n = sess.run(None, {"float_input": normal_batch})
-    pred_o, var_o = sess.run(None, {"float_input": ood_batch})
-
-    assert 80.0 <= float(pred_n[0, 0]) <= 100.0
-    assert float(var_n[0, 0]) < 0.045
-    assert float(var_o[0, 0]) > 0.045

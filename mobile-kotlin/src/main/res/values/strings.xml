@@ -35,7 +35,6 @@
     <string name="ocr_meta">Supplier: %1$s · Invoice: %2$s</string>
     <string name="ocr_back">Back</string>
     <!-- Quick Guide / How to Use BottomSheet (EN) -->
-    <string name="quick_guide_button_label">How it works</string>
     <string name="quick_guide_title">How the app works</string>
     <string name="quick_guide_subtitle">Three things every cashier needs to know</string>
     <string name="quick_guide_step1_title">Selling</string>

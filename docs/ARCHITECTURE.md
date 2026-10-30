@@ -148,5 +148,8 @@ sequenceDiagram
 - `audit_log` and `stock_movement` are append-only.
 - Debug builds allow cleartext HTTP to a LAN IP for the demo; release builds only to the local
   hosts (127.0.0.1, localhost, emulator host).
-- Known limits for a production rollout: the REST API has no user authentication yet (demo on a
-  local network), and device keys are enrolled on first use.
+- Back-office writes need a supervisor session (PIN → 30-minute signed token); reads stay open for
+  the dashboard and the POS.
+- Known limits for a production rollout: one shared supervisor PIN instead of per-user accounts,
+  plain HTTP on a local network, and device keys enrolled on first use. Details and the hardening
+  plan: [SECURITY.md](SECURITY.md).

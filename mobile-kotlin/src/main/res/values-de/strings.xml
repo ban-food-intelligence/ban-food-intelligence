@@ -35,7 +35,6 @@
     <string name="ocr_meta">Lieferant: %1$s · Rechnung: %2$s</string>
     <string name="ocr_back">Zurück</string>
     <!-- Quick Guide / How to Use BottomSheet (DE) -->
-    <string name="quick_guide_button_label">So funktioniert es</string>
     <string name="quick_guide_title">So funktioniert die App</string>
     <string name="quick_guide_subtitle">Drei Dinge, die jede Kassenkraft wissen sollte</string>
     <string name="quick_guide_step1_title">Verkaufen</string>

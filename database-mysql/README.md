@@ -9,15 +9,17 @@ docker compose up -d mysql                     # schema.sql + seed.sql otomatik 
 # veya kendi MySQL 8'inizle:
 MYSQL="mysql -uroot -p" ./database-mysql/load.sh
 
-pip install -r ml-engine/requirements.txt
-MYSQL_HOST=127.0.0.1 MYSQL_PASSWORD=ban pytest database-mysql/tests -q     # 31 entegrasyon testi
+./scripts/test-db.sh                           # 34 entegrasyon testi (pytest + pymysql .venv'e kurulur)
+# veya elle:
+pip install -r requirements-dev.txt
+MYSQL_HOST=127.0.0.1 MYSQL_PASSWORD=ban pytest database-mysql/tests -q
 ```
 
 | Dosya | İçerik |
 |---|---|
 | `schema.sql` | (1) tablolar, FK'ler, CHECK kısıtları (2) EKP/marj, stok, mutabakat, KI sapma görünümleri (3) tetikleyiciler + saklı yordamlar |
 | `seed.sql` | (1) şartnamedeki zorunlu senaryo (ET-2026-001 → URT-2026-045 → SUC-2026-045 → Market A/B/C) (2) çoktan-çoğa lotlar, 2. kademe dağıtım, kuzu parçalama, POS satışı (3) model tahmini + gerçek + sapma |
-| `queries/*.sql` | Tek ifadelik WITH RECURSIVE sorgular (`?` parametreli, Go'dan doğrudan) |
+| `queries/*.sql` | Tek ifadelik WITH RECURSIVE sorgular (`?` parametreli; elle inceleme için, API aynı izlemeyi `sp_trace_*` yordamlarıyla yapar) |
 | `demo/recall_demo.sql` | Videodaki geri çağırma akışı, adım adım |
 | `demo/anomaly_demo.sql` | KI anomali uyarısı what-if demosu (`[DEMO]` önekli 2 uyarı; seed'e dahil değil) |
 | `tests/` | pytest + gerçek MySQL 8 entegrasyon testleri |
@@ -138,7 +140,8 @@ SALE stok hareketini yazar ve satırın `stock_movement_id`'sine bağlar.
 
 Üretici: `ml-engine/anomaly_ali.py` + `predict_ali.py --emit-sql` (yöntem ve ölçüm:
 [ml-engine/README_ali.md](../ml-engine/README_ali.md#ki-anomali-uyarıları-isteğe-bağlı-özellik-düşük-verim--beklenmedik-fire)).
-API **yalnız okur** `v_ml_anomaly_alert`'ten ve **yalnız `status`/`resolved_*` kolonlarını** günceller.
+Go API bu görünümü henüz sunmuyor (panel ve telefon `GET /ai/summary`'deki `anomaly` bayrağını gösterir).
+Sunulduğunda kural: `v_ml_anomaly_alert`'ten **yalnız okunur**, **yalnız `status`/`resolved_*` kolonları** güncellenir.
 
 ```sql
 -- panel listesi: açık uyarılar, önce kritik ve büyük kayıp
@@ -170,14 +173,3 @@ SELECT * FROM v_ml_anomaly_feedback;
 
 `(task, ref_type, ref_id, model_version)` benzersizdir: aynı kayıt yeniden skorlanırsa yeni satır
 açılmaz, mevcut uyarı güncellenir (status korunur).
-
-## Go modelleriyle eşleme (Berke için)
-
-`api-go/models/lot.go` içindeki alanlar şu kolonlardan doldurulabilir:
-
-| Go alanı | MySQL |
-|---|---|
-| `Lot.LotNumber`, `Quantity`, `Unit`, `ExpiryDate` | `lot.lot_no`, `lot.initial_qty`, `lot.uom_code`, `lot.expiry_date` |
-| `Lot.CurrentQuantity` | `SUM(stock_balance.qty)` (veya `v_stock_by_lot`) |
-| `Lot.Status` | `lot.status` (`ACTIVE`, `BLOCKED`, `RECALLED`, `DEPLETED`) — Go'daki `QUARANTINE/RELEASED/...` listesiyle eşleme kararı Berke'de |
-| `LotTraceNode.Depth`, `TracePath`, `QuantityConsumed` | `queries/trace_forward.sql` / `trace_backward.sql` kolonları `depth`, `path`, `qty_consumed` |

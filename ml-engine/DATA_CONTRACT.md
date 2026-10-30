@@ -67,20 +67,12 @@ gelir; gerçek kayıt biriktikçe model sentetik veri yerine doğrudan veritaban
 ## 4. Akış
 
 ```bash
-python ml-engine/generator_ali.py                       # her üye kendi üretecini çalıştırır
-python ml-engine/train_model_ali.py \
-  --production ml-engine/data/train_task4a_ali.csv ml-engine/data/train_task4a_berke.csv ml-engine/data/train_task4a_nuri.csv \
-  --butchery   ml-engine/data/train_task4b_ali.csv ml-engine/data/train_task4b_berke.csv ml-engine/data/train_task4b_nuri.csv
-# -> ml-engine/artifacts/ali/oof_ali_production.csv, oof_ali_butchery.csv (birleşik veri üzerinde)
+python ml-engine/generator_ali.py      # data/train_task4a_ali.csv, data/train_task4b_ali.csv
+python ml-engine/train_model_ali.py    # varsayılan: yukarıdaki iki dosya; --production / --butchery birden çok CSV alır
+# -> ml-engine/artifacts/ali/oof_ali_production.csv, oof_ali_butchery.csv
 ```
 
-Berke (XGBoost) ve Nuri (LightGBM) aynı birleşik CSV'ler ve aynı `fold_of` ile kendi OOF dosyalarını
-üretir; `stacking_meta_learner.py` üç dosyayı `row_id + target` üzerinden birleştirir.
-
-## 5. Açık karar: mevcut `train_task4a.csv` / `train_task4b.csv`
-
-Repodaki bu iki dosya farklı kolonlar kullanıyor (`meat_input_kg`, `curing_days`, `ambient_humidity_pct`,
-`accepted_packs`, `unit_ekp` / `weight_leg` …) ve tarih kolonu yok; zaman bazlı holdout yapılamıyor.
-Stacking için üç üyenin aynı şemada olması şart. Öneri: bu sözleşmeyi ortak şema kabul edip mevcut
-dosyaları buna eşlemek (`meat_input_kg → meat_kg`, `curing_days → drying_days`,
-`accepted_packs → actual_qty`, `unit_ekp → ekp`, `weight_leg → but_kg` …). Takım kararı gerekiyor.
+Uygulamada yalnız Ali'nin verisi üretildi; Berke'nin XGBoost üyesi yapılmadı. Nuri'nin LightGBM'i
+(`train_model_nuri.py`) aynı CSV'ler ve aynı `fold_of` ile OOF üretir; `stacking_meta_learner.py`
+bunları `row_id + target` üzerinden birleştirir. Stacking denetlendi ve en iyi tek modele göre kazanç
+getirmediği için sunulmuyor ([docs/AI.md](../docs/AI.md#why-not-stacking)).

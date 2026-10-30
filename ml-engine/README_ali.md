@@ -35,17 +35,20 @@ görünümlerinden (database-mysql/schema.sql) gelir ve model değiştirilmeden 
   4B'de 6 pay ayrı tahmin edilip toplam 100'e normalize edilir → tahmin edilen parçalar + fire = giriş ağırlığı.
 * **Modeller**: CatBoost (takım planında Ali'nin modeli; kategorikleri doğal işler, 4B'de 6 payı tek
   MultiRMSE modelinde birlikte öğrenir) ve Ridge (one-hot + ölçekleme). Şampiyon **test'e bakılmadan**
-  5 katlı CV hatasıyla seçilir; iki modelin OOF'u da stacking'e gider (Berke XGBoost, Nuri LightGBM).
+  5 katlı CV hatasıyla seçilir: Ridge. Stacking (Nuri'nin meta-learner'ı) denetlendi, tek modele göre
+  kazanç getirmedi; sunulmuyor ([docs/AI.md](../docs/AI.md#why-not-stacking)).
 * **Zaman bazlı testin yakaladığı hata**: Fiyat kolonları verimi fiziksel olarak etkilemez ama enflasyonla
   zamana bağlı artar. İlk denemede CatBoost bunları "zaman vekili" olarak kullandı. Rastgele CV bunu
   göstermedi (0,96), zaman bazlı test gösterdi (test verim MAE 1,45). Fiyatlar verim modelinden çıkarılınca
   hata 0,99'a düştü. Fiyatlar yalnız EKP formülünde kullanılır.
 * **Referanslar**: (1) reçete standardı (%85; kuzu reçete payları), (2) geçmiş ortalaması (ürün/tür bazında).
 * **Değerlendirme**: zaman bazlı holdout (son %20, 302 emir / 500 karkas); train içinde takımla ortak
-  deterministik fold'lar (bkz. [DATA_CONTRACT](DATA_CONTRACT.md)).
-* **Belirsizlik**: OOF artıklarından split-conformal %90 aralık. Gerçek değer aralık dışındaysa satır
-  `anomaly` (aralık dışı) olarak işaretlenir. Bu bilgi amaçlıdır: %90 aralık tanım gereği normal kayıtların
-  ~%10'unu dışarıda bırakır. Uyarı üretmek için kalibre edilmiş dedektör kullanılır (aşağıda).
+  deterministik fold'lar (bkz. [DATA_CONTRACT](DATA_CONTRACT.md)). Ek olarak 5 katlı rolling-origin,
+  bootstrap güven aralıkları ve Diebold-Mariano testi: [docs/AI.md](../docs/AI.md), [ML_REPORT.md](ML_REPORT.md).
+* **Belirsizlik**: zaman sıralı split-conformal; gösterilen aralık %80. Model kalibrasyon satırlarını
+  görmez, genişlik gelecekteki hatayı yansıtır. `anomaly` = gerçek değer %98 bandının dışında (%80 aralığın
+  dışı yalnız bilgi amaçlı `outside_interval`; tanım gereği normal kayıtların ~%20'si oraya düşer).
+  Uyarı üretmek için ayrıca kalibre edilmiş dedektör kullanılır (aşağıda).
 
 ## Sonuçlar (zaman bazlı test kümesi)
 
@@ -58,8 +61,8 @@ görünümlerinden (database-mysql/schema.sql) gelir ve model değiştirilmeden 
 | **Ridge (şampiyon)** | **1,37** | **%1,18** | **0,138 €** | **0,67** |
 | CatBoost | 1,40 | %1,21 | 0,139 € | 0,66 |
 
-Geçmiş ortalamasına göre paket hatasında **%49,1** iyileşme. %90 aralık ±1,74 verim puanı, testte gerçek
-kapsama %89,1.
+Geçmiş ortalamasına göre paket hatasında **%49,1** iyileşme. %80 aralık ±1,34 verim puanı, rolling-origin
+kapsama %79,3.
 
 **4B — parçalama** (6 çıktı, kg)
 
@@ -70,24 +73,25 @@ kapsama %89,1.
 | **Ridge (şampiyon)** | **0,115** | **0,54** | **0,113** |
 | CatBoost (MultiRMSE) | 0,117 | 0,55 | 0,116 |
 
-Geçmiş ortalamasına göre **%37,5** iyileşme; tahminlerde kütle dengesi hatası < 1e-12 kg; %90 aralığın
-parça başına test kapsaması %89,8.
+Geçmiş ortalamasına göre **%37,5** iyileşme; tahminlerde kütle dengesi hatası < 1e-12 kg; %80 aralığın
+parça başına rolling-origin kapsaması %80,4.
 
-Dürüst not: Ridge, CatBoost'u az farkla geçiyor; çünkü sentetik süreç büyük ölçüde doğrusal. Bu yüzden iki
-model de OOF olarak stacking'e verilir, ağırlıklandırma meta-learner'a bırakılır.
+Dürüst not: Ridge, CatBoost'u az farkla geçiyor; çünkü sentetik süreç büyük ölçüde doğrusal. Bu yüzden daha
+basit olan Ridge sunuluyor.
 
 ## Örnek tahminler (seed kayıtları, `v_ml_prediction_deviation`)
 
-| Kayıt | Tahmin | %90 aralık | Gerçek | Sapma |
+| Kayıt | Tahmin | %80 aralık | Gerçek | Sapma |
 |---|---|---|---|---|
-| URT-2026-045 paket | 84,6 | 82,9 – 86,4 | 85 | +0,4 |
-| URT-2026-045 EKP | 18,22 € | | 18,16 € | −0,06 € |
-| URT-2026-046 paket (yağsız et, 6 gün kurutma) | 82,8 | 81,1 – 84,6 | 83 | +0,2 |
-| PRC-2026-001 kuzu fire | 2,61 kg | 2,33 – 2,88 | 3,00 kg | +0,39 (aralık dışı) |
-| PRC-2026-001 kuzu but | 6,79 kg | 6,50 – 7,09 | 6,50 kg | −0,29 (aralık dışı) |
+| URT-2026-045 paket | 84,6 | 83,2 – 86,0 | 85 | +0,4 |
+| URT-2026-045 EKP | 18,22 € | 18,01 – 18,43 € | 18,16 € | −0,06 € |
+| URT-2026-046 paket (yağsız et, 6 gün kurutma) | 82,8 | 81,4 – 84,3 | 83 | +0,2 |
+| PRC-2026-001 kuzu fire | 2,61 kg | 2,39 – 2,83 | 3,00 kg | +0,39 (aralık dışı) |
+| PRC-2026-001 kuzu but | 6,79 kg | 6,57 – 7,02 | 6,50 kg | −0,29 (aralık dışı) |
 
 Kuzu örneğinde model, Kıvırcık ırkı ve iyi kasap için beklenenden ~0,3 kg fazla fire ve ~0,3 kg az but
-görüyor. Parça bazında %90 aralığın dışında, ama 6 parça birlikte değerlendirildiğinde (d² = 7,9 < 18)
+görüyor. Parça bazında %80 aralığın dışında ama %98 bandının içinde (`anomaly` yok); 6 parça birlikte
+değerlendirildiğinde de (d² = 7,9 < 18)
 normal varyasyon içinde: kalibre edilmiş dedektör **uyarı üretmez**. Tek tek aralık kontrolü bu tür
 kayıtlarda yanlış alarm verir (aşağıdaki tabloda "%90 aralık kuralı").
 
