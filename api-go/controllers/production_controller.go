@@ -41,6 +41,7 @@ type ProductionOrderDto struct {
 	MarginPct          float64                `json:"margin_pct"`
 	OutputLotNumber    string                 `json:"output_lot_number,omitempty"`
 	Breakdown          []CostBreakdownLineDto `json:"breakdown,omitempty"`
+	Forecast           *ProductionForecastDto `json:"forecast,omitempty"` // AI 4A: packages and EKP, with actuals once received
 }
 
 type CompleteProductionRequest struct {
@@ -124,6 +125,38 @@ func (c *ProductionController) ListOrders(w http.ResponseWriter, r *http.Request
 		o.Breakdown = c.fetchCostBreakdown(r, o.OrderNo)
 		orders = append(orders, o)
 	}
+	rows.Close()
+
+	// Orders whose material is at the subcontractor: no EKP yet, but the material cost and the forecast.
+	open := `SELECT po.order_no, p.sku, p.name, po.status, po.planned_qty,
+	                COALESCE(SUM(pi.qty_consumed), 0), COALESCE(SUM(pi.line_cost), 0)
+	         FROM production_order po JOIN product p ON p.id = po.product_id
+	         LEFT JOIN production_input pi ON pi.production_order_id = po.id
+	         WHERE po.status IN ('PLANNED','MATERIAL_SENT')`
+	if orderFilter != "" {
+		open += " AND po.order_no = ?"
+	}
+	open += " GROUP BY po.id, po.order_no, p.sku, p.name, po.status, po.planned_qty ORDER BY po.order_no"
+	openRows, err := c.db.QueryContext(r.Context(), open, args...)
+	if err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	defer openRows.Close()
+	for openRows.Next() {
+		var o ProductionOrderDto
+		if err := openRows.Scan(&o.OrderNo, &o.ProductSKU, &o.ProductName, &o.Status, &o.PlannedQty, &o.InputKg, &o.MaterialCost); err != nil {
+			writeDBError(w, r, err)
+			return
+		}
+		o.MaterialCost = round(o.MaterialCost, 2)
+		orders = append(orders, o)
+	}
+
+	forecasts := loadForecasts(r.Context(), c.db)
+	for i := range orders {
+		orders[i].Forecast = forecasts[orders[i].OrderNo]
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(orders)
@@ -166,8 +199,12 @@ func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWrit
 		if err != nil {
 			// e.g. ORDER_STATE (already received), INSUFFICIENT_STOCK, duplicate lot number
 			log.Printf("[WARN] [MYSQL-SP] sp_production_complete failed for %s: %v", req.OrderNo, err)
-			writeJSONError(w, http.StatusUnprocessableEntity, "sp_production_complete failed: "+err.Error())
+			writeDBError(w, r, err)
 			return
+		}
+		// AI 4A: the forecast made when the material was sent now gets its actual and anomaly flag.
+		if err := recordForecastActuals(r.Context(), c.db, req.OrderNo); err != nil {
+			log.Printf("[WARN] [AI] actuals for %s not recorded: %v", req.OrderNo, err)
 		}
 	}
 
@@ -197,6 +234,7 @@ func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWrit
 	rows.Close()
 
 	result.Breakdown = c.fetchCostBreakdown(r, req.OrderNo)
+	result.Forecast = loadForecasts(r.Context(), c.db)[req.OrderNo]
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)

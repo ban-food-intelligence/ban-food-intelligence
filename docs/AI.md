@@ -204,6 +204,30 @@ In production it is not distinguishable from its best single base model, Huber
 stacking, and the rolling-origin comparison above found Huber's edge over Ridge not significant.
 Same accuracy with one model instead of six: the single Ridge is served.
 
+## Live forecasts for new orders (study A)
+
+The champion is linear (one-hot categories + median-imputed, standardised numbers -> Ridge), so it
+runs inside the Go API without Python:
+
+1. `ml-engine/export_live_model.py` fits the champion exactly as `train_model_ali.py` does (same
+   data, time split and rows), writes its intercept, per-category and per-feature coefficients,
+   imputation medians, scaling, the 80 % / 98 % conformal half-widths and the historical-mean
+   baseline per product to `api-go/controllers/aimodel/production_ridge.json`, and refuses to write
+   if the linear form differs from sklearn's own predictions (largest gap 7e-14).
+2. `POST /production/orders` records the order and sends the material; in the same transaction the
+   API reads the order's inputs (`v_ml_production_order_inputs`), forecasts the yield, turns it
+   into packages and EKP with the exact cost formula, and stores forecast, 80 % interval and
+   baseline in `ml_prediction`.
+3. When the finished goods are received (`POST /production`), the actual packages and EKP are
+   written next to the forecast, and `is_anomaly` is set if the actual is outside the 98 % band.
+   The dashboard (*Production*, *AI*) and the phone (*Yield forecasts*) show it like the seeded rows.
+
+Evidence: `TestLiveYieldMatchesTheTrainedModel` compares the Go evaluation with sklearn on 33 golden
+rows (both seeded orders and 31 held-out orders, incl. missing fat %, summer months and 500 g packs):
+all within 1e-9. URT-2026-045 gives the seeded 84.6 packages and EKP 18.2172 EUR.
+`TestIntegrationProductionOrderWithLiveForecast` runs purchase -> order -> forecast -> receipt ->
+`/ai/summary`, and checks that a failing input leaves nothing behind.
+
 ## Predictions on the demo records
 
 `GET /ai/summary` shows, for the seeded records, the model prediction, the baseline prediction,
@@ -275,5 +299,6 @@ python ml-engine/anomaly_ali.py        # calibrated alert detector
 python ml-engine/evaluate_ali.py       # rolling-origin evaluation, CIs, tests, charts (~10 min)
 python ml-engine/ai_summary.py         # /ai/summary preview with the optional fields
 python ml-engine/export_ai_report.py   # writes the AI block of database-mysql/seed.sql
+python ml-engine/export_live_model.py  # the champion as numbers for the Go API's live forecasts
 pytest ml-engine/tests -q
 ```
