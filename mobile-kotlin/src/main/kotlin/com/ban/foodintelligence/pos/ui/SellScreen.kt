@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Remove
@@ -49,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -62,6 +64,7 @@ import com.ban.foodintelligence.pos.R
 import com.ban.foodintelligence.pos.catalog.CatalogSource
 import com.ban.foodintelligence.pos.catalog.PosInventoryLot
 import com.ban.foodintelligence.pos.catalog.sellableLots
+import com.ban.foodintelligence.pos.security.DeviceIdentity
 import com.ban.foodintelligence.pos.ui.design.Figure
 import com.ban.foodintelligence.pos.ui.design.Fmt
 import com.ban.foodintelligence.pos.ui.design.InsetGroup
@@ -93,6 +96,7 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecal
     }
     val available = sellableLots(lots)
     val recalled = lots.filter { it.isBlocked }
+    val expired = lots.filter { !it.isBlocked && it.isExpired }
     // Recalled lots that are not stocked in this shop (e.g. SUC-2026-045, all shipped to
     // markets) still show up when searched for, so a cashier can check a pack in hand.
     val recalledElsewhere = if (query.isBlank()) emptyList() else catalog?.recalls.orEmpty()
@@ -125,7 +129,7 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecal
             state.lots.isEmpty() -> item(key = "empty") {
                 StateMessage(Icons.Rounded.Inventory2, stringResource(R.string.sell_empty), actionLabel = stringResource(R.string.action_retry), onAction = { scope.launch { state.refreshAll() } })
             }
-            available.isEmpty() && recalled.isEmpty() && recalledElsewhere.isEmpty() -> item(key = "nomatch") {
+            available.isEmpty() && recalled.isEmpty() && recalledElsewhere.isEmpty() && expired.isEmpty() -> item(key = "nomatch") {
                 StateMessage(Icons.Rounded.Search, stringResource(R.string.sell_no_match, query))
             }
             else -> {
@@ -150,6 +154,11 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecal
                                 )
                             }
                         }
+                    }
+                }
+                if (expired.isNotEmpty()) item(key = "expired") {
+                    InsetGroup(header = stringResource(R.string.sell_section_expired)) {
+                        expired.forEach { lot -> row { LotRow(lot) { blocked = lot } } }
                     }
                 }
             }
@@ -232,16 +241,19 @@ fun LotRow(lot: PosInventoryLot, onClick: () -> Unit) {
         // Expiry on its own line; the date itself never splits ("18 Oct" / "2026").
         if (lot.expiryDate.isNotBlank()) append('\n').append(stringResource(R.string.lot_expiry, expiryLabel(lot.expiryDate).replace(' ', '\u00A0')))
     }
+    val stopped = lot.isBlocked || lot.isExpired
     ListRow(
         title = lot.productName,
         subtitle = subtitle,
-        accentBar = if (lot.isBlocked) palette.danger else null,
-        chevron = !lot.isBlocked,
+        accentBar = if (stopped) palette.danger else null,
+        chevron = !stopped,
         onClick = onClick,
-        modifier = Modifier.semantics { if (lot.isBlocked) contentDescription = "${lot.productName}, ${lot.lotNo}" }
+        modifier = Modifier.semantics { if (stopped) contentDescription = "${lot.productName}, ${lot.lotNo}" }
     ) {
         if (lot.isBlocked) {
             StatusPill(stringResource(R.string.lot_recalled_pill), PillKind.Danger, Icons.Rounded.Lock)
+        } else if (lot.isExpired) {
+            StatusPill(stringResource(R.string.lot_expired_pill), PillKind.Danger, Icons.Rounded.EventBusy)
         } else {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
@@ -260,6 +272,7 @@ fun LotRow(lot: PosInventoryLot, onClick: () -> Unit) {
 private fun SellSheet(lot: PosInventoryLot, state: PosAppState, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val view = LocalView.current
+    val deviceId = DeviceIdentity.id(LocalContext.current)
     var input by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var soldQty by remember { mutableStateOf<Double?>(null) }
@@ -344,7 +357,8 @@ private fun SellSheet(lot: PosInventoryLot, state: PosAppState, onDismiss: () ->
                     saving = true
                     scope.launch {
                         state.appDb.recordPosSale(
-                            lotNo = lot.lotNo, productName = lot.productName, qty = q, uom = lot.uom, unitPriceEur = lot.unitPriceEur
+                            lotNo = lot.lotNo, productName = lot.productName, qty = q, uom = lot.uom, unitPriceEur = lot.unitPriceEur,
+                            deviceId = deviceId
                         )
                         view.performHapticFeedback(
                             if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.KEYBOARD_TAP
@@ -415,14 +429,23 @@ private fun BlockedSheet(lot: PosInventoryLot, onDismiss: () -> Unit) {
                 Spacer(Modifier.width(Space.m))
                 Column {
                     Text(lot.productName, style = PosType.headline, color = palette.label)
-                    Text(stringResource(R.string.sell_section_blocked), style = PosType.subhead, color = palette.dangerText)
+                    Text(
+                        stringResource(if (lot.isBlocked) R.string.sell_section_blocked else R.string.sell_section_expired),
+                        style = PosType.subhead, color = palette.dangerText
+                    )
                 }
             }
             InsetGroup(
-                footer = if (lot.recallCode != null) stringResource(R.string.lot_recalled_reason, lot.recallCode, lot.recallRootLot.orEmpty())
-                else stringResource(R.string.lot_blocked_reason)
+                footer = when {
+                    lot.recallCode != null -> stringResource(R.string.lot_recalled_reason, lot.recallCode, lot.recallRootLot.orEmpty())
+                    lot.isBlocked -> stringResource(R.string.lot_blocked_reason)
+                    else -> stringResource(R.string.lot_expired_reason, expiryLabel(lot.expiryDate))
+                }
             ) {
                 row { ListRow(stringResource(R.string.lock_lots), value = lot.lotNo) }
+                if (!lot.isBlocked && lot.expiryDate.isNotBlank()) {
+                    row { ListRow(stringResource(R.string.lot_expiry, "").trim(), value = expiryLabel(lot.expiryDate)) }
+                }
                 if (lot.recallCode != null) row { ListRow(stringResource(R.string.lock_recall), value = lot.recallCode) }
                 if (!lot.recallRootLot.isNullOrBlank()) row { ListRow(stringResource(R.string.lock_root), value = lot.recallRootLot) }
                 if (!lot.recallReason.isNullOrBlank()) row { ListRow(lot.recallReason) }

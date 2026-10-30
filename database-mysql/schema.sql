@@ -767,6 +767,7 @@ BEFORE INSERT ON stock_movement
 FOR EACH ROW
 BEGIN
   DECLARE v_status VARCHAR(20);
+  DECLARE v_expiry DATE;
   DECLARE v_balance DECIMAL(14,3);
 
   -- 1) Hareket türü ile işaret uyumlu olmalı
@@ -781,10 +782,18 @@ BEGIN
 
   -- 2) Geri çağrılan / bloke lot satılamaz, sevk edilemez, üretimde kullanılamaz.
   --    (İade, imha ve karantinaya transfer serbest.)
-  SELECT status INTO v_status FROM lot WHERE id = NEW.lot_id;
+  SELECT status, expiry_date INTO v_status, v_expiry FROM lot WHERE id = NEW.lot_id;
   IF v_status IN ('BLOCKED','RECALLED') AND NEW.movement_type IN
      ('SALE','SHIPMENT','PRODUCTION_CONSUME','BUTCHERY_CONSUME','REWORK_CONSUME') THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'LOT_BLOCKED: lot is blocked or recalled';
+  END IF;
+
+  -- 2b) SKT'si geçmiş lot müşteriye satılamaz ve sevk edilemez. Ölçüt hareketin kendi zamanı:
+  --     SKT'den önce çevrimdışı yapılan bir POS satışı sonradan senkronlansa da geçerlidir.
+  --     Üretim/parçalama tüketimi emir kapanınca, fiili kullanımdan sonra yazıldığı için kapsam dışı.
+  IF v_expiry IS NOT NULL AND DATE(COALESCE(NEW.moved_at, NOW(3))) > v_expiry
+     AND NEW.movement_type IN ('SALE','SHIPMENT') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'LOT_EXPIRED: lot is past its expiry date';
   END IF;
 
   -- 3) Negatif stok engeli (bakiye satırı kilitlenir -> eşzamanlı satışlarda yarış yok)

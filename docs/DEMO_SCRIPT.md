@@ -69,6 +69,13 @@ until "0 waiting". Then dashboard *Sales* (refresh) shows the new line with cost
 > veritabanına yazılıyor, imzalanıyor ve arka planda sunucuya gönderiliyor. Panelde satış, lot
 > maliyeti ve brüt kârla birlikte görünüyor."
 
+**Shot (30 s):** still on *Sell*: Kuzu kıyma (KZY-2026-001) is listed under *SKT geçti, satış
+engellendi*; tap it. (The seed calendar is relative to the day of `demo-reset.sh`: the 2-day minced
+lamb always expired yesterday.)
+
+> "Kıymanın son tüketim tarihi dün doldu. Kasa bu lotu satmıyor, sunucu da son tüketim tarihi
+> geçmiş bir lotun satışını ve sevkini reddediyor. Lot raftan kaldırılıp fire olarak kaydedilir."
+
 ## 4. Task 3: trace and recall (6:00 - 11:00)
 
 **Shot:** *Trace & recall*, lot ET-2026-001, *Forward trace*.
