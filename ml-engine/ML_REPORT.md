@@ -238,22 +238,9 @@ Status after the merge into main: the `comparisons[]` fields are live. `ml_predi
 `interval_low`, `interval_high`, `interval_level`, `is_anomaly` columns, `predict_ali.py --emit-sql` writes
 them, `seed.sql` carries them for the demo records (`ali-1.1.0`), the Go API passes them through, and the
 dashboard and Android app show them. The `metrics[]` fields (CIs, CV) are still only in the preview.
+Serving them needs nullable columns on `ml_model_metric`
+(`wmape_pct`, `mae_ci_low`, `mae_ci_high`, `cv_mae_mean`, `cv_mae_std`, `cv_folds`), matching pointer
+fields with `omitempty` in `ai_controller.go`, and the values in the `export_ai_report.py` INSERTs.
 
-Original plan:
-
-1. **Schema** (`database-mysql/schema.sql`). All columns are nullable, so old rows and old inserts keep working:
-   - `ALTER TABLE ml_prediction ADD interval_low DECIMAL(14,4) NULL, ADD interval_high DECIMAL(14,4) NULL, ADD interval_level DECIMAL(4,3) NULL, ADD is_anomaly TINYINT(1) NULL;`
-   - `ALTER TABLE ml_model_metric ADD wmape_pct DECIMAL(8,4) NULL, ADD mae_ci_low DECIMAL(12,4) NULL, ADD mae_ci_high DECIMAL(12,4) NULL, ADD cv_mae_mean DECIMAL(12,4) NULL, ADD cv_mae_std DECIMAL(12,4) NULL, ADD cv_folds TINYINT UNSIGNED NULL;`
-2. **Go** (`ai_controller.go`): add pointer fields with `omitempty` (e.g. `IntervalLow *float64` tagged
-   `json:"interval_low,omitempty"`, `Anomaly *bool` tagged `json:"anomaly,omitempty"`) and select the new
-   columns. Read the interval only from the champion's row.
-3. **Seed / export**: `predict_ali.py --emit-sql` and `export_ai_report.py` still emit the old column
-   lists, so they work against the current schema. Once the columns exist, extend those INSERTs (the
-   values are already in `predict_ali` output). `seed.sql` was not touched; its rows are still valid
-   because the champion and its predictions did not change.
-4. **UI** (optional): show the interval as "84.6 (83.2-86.0)" and a badge when `anomaly` is true.
-   Old UIs ignore the new keys.
-
-Also: new predictions carry `model_version` `ali-1.1.0`; the seed rows keep `ali-1.0.0`.
 `anomaly_metrics.json` was regenerated because its `rule_interval90` reference now uses the
 time-calibrated 90 % width; the detector itself is unchanged.

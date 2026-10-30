@@ -35,7 +35,6 @@
     <string name="ocr_meta">Tedarikçi: %1$s · Fatura: %2$s</string>
     <string name="ocr_back">Geri</string>
     <!-- Quick Guide / How to Use BottomSheet (TR) -->
-    <string name="quick_guide_button_label">Nasıl çalışır</string>
     <string name="quick_guide_title">Uygulama nasıl çalışır</string>
     <string name="quick_guide_subtitle">Her kasiyerin bilmesi gereken üç şey</string>
     <string name="quick_guide_step1_title">Satış</string>
