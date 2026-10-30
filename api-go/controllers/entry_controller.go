@@ -205,6 +205,7 @@ func (c *EntryController) Purchase(w http.ResponseWriter, r *http.Request) {
 		out.Lines = append(out.Lines, PurchaseResultLineDto{LotNo: l.LotNo, SKU: l.SKU, Qty: l.Qty, UnitPrice: l.UnitPrice,
 			LineTotal: float64(cents) / 100, ExpiryDate: l.ExpiryDate})
 	}
+	logAlertError("purchase "+req.ReceiptNo, raisePurchaseCostAlerts(ctx, tx, receiptID))
 	if err := tx.Commit(); err != nil {
 		writeDBError(w, r, err)
 		return
@@ -551,6 +552,9 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 		if err := storeButcheryForecast(ctx, tx, opID, result.Forecast); err != nil {
 			writeDBError(w, r, err)
 			return
+		}
+		if a := butcheryAlert(opID, result.Forecast, req.PurchaseUnitPrice, loadThresholds(ctx, tx)["BUTCHERY_YIELD"]); a != nil {
+			logAlertError("butchery "+req.OpNo, insertAlert(ctx, tx, *a))
 		}
 	}
 	if err := tx.Commit(); err != nil {

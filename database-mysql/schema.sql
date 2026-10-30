@@ -372,6 +372,35 @@ CREATE TABLE stock_balance (
   CONSTRAINT ck_sb_nonneg CHECK (qty >= 0)
 ) ENGINE=InnoDB;
 
+-- Stok sayımı (POST /stock-counts): sayılan miktar ile sayım kaydedildiği andaki defter bakiyesi.
+-- Fark gerekçesiyle ADJUSTMENT_IN/OUT hareketi olur (stock_movement_id); farksız satır sayım kanıtıdır.
+CREATE TABLE stock_count (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  count_no      VARCHAR(30)  NOT NULL UNIQUE,
+  warehouse_id  INT UNSIGNED NOT NULL,
+  counted_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  counted_by    VARCHAR(64)  NOT NULL,
+  note          VARCHAR(255) NULL,
+  CONSTRAINT fk_sc_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouse(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE stock_count_line (
+  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  count_id          INT UNSIGNED NOT NULL,
+  lot_id            INT UNSIGNED NOT NULL,
+  system_qty        DECIMAL(14,3) NOT NULL,
+  counted_qty       DECIMAL(14,3) NOT NULL,
+  diff_qty          DECIMAL(14,3) AS (counted_qty - system_qty) STORED,
+  reason            VARCHAR(255) NULL,
+  stock_movement_id BIGINT UNSIGNED NULL UNIQUE,
+  UNIQUE KEY uq_scl_lot (count_id, lot_id),
+  CONSTRAINT fk_scl_count FOREIGN KEY (count_id)          REFERENCES stock_count(id),
+  CONSTRAINT fk_scl_lot   FOREIGN KEY (lot_id)            REFERENCES lot(id),
+  CONSTRAINT fk_scl_sm    FOREIGN KEY (stock_movement_id) REFERENCES stock_movement(id),
+  CONSTRAINT ck_scl_counted CHECK (counted_qty >= 0),
+  CONSTRAINT ck_scl_reason  CHECK (counted_qty = system_qty OR reason IS NOT NULL)   -- fark gerekçesiz kaydedilmez
+) ENGINE=InnoDB;
+
 CREATE TABLE sale_line (
   id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   sale_id            INT UNSIGNED NOT NULL,
@@ -474,31 +503,66 @@ CREATE TABLE ml_model_metric (
 -- KI anomali uyarıları (ml-engine/anomaly_ali.py): tahmin edilen ile gerçek arasındaki açıklanamayan sapma.
 -- Berke'nin API'si v_ml_anomaly_alert'ten okur, status'ü günceller; FALSE_ALARM/RESOLVED geri bildirimi
 -- v_ml_anomaly_feedback ile gerçek işletmedeki precision'ı ölçer.
+-- API kayıt anında da yazar (api-go/controllers/alerts.go): canlı tahminin %98 bandı dışındaki üretim
+-- kabulü/parçalama, son alışlara göre fiyat artışı, kasada reddedilen geri çağrılmış/SKT'si geçmiş lot
+-- satışı ve stok sayımında eksik. Uyarı stok, maliyet veya lot durumunu değiştirmez.
 CREATE TABLE ml_anomaly_alert (
   id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  task             ENUM('PRODUCTION_YIELD','BUTCHERY_YIELD') NOT NULL,
-  detector         VARCHAR(30)  NOT NULL,                  -- robust_z / mahalanobis_mcd
+  task             ENUM('PRODUCTION_YIELD','BUTCHERY_YIELD','PURCHASE_COST','LOT_MOVEMENT') NOT NULL,
+  detector         VARCHAR(30)  NOT NULL,                  -- robust_z / mahalanobis_mcd / conformal_band / rule
   model_version    VARCHAR(60)  NOT NULL,                  -- ali-1.0.0+ali-anomaly-1.0.0
-  ref_type         VARCHAR(30)  NOT NULL,                  -- production_order / butchery_operation
+  ref_type         VARCHAR(30)  NOT NULL,                  -- production_order / butchery_operation / purchase_receipt_line / lot / stock_count_line
   ref_id           INT UNSIGNED NOT NULL,
-  score            DECIMAL(10,3) NOT NULL,                 -- üretim: z (negatif = düşük verim); parçalama: d²
+  event_ref        VARCHAR(64)  NOT NULL DEFAULT '',       -- tek olay (POS satışının UUIDv7'si); model uyarılarında boş
+  score            DECIMAL(10,3) NOT NULL,                 -- üretim: z (negatif = düşük verim); parçalama: d²; canlı: sapma / %98 bandı; fiyat: % artış
   threshold_warn   DECIMAL(10,3) NOT NULL,
   threshold_crit   DECIMAL(10,3) NOT NULL,
   severity         ENUM('WARN','CRITICAL') NOT NULL,
-  direction        ENUM('LOW_YIELD','HIGH_YIELD','FIRE_HIGH','PART_MISMATCH') NOT NULL,
-  expected_value   DECIMAL(14,3) NOT NULL,                 -- üretim: paket; parçalama: fire kg
+  direction        ENUM('LOW_YIELD','HIGH_YIELD','FIRE_HIGH','PART_MISMATCH','COST_INCREASE','BLOCKED_SALE','EXPIRED_SALE','COUNT_SHORTAGE') NOT NULL,
+  expected_value   DECIMAL(14,3) NOT NULL,                 -- üretim: paket; parçalama: fire kg; alış: referans birim fiyat; satış: 0; sayım: defter bakiyesi
   actual_value     DECIMAL(14,3) NOT NULL,
   deviation        DECIMAL(14,3) NOT NULL,                 -- gerçek − beklenen
-  est_loss_eur     DECIMAL(12,2) NOT NULL DEFAULT 0,       -- eksik paket × EKP / fazla fire × alış fiyatı
-  top_parts        VARCHAR(120) NULL,                      -- 'fire +0.95 kg, but -0.90 kg'
+  est_loss_eur     DECIMAL(12,2) NOT NULL DEFAULT 0,       -- eksik paket × EKP / fazla fire × alış fiyatı / fiyat farkı × miktar / sayım eksiği × lot maliyeti
+  top_parts        VARCHAR(120) NULL,                      -- 'fire +0.95 kg, but -0.90 kg'; kural uyarılarında kısa ayrıntı
   message          VARCHAR(255) NOT NULL,
   status           ENUM('OPEN','ACKNOWLEDGED','RESOLVED','FALSE_ALARM') NOT NULL DEFAULT 'OPEN',
   resolved_by      VARCHAR(64)  NULL,
   resolved_at      DATETIME(3)  NULL,
   resolution_note  VARCHAR(255) NULL,
   created_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_mla_ref (task, ref_type, ref_id, model_version),   -- yeniden çalıştırma idempotent
+  UNIQUE KEY uq_mla_ref (task, ref_type, ref_id, model_version, event_ref),   -- yeniden çalıştırma idempotent
   INDEX ix_mla_open (status, severity)
+) ENGINE=InnoDB;
+
+-- Canlı uyarı eşikleri (alerts.go). Varsayılanlar sentetik stres testinden: 100 kayıtta en fazla 1 yanlış
+-- alarm, bu bütçede en yüksek yakalama (ml-engine/calibrate_live_alerts.py, docs/AI.md). Verim kuralları
+-- %98 bandın katı, alış % artış, sayım eksiği €. Yetkili POST /alerts/rules ile değiştirir (audit_log).
+CREATE TABLE alert_threshold (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  rule        ENUM('PRODUCTION_YIELD','BUTCHERY_YIELD','PURCHASE_COST','COUNT_SHORTAGE') NOT NULL UNIQUE,
+  warn        DECIMAL(10,3) NOT NULL,
+  crit        DECIMAL(10,3) NOT NULL,
+  updated_by  VARCHAR(64)  NOT NULL DEFAULT 'default',
+  updated_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  CONSTRAINT ck_at_order CHECK (warn > 0 AND crit > warn)
+) ENGINE=InnoDB;
+INSERT INTO alert_threshold (rule, warn, crit) VALUES
+  ('PRODUCTION_YIELD', 1.000, 1.500), ('BUTCHERY_YIELD', 1.500, 2.000),
+  ('PURCHASE_COST', 10.000, 25.000), ('COUNT_SHORTAGE', 10.000, 100.000);
+
+-- Sistemin uyarmadığı, elle bulunan sorunlar (POST /alerts/missed). Gerçek sorun olarak kapatılan
+-- uyarılarla birlikte sahada gözlenen yakalama oranını verir: doğrulanan / (doğrulanan + kaçırılan).
+CREATE TABLE alert_miss (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  task          ENUM('PRODUCTION_YIELD','BUTCHERY_YIELD','PURCHASE_COST','LOT_MOVEMENT') NOT NULL,
+  ref_no        VARCHAR(30)  NULL,
+  lot_id        INT UNSIGNED NULL,
+  note          VARCHAR(255) NOT NULL,
+  est_loss_eur  DECIMAL(12,2) NOT NULL DEFAULT 0,
+  found_by      VARCHAR(64)  NOT NULL,
+  found_at      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_am_lot  FOREIGN KEY (lot_id) REFERENCES lot(id),
+  CONSTRAINT ck_am_loss CHECK (est_loss_eur >= 0)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
@@ -670,17 +734,17 @@ SELECT id, task, model_name, model_version, ref_type, ref_id, target_name,
        created_at
 FROM ml_prediction;
 
--- KI anomali uyarıları: API/panel için okunabilir hali (emir/parçalama no, mamul ya da karkas lotu)
+-- KI anomali uyarıları: API/panel için okunabilir hali (emir/parçalama/alış no, mamul, karkas ya da alış lotu)
 CREATE OR REPLACE VIEW v_ml_anomaly_alert AS
 SELECT a.id, a.task, a.severity, a.direction, a.status,
-       COALESCE(po.order_no, bo.op_no)                         AS ref_no,
-       COALESCE(po.order_date, bo.op_date)                     AS ref_date,
-       COALESCE(pl.lot_no, bl.lot_no)                          AS lot_no,
-       COALESCE(sub.name, bo.operator_name)                    AS responsible,
+       COALESCE(po.order_no, bo.op_no, pr.receipt_no, sc.count_no, ml.lot_no)       AS ref_no,
+       COALESCE(po.order_date, bo.op_date, pr.receipt_date, DATE(sc.counted_at), DATE(a.created_at)) AS ref_date,
+       COALESCE(pl.lot_no, bl.lot_no, prl_lot.lot_no, scl_lot.lot_no, ml.lot_no) AS lot_no,
+       COALESCE(sub.name, bo.operator_name, ps.name, sc.counted_by)                 AS responsible,
        a.expected_value, a.actual_value, a.deviation, a.est_loss_eur,
        a.score, a.threshold_warn, a.threshold_crit, a.detector, a.model_version,
        a.top_parts, a.message, a.created_at, a.resolved_by, a.resolved_at, a.resolution_note,
-       a.ref_type, a.ref_id
+       a.ref_type, a.ref_id, a.event_ref
 FROM ml_anomaly_alert a
 LEFT JOIN production_order po   ON a.ref_type = 'production_order'   AND po.id = a.ref_id
 LEFT JOIN supplier sub          ON sub.id = po.subcontractor_id
@@ -688,7 +752,15 @@ LEFT JOIN (SELECT pout.production_order_id, MIN(l.lot_no) AS lot_no
              FROM production_output pout JOIN lot l ON l.id = pout.lot_id
             GROUP BY pout.production_order_id) pl ON pl.production_order_id = po.id
 LEFT JOIN butchery_operation bo ON a.ref_type = 'butchery_operation' AND bo.id = a.ref_id
-LEFT JOIN lot bl                ON bl.id = bo.input_lot_id;
+LEFT JOIN lot bl                ON bl.id = bo.input_lot_id
+LEFT JOIN purchase_receipt_line prl ON a.ref_type = 'purchase_receipt_line' AND prl.id = a.ref_id
+LEFT JOIN purchase_receipt pr   ON pr.id = prl.receipt_id
+LEFT JOIN supplier ps           ON ps.id = pr.supplier_id
+LEFT JOIN lot prl_lot           ON prl_lot.id = prl.lot_id
+LEFT JOIN stock_count_line scl  ON a.ref_type = 'stock_count_line' AND scl.id = a.ref_id
+LEFT JOIN stock_count sc        ON sc.id = scl.count_id
+LEFT JOIN lot scl_lot           ON scl_lot.id = scl.lot_id
+LEFT JOIN lot ml                ON a.ref_type = 'lot' AND ml.id = a.ref_id;
 
 -- Gerçek kullanımda ölçülebilirlik: kapatılan uyarılardan precision (RESOLVED = gerçek sorun)
 CREATE OR REPLACE VIEW v_ml_anomaly_feedback AS

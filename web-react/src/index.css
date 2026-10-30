@@ -96,6 +96,32 @@ button { font: inherit; cursor: pointer; }
 .lang button.active { background: var(--group); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
 .main { padding: 28px 32px 48px; max-width: 1180px; width: 100%; min-width: 0; }
 
+/* ---------- sidebar bell: open alerts, expiry, recalls ---------- */
+.bell { position: relative; }
+.bell-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px;
+  background: var(--group); border: 1px solid var(--separator); color: var(--label);
+  padding: 8px 10px; border-radius: 10px; font-size: 14px; font-weight: 600;
+}
+.bell-btn:hover { background: var(--fill); }
+.bell-text { flex: 1; text-align: left; }
+.badge { min-width: 22px; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 700; text-align: center; color: var(--group); }
+.badge-bad { background: var(--bad); }
+.badge-warn { background: var(--warn); }
+.bell-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20;
+  display: flex; flex-direction: column; padding: 4px;
+  background: var(--group); border: 1px solid var(--separator); border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+.bell-menu button {
+  display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 10px;
+  background: none; border: 0; border-radius: 8px; color: var(--label); font-size: 14px; text-align: left;
+}
+.bell-menu button > span:first-child { flex: 1; }
+.bell-menu button:hover, .bell-menu button:focus-visible { background: var(--fill); }
+.alert-kind { min-width: 220px; max-width: 320px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.alert-ref > .mono, .alert-ref > div:not(.cell-sub) { white-space: nowrap; }
+
 /* ---------- trace flow diagram ---------- */
 .flow-scroll { overflow-x: auto; padding: 16px; }
 .flow { display: block; width: 100%; min-width: 640px; height: auto; font-family: var(--font); }
@@ -116,6 +142,20 @@ button { font: inherit; cursor: pointer; }
 .flow-edge.on .flow-label { fill: var(--label); font-weight: 600; }
 .flow-node, .flow-edge { transition: opacity 0.15s; }
 .flow .dim { opacity: 0.28; }
+
+/* ---------- stock count ---------- */
+.count-input, .count-reason {
+  font: inherit; font-size: 15px; color: var(--label); background: var(--fill); border: 1px solid transparent;
+  border-radius: 8px; padding: 6px 10px; min-height: 36px;
+}
+.count-input { width: 96px; text-align: right; }
+.count-reason { width: 100%; min-width: 180px; }
+.count-input:focus, .count-reason:focus { outline: none; border-color: var(--accent); }
+.count-actions { padding: 0 16px 12px; }
+
+/* ---------- alert thresholds ---------- */
+.rule-synth { min-width: 240px; max-width: 420px; }
+.rule-preview { padding: 0 16px; }
 
 /* ---------- page ---------- */
 .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -237,6 +277,9 @@ button { font: inherit; cursor: pointer; }
   .nav { flex-direction: row; }
   .nav button { white-space: nowrap; }
   .lang { margin: 0 0 0 auto; }
+  .bell-btn { width: auto; }
+  .bell-text { display: none; }
+  .bell-menu { position: fixed; top: 60px; left: 16px; right: 16px; }
   .main { padding: 20px 16px 40px; }
   .page-head h1 { font-size: 28px; }
   .grid-2 { grid-template-columns: 1fr; }

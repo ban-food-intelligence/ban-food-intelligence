@@ -74,6 +74,8 @@ func main() {
 	movementsCtrl := controllers.NewMovementsController(db)
 	shipmentCtrl := controllers.NewShipmentController(db)
 	aiCtrl := controllers.NewAIController(db)
+	alertCtrl := controllers.NewAlertController(db)
+	countCtrl := controllers.NewStockCountController(db)
 
 	mux := http.NewServeMux()
 
@@ -130,11 +132,18 @@ func main() {
 	mux.HandleFunc("/movements/return", op(movementsCtrl.Return))
 	mux.HandleFunc("/movements/waste", op(movementsCtrl.Waste))
 	mux.HandleFunc("/rework", op(movementsCtrl.Rework))
+	mux.HandleFunc("/stock-counts", getOrPost(countCtrl.List, op(countCtrl.Create)))
 
 	// Task 4: ML Yield Predictions & Deviation Telemetry
 	mux.HandleFunc("/yield", yieldCtrl.PredictYield)
 	mux.HandleFunc("/ai/summary", aiCtrl.Summary)
 	mux.HandleFunc("/ai/forecast/butchery", aiCtrl.ButcheryForecast)
+
+	// Alert inbox: yield, purchase cost and refused POS sales; reviewed by a supervisor
+	mux.HandleFunc("/alerts", alertCtrl.List)
+	mux.HandleFunc("/alerts/review", op(alertCtrl.Review))
+	mux.HandleFunc("/alerts/rules", getOrPost(alertCtrl.Rules, op(alertCtrl.UpdateRule)))
+	mux.HandleFunc("/alerts/missed", op(alertCtrl.Missed))
 
 	// Offline Edge POS Synchronization (Hardware ECDSA P-256 + UUIDv7 Idempotency)
 	mux.HandleFunc("/sync", syncCtrl.IngestOutbox)
