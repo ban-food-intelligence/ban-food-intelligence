@@ -127,6 +127,9 @@
     <string name="lot_recalled_pill">Zurückgerufen</string>
     <string name="lot_recalled_reason">Rückruf %1$s aus Ursprungscharge %2$s. Verkauf gesperrt.</string>
     <string name="lot_blocked_reason">Diese Charge ist gesperrt. Verkauf gesperrt.</string>
+    <string name="sell_section_expired">MHD überschritten, Verkauf gesperrt</string>
+    <string name="lot_expired_pill">Abgelaufen</string>
+    <string name="lot_expired_reason">Das MHD %1$s ist überschritten. Charge aus dem Regal nehmen und als Ausschuss buchen.</string>
     <string name="sell_sheet_quantity">Menge</string>
     <string name="sell_sheet_price">Preis</string>
     <string name="sell_sheet_total">Summe</string>

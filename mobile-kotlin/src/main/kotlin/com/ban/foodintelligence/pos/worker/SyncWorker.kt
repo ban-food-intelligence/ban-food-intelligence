@@ -98,7 +98,11 @@ class SyncWorker(
                 return@withContext Result.success()
             }
 
-            val pending = outboxDao.getPendingItems(limit = BATCH_SIZE)
+            // One envelope per device id: the API requires every item's device_id to match the
+            // envelope, and sales queued before an app update can still carry an older id.
+            val pending = outboxDao.getPendingItems(limit = BATCH_SIZE).let { rows ->
+                rows.filter { it.deviceId == rows.firstOrNull()?.deviceId }
+            }
             if (pending.isEmpty()) break
 
             val syncingStatus = applicationContext.getString(R.string.sync_status_syncing, pending.size)
@@ -322,7 +326,7 @@ class SyncWorker(
         private const val TAG = "SyncWorker"
 
         const val UNIQUE_WORK_NAME = "ban_avatar_pos_outbox_sync_worker"
-        private val PERMANENT_REJECTIONS = setOf("INSUFFICIENT_STOCK", "LOT_BLOCKED", "INVALID_INPUT", "CONFLICT", "NOT_FOUND", "LOT_NOT_FOUND", "REPLAY_MISMATCH")
+        private val PERMANENT_REJECTIONS = setOf("INSUFFICIENT_STOCK", "LOT_BLOCKED", "LOT_EXPIRED", "INVALID_INPUT", "CONFLICT", "NOT_FOUND", "LOT_NOT_FOUND", "REPLAY_MISMATCH")
         const val KEY_GO_API_SYNC_URL = "GO_API_SYNC_URL"
 
         const val BATCH_SIZE = 50

@@ -18,8 +18,11 @@ import (
 
 func runSuffix() string { return fmt.Sprintf("%06d", time.Now().UnixNano()/1000%1000000) }
 
-func testUUIDv7() string {
-	h := fmt.Sprintf("%012x", time.Now().UnixMilli())
+func testUUIDv7() string { return testUUIDv7At(time.Now()) }
+
+// testUUIDv7At is a UUIDv7 created at ts: the sale time the API books for an offline sale.
+func testUUIDv7At(ts time.Time) string {
+	h := fmt.Sprintf("%012x", ts.UnixMilli())
 	return fmt.Sprintf("%s-%s-7%03x-8%03x-%012x", h[:8], h[8:12], rand.Intn(0xfff), rand.Intn(0xfff), rand.Int63n(1<<48))
 }
 
@@ -264,6 +267,36 @@ func TestIntegrationSaleOfRecalledLotIsRejected(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	if len(resp.Rejected) != 1 || resp.Rejected[0].Code != "LOT_BLOCKED" {
 		t.Fatalf("sale of recalled SUC-2026-046 not blocked: %s", rec.Body.String())
+	}
+}
+
+// Expired goods are not sold. In the seed calendar KZY-2026-001 (minced lamb, 2-day use-by)
+// expired yesterday: a sale made today is rejected, while a sale made offline on its last day
+// is accepted when it is synced later, because the rule uses the sale's own time.
+func TestIntegrationSaleOfExpiredLotIsRejected(t *testing.T) {
+	db := testDB(t)
+	var expiry time.Time
+	if err := db.QueryRow(`SELECT expiry_date FROM lot WHERE lot_no = 'KZY-2026-001'`).Scan(&expiry); err != nil {
+		t.Fatal(err)
+	}
+	if !expiry.Before(time.Now().UTC().Truncate(24 * time.Hour)) {
+		t.Fatalf("seed calendar: KZY-2026-001 should be expired, expiry %s", expiry.Format("2006-01-02"))
+	}
+	pos := newTestPOS(t, "POS-IT-E"+runSuffix())
+
+	rec := httptestRecorder(NewSyncController(db), signedSale(t, pos, "KZY-2026-001", 0.1, testUUIDv7()))
+	var resp models.SyncBatchResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if len(resp.Rejected) != 1 || resp.Rejected[0].Code != "LOT_EXPIRED" {
+		t.Fatalf("sale of expired KZY-2026-001 not blocked: %s", rec.Body.String())
+	}
+
+	lastDay := expiry.Add(12 * time.Hour)
+	rec = httptestRecorder(NewSyncController(db), signedSale(t, pos, "KZY-2026-001", 0.1, testUUIDv7At(lastDay)))
+	resp = models.SyncBatchResponse{}
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if len(resp.AcknowledgedIDs) != 1 {
+		t.Fatalf("offline sale from the last day before expiry was rejected: %s", rec.Body.String())
 	}
 }
 

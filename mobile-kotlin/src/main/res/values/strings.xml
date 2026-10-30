@@ -127,6 +127,9 @@
     <string name="lot_recalled_pill">Recalled</string>
     <string name="lot_recalled_reason">Recall %1$s from source lot %2$s. Sale blocked.</string>
     <string name="lot_blocked_reason">This lot is blocked. Sale blocked.</string>
+    <string name="sell_section_expired">Past best-before date, sale blocked</string>
+    <string name="lot_expired_pill">Expired</string>
+    <string name="lot_expired_reason">The best-before date %1$s has passed. Take the lot off the shelf and book it as waste.</string>
     <string name="sell_sheet_quantity">Quantity</string>
     <string name="sell_sheet_price">Price</string>
     <string name="sell_sheet_total">Total</string>

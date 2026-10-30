@@ -24,6 +24,7 @@ var errorMessages = map[string]map[string]string{
 	"CONFLICT":            {"en": "The record already exists or was changed.", "tr": "Kayıt zaten var veya değiştirilmiş.", "de": "Der Datensatz existiert bereits oder wurde geändert."},
 	"INSUFFICIENT_STOCK":  {"en": "Not enough stock for this lot.", "tr": "Bu lot için yeterli stok yok.", "de": "Nicht genügend Bestand für diese Charge."},
 	"LOT_BLOCKED":         {"en": "This lot is recalled or blocked. Sale blocked.", "tr": "Bu lot geri çağrıldı veya bloke. Satış engellendi.", "de": "Diese Charge ist zurückgerufen oder gesperrt. Verkauf gesperrt."},
+	"LOT_EXPIRED":         {"en": "This lot is past its expiry date. Sale blocked.", "tr": "Bu lotun son tüketim tarihi geçti. Satış engellendi.", "de": "Das Haltbarkeitsdatum dieser Charge ist überschritten. Verkauf gesperrt."},
 	"ORDER_STATE":         {"en": "The production order is not in the right state for this step.", "tr": "Üretim emri bu adım için uygun durumda değil.", "de": "Der Fertigungsauftrag ist für diesen Schritt nicht im richtigen Status."},
 	"INVALID_PIN":         {"en": "Wrong PIN.", "tr": "PIN hatalı.", "de": "Falsche PIN."},
 	"LOCKED_OUT":          {"en": "Too many wrong attempts. Try again later.", "tr": "Çok fazla hatalı deneme. Daha sonra tekrar deneyin.", "de": "Zu viele Fehlversuche. Bitte später erneut versuchen."},
@@ -89,6 +90,8 @@ func classifyDBError(err error) (int, string) {
 		return http.StatusConflict, "INSUFFICIENT_STOCK"
 	case strings.Contains(msg, "LOT_BLOCKED"):
 		return http.StatusConflict, "LOT_BLOCKED"
+	case strings.Contains(msg, "LOT_EXPIRED"):
+		return http.StatusConflict, "LOT_EXPIRED"
 	case strings.Contains(msg, "ORDER_STATE"):
 		return http.StatusConflict, "ORDER_STATE"
 	case strings.Contains(msg, "ACTUAL_QTY"), strings.Contains(msg, "MOVEMENT_SIGN"), strings.Contains(msg, "EXPIRY_REQUIRED"), strings.Contains(msg, "Check constraint"):

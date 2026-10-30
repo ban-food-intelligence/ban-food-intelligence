@@ -9,7 +9,7 @@ docker compose up -d mysql                     # schema.sql + seed.sql otomatik 
 # veya kendi MySQL 8'inizle:
 MYSQL="mysql -uroot -p" ./database-mysql/load.sh
 
-./scripts/test-db.sh                           # 34 entegrasyon testi (pytest + pymysql .venv'e kurulur)
+./scripts/test-db.sh                           # 38 entegrasyon testi (pytest + pymysql .venv'e kurulur)
 # veya elle:
 pip install -r requirements-dev.txt
 MYSQL_HOST=127.0.0.1 MYSQL_PASSWORD=ban pytest database-mysql/tests -q
@@ -18,7 +18,7 @@ MYSQL_HOST=127.0.0.1 MYSQL_PASSWORD=ban pytest database-mysql/tests -q
 | Dosya | İçerik |
 |---|---|
 | `schema.sql` | (1) tablolar, FK'ler, CHECK kısıtları (2) EKP/marj, stok, mutabakat, KI sapma görünümleri (3) tetikleyiciler + saklı yordamlar |
-| `seed.sql` | (1) şartnamedeki zorunlu senaryo (ET-2026-001 → URT-2026-045 → SUC-2026-045 → Market A/B/C) (2) çoktan-çoğa lotlar, 2. kademe dağıtım, kuzu parçalama, POS satışı (3) model tahmini + gerçek + sapma |
+| `seed.sql` | (1) şartnamedeki zorunlu senaryo (ET-2026-001 → URT-2026-045 → SUC-2026-045 → Market A/B/C) (2) çoktan-çoğa lotlar, 2. kademe dağıtım, kuzu parçalama, POS satışı (3) model tahmini + gerçek + sapma. Takvim göreli: 20.09–15.10.2026 olayları, yükleme günü 16.10.2026 olacak şekilde kaydırılır (`@seed_shift`); demo hangi gün kurulsa olaylar geçmişte, SKT'ler anlamlı kalır |
 | `queries/*.sql` | Tek ifadelik WITH RECURSIVE sorgular (`?` parametreli; elle inceleme için, API aynı izlemeyi `sp_trace_*` yordamlarıyla yapar) |
 | `demo/recall_demo.sql` | Videodaki geri çağırma akışı, adım adım |
 | `demo/anomaly_demo.sql` | KI anomali uyarısı what-if demosu (`[DEMO]` önekli 2 uyarı; seed'e dahil değil) |
@@ -126,6 +126,7 @@ Tetikleyiciler `SQLSTATE 45000` ve aşağıdaki mesaj önekleriyle döner; Go ta
 | Önek | Anlam | Öneri |
 |---|---|---|
 | `LOT_BLOCKED` | Geri çağrılan / bloke lot satış, sevk veya üretimde kullanılamaz | 409 → Kotlin kırmızı kilit ekranı |
+| `LOT_EXPIRED` | SKT'si geçmiş lot satılamaz / sevk edilemez (hareketin kendi zamanına göre; imha ve iade serbest) | 409 → Kotlin "SKT geçti" |
 | `INSUFFICIENT_STOCK` | Hareket lot bakiyesini eksiye düşürür | 409 |
 | `MOVEMENT_SIGN` | Giriş türü negatif / çıkış türü pozitif | 400 |
 | `IMMUTABLE` | Defter / audit_log değiştirilemez | 403 |
