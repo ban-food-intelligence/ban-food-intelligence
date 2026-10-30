@@ -95,6 +95,7 @@ func main() {
 
 	// Task 1: External Production & EKP Cost Calculation
 	mux.HandleFunc("/production", op(productionCtrl.ListOrders))
+	mux.HandleFunc("/production/orders", op(entryCtrl.ProductionOrder))
 	mux.HandleFunc("/purchases", purchasesHandler(reportsCtrl.Purchases, op(entryCtrl.Purchase)))
 
 	// Task 2: Whole Lamb Butchery & Cost Allocation

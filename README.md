@@ -148,7 +148,7 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 | Spec ([docs/ASSESSMENT.md](docs/ASSESSMENT.md)) | Implementation |
 |---|---|
 | Raw material cards, purchase prices, units, lots, stock | `product`, `lot`, `purchase_receipt(_line)`, `stock_balance` (schema.sql); `GET/POST /purchases` (supplier and expiry enforced), `GET /lots`; dashboard *Purchases* (list + *New receipt* form, supervisor PIN) |
-| External production order, material shipment, service cost, receipt, quantity variance | `production_order/_input/_output`, `sp_production_add_input`, `sp_production_complete`; `GET/POST /production`; dashboard *Production* |
+| External production order, material shipment, service cost, receipt, quantity variance | `production_order/_input/_output`, `sp_production_send_input`, `sp_production_complete`; `POST /production/orders` (order + material + AI forecast), `GET/POST /production` (list, receipt); dashboard *Production* (*New production order*, *Receive finished goods*) |
 | EKP from actual quantity; VKP, gross profit, margin | `v_production_cost`; 1,543.50 / 85 = 18.16 € (integration test) |
 | All cost and stock movements reviewable | append-only `stock_movement` (UPDATE/DELETE blocked by triggers); `GET /movements` with running balance |
 | Butchery: input lot, weight, real cost, date | `butchery_operation`; `GET /butchery`, `POST /butchery/operations` (records a new one); dashboard *Butchery* (*Record butchery* form with live weight balance and a no-save *Check*, supervisor PIN) |
@@ -163,7 +163,7 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 | Backward trace: raw lots, suppliers, production orders | `sp_trace_backward`, `GET /trace/{lot}?direction=backward` |
 | Recall screen blocks products; per-customer quantity, shipment, contact list; tier 2 only if recorded | `sp_recall_initiate`, `sp_recall_report`, `GET/POST /recall`, `GET /recall/contacts.csv`, dashboard *Trace & recall*; `second_tier` RECORDED / NOT_RECORDED |
 | Kotlin: each sale line's lot, quantity and stock movement stored; recalled lots blocked | SQLite outbox + `sale_line.stock_movement_id`; Android blocks recalled lots online and from the offline cache; recall stop with supervisor unlock |
-| AI A and B with baseline and error measurement | [docs/AI.md](docs/AI.md), `GET /ai/summary`, dashboard *AI*, Android *Lots → Yield forecasts* |
+| AI A and B with baseline and error measurement | [docs/AI.md](docs/AI.md), `GET /ai/summary`, dashboard *AI*, Android *Lots → Yield forecasts*; A is forecast live in the API for every new order |
 | Traceability never from AI | trace/recall use only `lot_link`/`shipment_line`/`sale_line` |
 | Optional: invoice reading with human approval | Android *Lots → Receive goods from an invoice* (NVIDIA Nemotron VL) |
 | SQLite ↔ MySQL sync approach explained | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#sqlite--mysql-sync) |

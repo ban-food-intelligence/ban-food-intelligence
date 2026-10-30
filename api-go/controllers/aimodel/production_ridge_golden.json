@@ -1,0 +1,596 @@
+[
+  {
+    "row_id": "DB-P-URT-2026-045",
+    "inputs": {
+      "order_date": "2026-10-02",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 100.0,
+      "spice_kg": 2.0,
+      "casing_kg": 5.0,
+      "meat_fat_pct": 22.0,
+      "meat_age_days": 1,
+      "drying_days": 5,
+      "planned_qty": 85.0
+    },
+    "yield_pct": 84.60970442280683
+  },
+  {
+    "row_id": "DB-P-URT-2026-046",
+    "inputs": {
+      "order_date": "2026-10-10",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 100.0,
+      "spice_kg": 2.0,
+      "casing_kg": 5.0,
+      "meat_fat_pct": 20.5,
+      "meat_age_days": 1,
+      "drying_days": 6,
+      "planned_qty": 85.0
+    },
+    "yield_pct": 82.84466120969412
+  },
+  {
+    "row_id": "ALI-P-001199",
+    "inputs": {
+      "order_date": "2026-03-14",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-02",
+      "pack_size_kg": 1.0,
+      "meat_kg": 270.0,
+      "spice_kg": 5.4,
+      "casing_kg": 14.63,
+      "meat_fat_pct": 20.4,
+      "meat_age_days": 3,
+      "drying_days": 4,
+      "planned_qty": 229.0
+    },
+    "yield_pct": 84.16748703018696
+  },
+  {
+    "row_id": "ALI-P-001209",
+    "inputs": {
+      "order_date": "2026-03-18",
+      "product_sku": "MM-SUCUK-500G",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 0.5,
+      "meat_kg": 60.0,
+      "spice_kg": 1.11,
+      "casing_kg": 2.71,
+      "meat_fat_pct": 21.3,
+      "meat_age_days": 3,
+      "drying_days": 6,
+      "planned_qty": 102.0
+    },
+    "yield_pct": 81.57025228321791
+  },
+  {
+    "row_id": "ALI-P-001216",
+    "inputs": {
+      "order_date": "2026-03-23",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 135.0,
+      "spice_kg": 2.67,
+      "casing_kg": 6.68,
+      "meat_fat_pct": 26.2,
+      "meat_age_days": 4,
+      "drying_days": 6,
+      "planned_qty": 114.0
+    },
+    "yield_pct": 83.00649085164123
+  },
+  {
+    "row_id": "ALI-P-001230",
+    "inputs": {
+      "order_date": "2026-04-04",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-03",
+      "pack_size_kg": 1.0,
+      "meat_kg": 145.0,
+      "spice_kg": 2.93,
+      "casing_kg": 7.13,
+      "meat_fat_pct": 22.3,
+      "meat_age_days": 0,
+      "drying_days": 5,
+      "planned_qty": 123.0
+    },
+    "yield_pct": 84.10712750989379
+  },
+  {
+    "row_id": "ALI-P-001238",
+    "inputs": {
+      "order_date": "2026-04-10",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 90.0,
+      "spice_kg": 1.67,
+      "casing_kg": 4.03,
+      "meat_fat_pct": 27.7,
+      "meat_age_days": 1,
+      "drying_days": 6,
+      "planned_qty": 76.0
+    },
+    "yield_pct": 83.85744312267222
+  },
+  {
+    "row_id": "ALI-P-001249",
+    "inputs": {
+      "order_date": "2026-04-16",
+      "product_sku": "MM-SUCUK-500G",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 0.5,
+      "meat_kg": 115.0,
+      "spice_kg": 2.4,
+      "casing_kg": 5.86,
+      "meat_fat_pct": 21.0,
+      "meat_age_days": 4,
+      "drying_days": 5,
+      "planned_qty": 195.0
+    },
+    "yield_pct": 83.3108575196327
+  },
+  {
+    "row_id": "ALI-P-001259",
+    "inputs": {
+      "order_date": "2026-04-23",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-02",
+      "pack_size_kg": 1.0,
+      "meat_kg": 225.0,
+      "spice_kg": 4.1,
+      "casing_kg": 11.65,
+      "meat_fat_pct": 21.3,
+      "meat_age_days": 0,
+      "drying_days": 4,
+      "planned_qty": 191.0
+    },
+    "yield_pct": 83.58642240270059
+  },
+  {
+    "row_id": "ALI-P-001269",
+    "inputs": {
+      "order_date": "2026-04-28",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-02",
+      "pack_size_kg": 1.0,
+      "meat_kg": 100.0,
+      "spice_kg": 1.91,
+      "casing_kg": 5.03,
+      "meat_fat_pct": null,
+      "meat_age_days": 3,
+      "drying_days": 5,
+      "planned_qty": 85.0
+    },
+    "yield_pct": 81.71380469323415
+  },
+  {
+    "row_id": "ALI-P-001281",
+    "inputs": {
+      "order_date": "2026-05-04",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 100.0,
+      "spice_kg": 1.83,
+      "casing_kg": 4.61,
+      "meat_fat_pct": 22.2,
+      "meat_age_days": 3,
+      "drying_days": 5,
+      "planned_qty": 85.0
+    },
+    "yield_pct": 84.12232512114664
+  },
+  {
+    "row_id": "ALI-P-001290",
+    "inputs": {
+      "order_date": "2026-05-07",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-02",
+      "pack_size_kg": 1.0,
+      "meat_kg": 175.0,
+      "spice_kg": 3.36,
+      "casing_kg": 8.66,
+      "meat_fat_pct": 21.6,
+      "meat_age_days": 4,
+      "drying_days": 5,
+      "planned_qty": 148.0
+    },
+    "yield_pct": 83.27230591866146
+  },
+  {
+    "row_id": "ALI-P-001300",
+    "inputs": {
+      "order_date": "2026-05-12",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-03",
+      "meat_supplier_code": "TED-ET-03",
+      "pack_size_kg": 1.0,
+      "meat_kg": 155.0,
+      "spice_kg": 3.1,
+      "casing_kg": 7.46,
+      "meat_fat_pct": 23.0,
+      "meat_age_days": 3,
+      "drying_days": 5,
+      "planned_qty": 131.0
+    },
+    "yield_pct": 86.14581124649925
+  },
+  {
+    "row_id": "ALI-P-001309",
+    "inputs": {
+      "order_date": "2026-05-20",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-02",
+      "pack_size_kg": 1.0,
+      "meat_kg": 120.0,
+      "spice_kg": 2.29,
+      "casing_kg": 5.77,
+      "meat_fat_pct": 17.1,
+      "meat_age_days": 3,
+      "drying_days": 7,
+      "planned_qty": 102.0
+    },
+    "yield_pct": 77.52851965633661
+  },
+  {
+    "row_id": "ALI-P-001319",
+    "inputs": {
+      "order_date": "2026-06-01",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-03",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 200.0,
+      "spice_kg": 3.65,
+      "casing_kg": 10.27,
+      "meat_fat_pct": 24.8,
+      "meat_age_days": 4,
+      "drying_days": 4,
+      "planned_qty": 170.0
+    },
+    "yield_pct": 86.26351515719763
+  },
+  {
+    "row_id": "ALI-P-001329",
+    "inputs": {
+      "order_date": "2026-06-10",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 85.0,
+      "spice_kg": 1.53,
+      "casing_kg": 4.39,
+      "meat_fat_pct": 26.5,
+      "meat_age_days": 1,
+      "drying_days": 5,
+      "planned_qty": 72.0
+    },
+    "yield_pct": 83.55601483800037
+  },
+  {
+    "row_id": "ALI-P-001339",
+    "inputs": {
+      "order_date": "2026-06-18",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-03",
+      "pack_size_kg": 1.0,
+      "meat_kg": 70.0,
+      "spice_kg": 1.32,
+      "casing_kg": 3.82,
+      "meat_fat_pct": 24.4,
+      "meat_age_days": 4,
+      "drying_days": 5,
+      "planned_qty": 59.0
+    },
+    "yield_pct": 82.45773334217927
+  },
+  {
+    "row_id": "ALI-P-001347",
+    "inputs": {
+      "order_date": "2026-06-25",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-03",
+      "meat_supplier_code": "TED-ET-02",
+      "pack_size_kg": 1.0,
+      "meat_kg": 75.0,
+      "spice_kg": 1.56,
+      "casing_kg": 3.96,
+      "meat_fat_pct": 26.2,
+      "meat_age_days": 0,
+      "drying_days": 5,
+      "planned_qty": 63.0
+    },
+    "yield_pct": 85.3957874035561
+  },
+  {
+    "row_id": "ALI-P-001359",
+    "inputs": {
+      "order_date": "2026-07-02",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 90.0,
+      "spice_kg": 1.82,
+      "casing_kg": 4.62,
+      "meat_fat_pct": 27.1,
+      "meat_age_days": 4,
+      "drying_days": 5,
+      "planned_qty": 76.0
+    },
+    "yield_pct": 84.89550385179226
+  },
+  {
+    "row_id": "ALI-P-001369",
+    "inputs": {
+      "order_date": "2026-07-11",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 55.0,
+      "spice_kg": 1.07,
+      "casing_kg": 2.85,
+      "meat_fat_pct": 23.5,
+      "meat_age_days": 3,
+      "drying_days": 4,
+      "planned_qty": 46.0
+    },
+    "yield_pct": 84.18364192135658
+  },
+  {
+    "row_id": "ALI-P-001379",
+    "inputs": {
+      "order_date": "2026-07-17",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-03",
+      "pack_size_kg": 1.0,
+      "meat_kg": 155.0,
+      "spice_kg": 2.75,
+      "casing_kg": 8.11,
+      "meat_fat_pct": 19.5,
+      "meat_age_days": 1,
+      "drying_days": 5,
+      "planned_qty": 131.0
+    },
+    "yield_pct": 81.68884255976971
+  },
+  {
+    "row_id": "ALI-P-001389",
+    "inputs": {
+      "order_date": "2026-07-20",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-03",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 65.0,
+      "spice_kg": 1.39,
+      "casing_kg": 2.79,
+      "meat_fat_pct": 21.5,
+      "meat_age_days": 1,
+      "drying_days": 6,
+      "planned_qty": 55.0
+    },
+    "yield_pct": 82.47199495893342
+  },
+  {
+    "row_id": "ALI-P-001399",
+    "inputs": {
+      "order_date": "2026-07-28",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-03",
+      "pack_size_kg": 1.0,
+      "meat_kg": 160.0,
+      "spice_kg": 3.32,
+      "casing_kg": 8.38,
+      "meat_fat_pct": 20.7,
+      "meat_age_days": 4,
+      "drying_days": 6,
+      "planned_qty": 136.0
+    },
+    "yield_pct": 82.06775406342324
+  },
+  {
+    "row_id": "ALI-P-001409",
+    "inputs": {
+      "order_date": "2026-08-01",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-03",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 180.0,
+      "spice_kg": 3.25,
+      "casing_kg": 9.72,
+      "meat_fat_pct": 26.0,
+      "meat_age_days": 3,
+      "drying_days": 7,
+      "planned_qty": 153.0
+    },
+    "yield_pct": 83.43398591347945
+  },
+  {
+    "row_id": "ALI-P-001416",
+    "inputs": {
+      "order_date": "2026-08-11",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-02",
+      "pack_size_kg": 1.0,
+      "meat_kg": 140.0,
+      "spice_kg": 2.93,
+      "casing_kg": 7.0,
+      "meat_fat_pct": null,
+      "meat_age_days": 2,
+      "drying_days": 7,
+      "planned_qty": 119.0
+    },
+    "yield_pct": 80.49246589142953
+  },
+  {
+    "row_id": "ALI-P-001433",
+    "inputs": {
+      "order_date": "2026-08-20",
+      "product_sku": "MM-SUCUK-500G",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 0.5,
+      "meat_kg": 105.0,
+      "spice_kg": 2.27,
+      "casing_kg": 4.56,
+      "meat_fat_pct": 23.2,
+      "meat_age_days": 1,
+      "drying_days": 5,
+      "planned_qty": 178.0
+    },
+    "yield_pct": 83.68889667410652
+  },
+  {
+    "row_id": "ALI-P-001439",
+    "inputs": {
+      "order_date": "2026-08-22",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-03",
+      "pack_size_kg": 1.0,
+      "meat_kg": 135.0,
+      "spice_kg": 2.6,
+      "casing_kg": 6.66,
+      "meat_fat_pct": 23.1,
+      "meat_age_days": 0,
+      "drying_days": 5,
+      "planned_qty": 114.0
+    },
+    "yield_pct": 83.32362852032877
+  },
+  {
+    "row_id": "ALI-P-001448",
+    "inputs": {
+      "order_date": "2026-08-25",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 95.0,
+      "spice_kg": 2.14,
+      "casing_kg": 4.98,
+      "meat_fat_pct": 22.9,
+      "meat_age_days": 2,
+      "drying_days": 7,
+      "planned_qty": 80.0
+    },
+    "yield_pct": 81.49077924453226
+  },
+  {
+    "row_id": "ALI-P-001459",
+    "inputs": {
+      "order_date": "2026-09-01",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 95.0,
+      "spice_kg": 1.89,
+      "casing_kg": 4.77,
+      "meat_fat_pct": 26.0,
+      "meat_age_days": 1,
+      "drying_days": 5,
+      "planned_qty": 80.0
+    },
+    "yield_pct": 86.12839668866229
+  },
+  {
+    "row_id": "ALI-P-001469",
+    "inputs": {
+      "order_date": "2026-09-10",
+      "product_sku": "MM-SUCUK-500G",
+      "subcontractor_code": "FAS-03",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 0.5,
+      "meat_kg": 90.0,
+      "spice_kg": 1.73,
+      "casing_kg": 4.48,
+      "meat_fat_pct": 22.6,
+      "meat_age_days": 1,
+      "drying_days": 4,
+      "planned_qty": 153.0
+    },
+    "yield_pct": 86.23911892169569
+  },
+  {
+    "row_id": "ALI-P-001476",
+    "inputs": {
+      "order_date": "2026-09-15",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 140.0,
+      "spice_kg": 2.6,
+      "casing_kg": 7.29,
+      "meat_fat_pct": 20.3,
+      "meat_age_days": 4,
+      "drying_days": 5,
+      "planned_qty": 119.0
+    },
+    "yield_pct": 81.70360081828682
+  },
+  {
+    "row_id": "ALI-P-001489",
+    "inputs": {
+      "order_date": "2026-09-25",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-02",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 135.0,
+      "spice_kg": 2.62,
+      "casing_kg": 7.41,
+      "meat_fat_pct": 22.7,
+      "meat_age_days": 2,
+      "drying_days": 6,
+      "planned_qty": 114.0
+    },
+    "yield_pct": 81.98442714725482
+  },
+  {
+    "row_id": "ALI-P-001497",
+    "inputs": {
+      "order_date": "2026-09-29",
+      "product_sku": "MM-SUCUK-1KG",
+      "subcontractor_code": "FAS-01",
+      "meat_supplier_code": "TED-ET-01",
+      "pack_size_kg": 1.0,
+      "meat_kg": 125.0,
+      "spice_kg": 2.38,
+      "casing_kg": 6.4,
+      "meat_fat_pct": 20.0,
+      "meat_age_days": 4,
+      "drying_days": 6,
+      "planned_qty": 106.0
+    },
+    "yield_pct": 82.05118077732692
+  }
+]

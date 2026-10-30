@@ -43,6 +43,16 @@ order URT-2026-045 expanded.
 > giriş ve çıkış, bakiyesiyle birlikte listeleniyor. Bu defter sadece ekleme kabul ediyor;
 > geçmiş bir hareket değiştirilemez."
 
+**Shot (optional, 1 min):** *Production* → *New production order*: URT-2026-047, the meat, spice and
+casing lots, PIN → the AI forecast appears (packages and EKP with the 80 % interval and the
+baseline). Then *Receive finished goods* with the actual packs: the EKP is computed and the
+deviation from the forecast is shown. The seed has no raw material left for a new order, so record
+the three receipts under *Purchases* before recording (or do it before the video).
+
+> "Yeni bir fason emri açtığımda hammadde fasona sevk ediliyor ve yapay zekâ aynı anda beklenen
+> paket sayısını ve EKP'yi tahmin ediyor. Mamulü teslim aldığımda gerçek EKP hesaplanıyor ve
+> tahminle karşılaştırılıyor."
+
 ## 3. Task 2: butchery (3:00 - 6:00)
 
 **Shot:** *Butchery*, the rejected record PRC-2026-000 at the top.

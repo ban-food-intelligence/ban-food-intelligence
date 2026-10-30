@@ -9,7 +9,7 @@ docker compose up -d mysql                     # schema.sql + seed.sql otomatik 
 # veya kendi MySQL 8'inizle:
 MYSQL="mysql -uroot -p" ./database-mysql/load.sh
 
-./scripts/test-db.sh                           # 38 entegrasyon testi (pytest + pymysql .venv'e kurulur)
+./scripts/test-db.sh                           # 39 entegrasyon testi (pytest + pymysql .venv'e kurulur)
 # veya elle:
 pip install -r requirements-dev.txt
 MYSQL_HOST=127.0.0.1 MYSQL_PASSWORD=ban pytest database-mysql/tests -q
