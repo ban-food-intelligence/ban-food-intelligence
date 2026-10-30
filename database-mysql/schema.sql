@@ -447,6 +447,10 @@ CREATE TABLE ml_prediction (
   interval_high    DECIMAL(14,4) NULL,
   interval_level   DECIMAL(4,3)  NULL,
   is_anomaly       TINYINT(1)    NULL,
+  -- kaynak: SEED = seed.sql örneği, DEMO = demo kurulumunda uygulamadan, FIELD = saha kurulumunda
+  -- uygulamadan (API ortamı DATA_ORIGIN=FIELD). FIELD "doğrulanmış" demek değildir: doğrulama kaynak
+  -- belge ve doğrulayan kişiyle uygulama dışında yapılır (ml-engine/audit_field.py).
+  data_origin      ENUM('SEED','DEMO','FIELD') NOT NULL DEFAULT 'DEMO',
   created_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX ix_mlp_ref (ref_type, ref_id)
 ) ENGINE=InnoDB;

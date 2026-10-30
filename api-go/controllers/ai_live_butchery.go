@@ -160,17 +160,18 @@ func applyButcheryActuals(fc *ButcheryForecastDto, outs []ButcheryOutputRequest)
 
 func storeButcheryForecast(ctx context.Context, q sqlRunner, opID int64, fc *ButcheryForecastDto) error {
 	const ins = `INSERT INTO ml_prediction (task, model_name, model_version, ref_type, ref_id, target_name,
-	             predicted_value, actual_value, interval_low, interval_high, interval_level, is_anomaly)
-	             VALUES ('BUTCHERY_YIELD', ?, ?, 'butchery_operation', ?, ?, ?, ?, ?, ?, ?, ?)`
+	             predicted_value, actual_value, interval_low, interval_high, interval_level, is_anomaly, data_origin)
+	             VALUES ('BUTCHERY_YIELD', ?, ?, 'butchery_operation', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	origin := predictionOrigin()
 	for _, p := range fc.Parts {
 		target := p.Part + "_kg"
 		if _, err := q.ExecContext(ctx, ins, championModel, fc.ModelVersion, opID, target, p.Kg, p.ActualKg,
-			p.KgLow, p.KgHigh, fc.IntervalLevel, p.Anomaly); err != nil {
+			p.KgLow, p.KgHigh, fc.IntervalLevel, p.Anomaly, origin); err != nil {
 			return err
 		}
 		if p.BaselineKg != nil {
 			if _, err := q.ExecContext(ctx, ins, baselineModel, "baseline-1", opID, target, *p.BaselineKg, p.ActualKg,
-				nil, nil, nil, nil); err != nil {
+				nil, nil, nil, nil, origin); err != nil {
 				return err
 			}
 		}

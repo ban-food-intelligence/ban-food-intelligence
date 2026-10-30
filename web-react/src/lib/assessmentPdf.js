@@ -100,8 +100,8 @@ export async function createAssessmentPdf(report, { t, fmt }) {
     [`${m.task} / ${m.target}`, m.role === 'BASELINE' ? t('baseline') : t('model'), m.model,
       `${fmt.num(m.mae, 3)} ${m.unit}`, fmt.pct(m.mape_pct), fmt.num(m.n_rows, 0)]));
   text(t('report_predictions'), 11, 'bold');
-  table([t('reference'), t('type'), t('model'), t('qty'), t('actual')], report.predictions.map((m) =>
-    [m.reference, m.target, m.model, fmt.num(m.predicted, 3), fmt.num(m.actual, 3)]));
+  table([t('reference'), t('origin'), t('type'), t('model'), t('qty'), t('actual')], report.predictions.map((m) =>
+    [m.reference, m.origin ? t(`o_${m.origin}`) : '–', m.target, m.model, fmt.num(m.predicted, 3), fmt.num(m.actual, 3)]));
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i); doc.setFont('NotoSans', 'normal'); doc.setFontSize(7); doc.setTextColor(90);
