@@ -37,12 +37,13 @@ API query parameters documented in API.md.
 
 ## Existing installation
 
-New installations use schema.sql normally. Existing databases need the two additive/procedure
+New installations use schema.sql normally. Existing databases need the additive/procedure
 migrations, preserving records (Git Bash example from the repository root):
 
 ```bash
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261029_production_dispatch_guard.sql
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261029_recall_followup.sql
+docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261030_prediction_origin.sql
 docker compose up -d --build api-go web-react
 ```
 

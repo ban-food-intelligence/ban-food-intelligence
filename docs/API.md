@@ -20,7 +20,7 @@ Money values are EUR, quantities are in the lot's unit (`KG`, `PAKET`).
 | 403 | `SIGNATURE_REJECTED` (sync signature checks) |
 | 404 | `NOT_FOUND`, `LOT_NOT_FOUND` |
 | 405 | `METHOD_NOT_ALLOWED` |
-| 409 | `INSUFFICIENT_STOCK`, `LOT_BLOCKED` (recalled/blocked lot), `LOT_EXPIRED` (sale or shipment after the expiry date), `ORDER_STATE`, `CONFLICT` |
+| 409 | `INSUFFICIENT_STOCK`, `LOT_BLOCKED` (recalled/blocked lot), `LOT_EXPIRED` (sale or shipment after the expiry date), `EXCEEDS_DELIVERED` (onward delivery above what the customer holds), `ORDER_STATE`, `CONFLICT` |
 | 422 | `INVALID_INPUT` (rejected by a database rule) |
 | 429 | `LOCKED_OUT` (too many wrong PINs) |
 | 500 | `DB_ERROR` |
@@ -65,8 +65,10 @@ whose material is still at the subcontractor (`MATERIAL_SENT`) follow with `plan
  "material_cost":1076,"service_cost":467.5,"total_cost":1543.5,"ekp":18.1588,"ekp_display":18.16,
  "vkp":24.9,"gross_profit_per_unit":6.74,"gross_profit_total":573,"margin_pct":27.07,
  "output_lot_number":"SUC-2026-045",
- "breakdown":[{"lot_no":"ET-2026-001","cost_element":"Dana et (sucukluk)","qty":100,"uom_code":"KG","unit_cost":9.7,"amount":970}, "..."]}
+ "breakdown":[{"lot_no":"ET-2026-001","cost_element":"Dana et (sucukluk)","qty":100,"uom_code":"KG","unit_cost":9.7,"amount":970}, "...",
+              {"lot_no":"FAS-FTR-2026-045","is_service":true,"cost_element":"Fason hizmet / işçilik","qty":85,"amount":467.5}]}
 ```
+On the service line (`is_service: true`) `lot_no` carries the service invoice number, not a lot.
 
 `POST /production/orders` - record an external production order and send its raw material to the
 subcontractor, in one transaction: the order, a `TRANSFER_OUT`/`TRANSFER_IN` pair per lot with
@@ -79,6 +81,9 @@ on that date. Rejections roll back the order (`409 LOT_BLOCKED` / `LOT_EXPIRED`,
  "service_unit_price":5.5,"drying_days":5,"order_date":"2026-10-29",
  "inputs":[{"lot_no":"ET-2026-003","qty":100},{"lot_no":"BAH-2026-002","qty":2},{"lot_no":"BAG-2026-002","qty":5}]}
 ```
+With `"dry_run": true` the same checks and the forecast run inside the transaction, which is then
+rolled back: `200` with `"status":"DRY_RUN"` and the same body as below, nothing written (no
+order, movement or `ml_prediction` row). The dashboard's *Preview* button uses it.
 `201`:
 ```json
 {"order_no":"URT-2026-047","status":"MATERIAL_SENT","material_cost":1096,"inputs":["..."],
@@ -154,7 +159,9 @@ Example operation request:
 `GET /ai/forecast/butchery?input_lot_no=KUZU-2026-001&input_weight_kg=25[&op_date=2026-10-29&operator_name=OP-1]`
 previews the forecast without saving. Weight must be finite and `0 < kg <= 500`. Unknown lots
 return `404 LOT_NOT_FOUND`, non-carcass lots or invalid fields `422 INVALID_INPUT`.
-The dashboard's live expected-weight column is still pending.
+The dashboard's *Record butchery* form calls it while the carcass lot and weight are typed and shows
+the expected kg and interval next to each weighed part (*Expected (AI)*); it can prefill the part
+products from the forecast, never their weights.
 
 ## Task 3: traceability and recall
 
@@ -209,6 +216,40 @@ append-only audit entry. Record actual recovered goods with `POST /movements/ret
 
 `GET /lots` - stock per lot and warehouse with status, sale price (VKP) and expiry date.
 
+`GET /warehouses` - code, name and type (`MAIN`, `COLD`, `STORE`, `QUARANTINE`, `SUBCONTRACTOR`).
+
+## Shipments to customers
+
+`POST /shipments` (session) - one delivery note. **Tier 1** (`from_warehouse`, default `ANA-DEPO`)
+leaves our stock: each line posts a `SHIPMENT` movement through the ledger triggers, so recalled,
+blocked or expired lots and more than the stock are refused. Quarantine and subcontractor
+warehouses cannot ship to customers. An omitted `unit_price` uses the product's VKP.
+```json
+{"shipment_no":"SVK-2026-216","customer_code":"MKT-A","from_warehouse":"ANA-DEPO","ship_date":"2026-10-30",
+ "delivery_note_no":"IRS-SVK-216","lines":[{"lot_no":"SUC-2026-046","qty":5}]}
+```
+**Tier 2** (`from_customer_code` instead of `from_warehouse`) records an onward delivery a customer
+reported (e.g. Market C -> restaurant). It moves none of our stock and is capped at what that
+customer received minus its earlier onward deliveries and returns (`409 EXCEEDS_DELIVERED`). It
+may be recorded after a recall: forward trace, `GET /recall` and `/recall/progress` read shipments
+live, so the next buyer joins the call-down list as `RECORDED`. Nothing is inferred for onward
+deliveries that were not recorded.
+```json
+{"shipment_no":"MKC-IRS-7790","customer_code":"REST-01","from_customer_code":"MKT-C","ship_date":"2026-10-30",
+ "lines":[{"lot_no":"SUC-2026-045","qty":5}]}
+```
+`201` with the stored shipment; `422 INVALID_INPUT` with per-field `details` (both sources given,
+future `ship_date`, a date before the lot existed, fractional packs for a non-weight unit,
+duplicate lot); `404` unknown customer / warehouse / lot; `409 CONFLICT` for a used shipment
+number. One transaction: a refused line leaves nothing behind. The `SHIPMENT` movement is booked
+under the signed-in supervisor.
+
+`GET /shipments[?shipment_no=]` - shipments in recording order with `tier`, customer, source
+(`from_warehouse` or `from_customer_code`/`from_customer_name`) and lines (lot, product, qty,
+unit, `unit_price`, `line_total`; both `null` when no price was recorded).
+
+`GET /customers` - code, name, type and the contact data used by the recall list.
+
 ## Raw-material receipt
 
 `POST /purchases` (session) - one supplier delivery; each line becomes a PURCHASE lot with supplier,
@@ -247,7 +288,9 @@ Example `GET /movements?lot_no=KZB-2026-001` row:
 ```
 
 Recording movements (all go through the ledger triggers: sign check, no negative stock, recalled
-lots cannot be consumed). Each returns `201` with the balances after the movement.
+lots cannot be consumed). Each returns `201` with the balances after the movement. Lots counted in
+packs or pieces move in whole units only (`422 INVALID_INPUT` for 1.5 packs); kg may be fractional.
+The dashboard's *Lot movements → Record movement* form uses transfer, waste and rework.
 
 | Endpoint | Body |
 |---|---|
@@ -296,9 +339,12 @@ device (or 10 per client IP) `429 LOCKED_OUT` for 5 minutes. Every attempt is wr
 
 ## AI (spec section 4)
 
-`GET /ai/summary` - metrics (MAE, MAPE on the time-split test period for the model and the
-baselines) and, per demo record and target, the actual value, model and baseline predictions and
-their deviations (abs and %). Optional per comparison (absent when the row has none):
+`GET /ai/summary` - metrics (MAE, MAPE on the time-split test period of the synthetic data, for the
+model and the baselines) and, per record in this database and target, the actual value, model and
+baseline predictions and their deviations (abs and %). Each comparison has an `origin`: `SEED`
+(seed.sql), `DEMO` (entered in a demo deployment) or `FIELD` (entered while the API runs with
+`DATA_ORIGIN=FIELD`; not verified). `records` counts the documents per origin,
+e.g. `{"SEED":3,"DEMO":1,"FIELD":0}`. Optional per comparison (absent when the row has none):
 `interval_low` / `interval_high` / `interval_level` (80 % conformal interval of `model_pred`, same
 unit), `anomaly` (actual outside the 98 % band; not for `ekp`) and `outside_interval` (actual
 outside the 80 % interval). See [AI.md](AI.md). Orders recorded through `POST /production/orders`

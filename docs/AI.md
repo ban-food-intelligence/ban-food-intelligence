@@ -222,6 +222,29 @@ runs inside the Go API without Python:
    written next to the forecast, and `is_anomaly` is set if the actual is outside the 98 % band.
    The dashboard (*Production*, *AI*) and the phone (*Yield forecasts*) show it like the seeded rows.
 
+Before saving, *Preview* in the order form sends the same request with `dry_run`: every check and
+the forecast run, the transaction is rolled back, and the expected packages and EKP with their
+80 % interval are shown at the moment the order is decided. Saving stores the same forecast.
+
+## Synthetic test and recorded data are kept apart
+
+The *AI* tab has two sections. The chart and the MAE / MAPE table are the **synthetic test**
+(held-out dates of the generated history). The second section is forecast vs actual on the
+**records in this database**, each labelled with its origin (`ml_prediction.data_origin`):
+
+| Origin | Meaning |
+|---|---|
+| `SEED` | written by `database-mysql/seed.sql` (URT-2026-045, URT-2026-046, PRC-2026-001); the forecasts were added after the outcome |
+| `DEMO` | entered through the app in a demo deployment (the default) |
+| `FIELD` | entered while the API runs with `DATA_ORIGIN=FIELD`; still **not verified** |
+
+The app cannot verify a record: that needs the source document, a verifier, independence from
+training and a forecast frozen before the outcome, checked by `ml-engine/audit_field.py` (see
+[ai/field-audit-2026-10-30.md](ai/field-audit-2026-10-30.md)). The tab and the *Overview* box
+therefore state "verified field samples: 0" while there are no field records, and "verified
+outside the app" once there are. The *Overview* AI box is titled *synthetic test* and is not
+coloured as a success.
+
 Evidence: `TestLiveYieldMatchesTheTrainedModel` compares the Go evaluation with sklearn on 33 golden
 rows (both seeded orders and 31 held-out orders, incl. missing fat %, summer months and 500 g packs):
 all within 1e-9. URT-2026-045 gives the seeded 84.6 packages and EKP 18.2172 EUR.
@@ -252,8 +275,11 @@ interval but inside the 98 % band.
 
 ## Limitations
 
-- Both studies now run in the Go API. Study B's live expected-weight column in the entry form
-  is still pending. `TestIntegrationButcheryLiveForecast` verifies preview, dry run, stored
+- Both studies now run in the Go API. Study B's expected weight per part is shown live in the
+  dashboard's butchery form, and the API verdict (model, baseline, actual, interval, anomaly) after
+  *Check* or *Save*. The forecast stored with a posted operation is still computed in the same
+  request as the actuals, so it is not a frozen pre-weighing forecast and cannot serve as
+  prospective field evidence. `TestIntegrationButcheryLiveForecast` verifies preview, dry run, stored
   model/baseline/actual/interval/anomaly rows, `/ai/summary`, and rollback on a failed record.
 - A production extrapolation with a nonpositive lower package bound or output exceeding the
   material mass is withheld (`forecast` null/absent). This guard prevents invalid arithmetic;

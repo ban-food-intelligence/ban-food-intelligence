@@ -58,3 +58,10 @@ def test_invalid_severity_rejected(alerts):
                         "threshold_warn, threshold_crit, severity, direction, expected_value, actual_value, deviation, "
                         "message) VALUES ('PRODUCTION_YIELD', 'robust_z', 'x', 'production_order', 1, 0, 1, 2, "
                         "'PANIC', 'LOW_YIELD', 1, 1, 0, 'x')")
+
+
+def test_seed_predictions_are_labelled_seed(db):
+    # uygulamanın yazdığı tahminler DEMO/FIELD olur; seed'in hepsi SEED (AI sekmesi bunu ayırır)
+    rows = query(db, "SELECT data_origin, COUNT(*) n FROM ml_prediction GROUP BY data_origin")
+    assert [(r["data_origin"], r["n"]) for r in rows] == [("SEED", 20)]
+

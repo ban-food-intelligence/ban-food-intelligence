@@ -3,11 +3,15 @@ import { API_BASE, apiWrite, useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { Async, ErrorState, Group, Mono, Page, Pill, Segmented, Table } from '../lib/ui';
 import RecallProgress from './RecallProgress';
+import { LotLink, LotLinks } from './LotPanel';
+
+// #trace?lot=SUC-2026-045 (from the lot panel) starts on that lot; the mandatory scenario otherwise.
+const initialLot = () => new URLSearchParams(window.location.hash.split('?')[1] || '').get('lot') || 'ET-2026-001';
 
 export default function TraceRecall() {
   const { t } = useLang();
-  const [input, setInput] = useState('ET-2026-001');
-  const [lot, setLot] = useState('ET-2026-001');
+  const [input, setInput] = useState(initialLot);
+  const [lot, setLot] = useState(initialLot);
   const [direction, setDirection] = useState('forward');
   const trace = useApi(lot ? `/trace/${encodeURIComponent(lot)}?direction=${direction}` : null);
   const recalls = useApi('/recall');
@@ -53,7 +57,7 @@ function TraceResult({ tr }) {
           rowTone={(l) => (l.status === 'RECALLED' ? 'bad' : '')}
           columns={[
             { key: 'depth', label: t('depth'), align: 'num' },
-            { key: 'lot_no', label: t('lot'), render: (l) => <><Mono>{l.lot_no}</Mono><div className="cell-sub">{l.product_name}</div></> },
+            { key: 'lot_no', label: t('lot'), render: (l) => <><LotLink lot={l.lot_no} /><div className="cell-sub">{l.product_name}</div></> },
             { key: 'origin_type', label: t('origin') },
             { key: 'qty', label: t('qty'), align: 'num', render: (l) => fmt.qty(l.qty, l.uom_code) },
             { key: 'supplier_name', label: t('supplier'), render: (l) => l.supplier_name || '–' },
@@ -66,9 +70,9 @@ function TraceResult({ tr }) {
           rows={tr.links}
           columns={[
             { key: 'document_no', label: t('document'), render: (l) => <><Mono>{l.document_no}</Mono><div className="cell-sub">{l.link_type}{l.subcontractor ? ` · ${l.subcontractor}` : ''}</div></> },
-            { key: 'input_lot_no', label: t('inputLot'), render: (l) => <Mono>{l.input_lot_no}</Mono> },
+            { key: 'input_lot_no', label: t('inputLot'), render: (l) => <LotLink lot={l.input_lot_no} /> },
             { key: 'qty_consumed', label: t('consumed'), align: 'num', render: (l) => fmt.qty(l.qty_consumed, l.input_uom) },
-            { key: 'output_lot_no', label: t('outputLot2'), render: (l) => <Mono>{l.output_lot_no}</Mono> },
+            { key: 'output_lot_no', label: t('outputLot2'), render: (l) => <LotLink lot={l.output_lot_no} /> },
             { key: 'qty_produced', label: t('produced'), align: 'num', render: (l) => fmt.qty(l.qty_produced, l.output_uom) },
           ]}
         />
@@ -82,7 +86,7 @@ function TraceResult({ tr }) {
                 { key: 'tier', label: t('tier'), align: 'num' },
                 { key: 'customer_name', label: t('customer'), render: (s) => <>{s.customer_name}{s.received_via && <div className="cell-sub">{t('via')}: {s.received_via}</div>}</> },
                 { key: 'contact', label: t('contact'), render: (s) => <>{s.contact_person}<div className="cell-sub">{s.phone} · {s.email}</div></> },
-                { key: 'lot_no', label: t('lot'), render: (s) => <Mono>{s.lot_no}</Mono> },
+                { key: 'lot_no', label: t('lot'), render: (s) => <LotLink lot={s.lot_no} /> },
                 { key: 'shipment_no', label: t('document'), render: (s) => <><Mono>{s.shipment_no}</Mono><div className="cell-sub">{fmt.date(s.ship_date)}</div></> },
                 { key: 'qty', label: t('qty'), align: 'num', render: (s) => <strong>{fmt.qty(s.qty, s.uom_code)}</strong> },
               ]}
@@ -93,7 +97,7 @@ function TraceResult({ tr }) {
               <Table
                 rows={tr.stock || []}
                 columns={[
-                  { key: 'lot_no', label: t('lot'), render: (s) => <Mono>{s.lot_no}</Mono> },
+                  { key: 'lot_no', label: t('lot'), render: (s) => <LotLink lot={s.lot_no} /> },
                   { key: 'warehouse_code', label: t('warehouse'), render: (s) => <Mono>{s.warehouse_code}</Mono> },
                   { key: 'qty', label: t('qty'), align: 'num', render: (s) => fmt.qty(s.qty, s.uom_code) },
                 ]}
@@ -103,7 +107,7 @@ function TraceResult({ tr }) {
               <Table
                 rows={tr.sales || []}
                 columns={[
-                  { key: 'lot_no', label: t('lot'), render: (s) => <Mono>{s.lot_no}</Mono> },
+                  { key: 'lot_no', label: t('lot'), render: (s) => <LotLink lot={s.lot_no} /> },
                   { key: 'store_code', label: t('store') },
                   { key: 'qty_sold', label: t('qty'), align: 'num', render: (s) => fmt.num(s.qty_sold, 3) },
                 ]}
@@ -189,7 +193,7 @@ function RecallPanel({ lot, recalls }) {
               <div key={rc.recall_code} className="recall">
                 <div className="recall-head">
                   <div>
-                    <strong>{rc.recall_code}</strong> · <Mono>{rc.trigger_lot}</Mono>
+                    <strong>{rc.recall_code}</strong> · <LotLink lot={rc.trigger_lot} />
                     <div className="cell-sub">{fmt.dateTime(rc.timestamp)} · {rc.reason}</div>
                   </div>
                   <div className="recall-actions">
@@ -206,7 +210,7 @@ function RecallPanel({ lot, recalls }) {
                     { key: 'customer_name', label: t('customer'), render: (m) => <>{m.customer_name}<div className="cell-sub">{m.customer_code}{m.received_via ? ` · ${t('via')}: ${m.received_via}` : ''}</div></> },
                     { key: 'contact', label: t('contact'), render: (m) => <>{m.contact_person}<div className="cell-sub">{m.phone} · {m.email}</div></> },
                     { key: 'address', label: t('address'), render: (m) => m.address || '–' },
-                    { key: 'lots', label: t('lot'), render: (m) => <Mono>{m.lots}</Mono> },
+                    { key: 'lots', label: t('lot'), render: (m) => <LotLinks lots={m.lots} /> },
                     { key: 'qty_shipped', label: t('shipped'), align: 'num', render: (m) => <strong>{fmt.num(m.qty_shipped, 0)}</strong> },
                     { key: 'qty_returned', label: t('returned'), align: 'num', render: (m) => fmt.num(m.qty_returned, 0) },
                     {
