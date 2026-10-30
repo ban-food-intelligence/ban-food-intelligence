@@ -3,6 +3,7 @@ import { useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { Async, Group, Kpi, Mono, Page, Segmented, Table } from '../lib/ui';
 import { ExpiryText, LotLink, LotStatus, SOON_DAYS, daysUntil, isExpired } from './LotPanel';
+import { StockCountForm, StockCountHistory } from './StockCount';
 
 const blocked = (r) => r.status === 'RECALLED' || r.status === 'BLOCKED';
 
@@ -18,10 +19,20 @@ export function lotBuckets(rows) {
 export default function Lots() {
   const { t, fmt } = useLang();
   const result = useApi('/lots');
-  const [filter, setFilter] = useState('stock');
+  // #lots?filter=soon opens a bucket directly (the sidebar bell links there)
+  const [filter, setFilter] = useState(() => {
+    const f = new URLSearchParams(window.location.hash.split('?')[1] || '').get('filter');
+    return ['stock', 'soon', 'unsellable', 'all'].includes(f) ? f : 'stock';
+  });
   const [q, setQ] = useState('');
+  const counts = useApi('/stock-counts');
+  const [counting, setCounting] = useState(false);
+  const [saved, setSaved] = useState(null);
   return (
-    <Page title={t('lots_title')} subtitle={t('lots_sub', SOON_DAYS)}>
+    <Page title={t('lots_title')} subtitle={t('lots_sub', SOON_DAYS)}
+      actions={!counting && <button className="btn-primary" onClick={() => { setCounting(true); setSaved(null); }}>{t('sc_start')}</button>}>
+      {saved && <p className="notice notice-ok" role="status">
+        {t('sc_saved', saved.count_no, saved.lines.length, fmt.money(saved.shortage_eur), fmt.money(saved.surplus_eur))}</p>}
       <Async result={result}>
         {(rows) => {
           const b = lotBuckets(rows);
@@ -31,6 +42,8 @@ export default function Lots() {
           const shown = b[filter].filter((r) => !needle || r.lot_no.includes(needle) || r.sku.includes(needle) || r.product_name.toUpperCase().includes(needle));
           return (
             <>
+              {counting && <StockCountForm rows={rows} onStale={result.reload} onCancel={() => setCounting(false)}
+                onSaved={(res) => { setSaved(res); setCounting(false); result.reload(); counts.reload(); }} />}
               <Group>
                 <div className="kpi-row">
                   <Kpi label={t('ov_lots_in_stock')} value={fmt.num(lots(b.stock), 0)} sub={fmt.money(value(b.stock))} />
@@ -77,6 +90,7 @@ export default function Lots() {
                   }
                 />
               </Group>
+              <StockCountHistory counts={counts.data} />
             </>
           );
         }}

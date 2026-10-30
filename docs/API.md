@@ -312,6 +312,27 @@ The dashboard's *Lot movements → Record movement* form uses transfer, waste an
 | `POST /movements/waste` | `{"lot_no","warehouse","qty","reason"}` |
 | `POST /rework` | `{"input_lot_no","warehouse","qty_consumed","output_lot_no","output_qty","note"}` (new REWORK lot linked in `lot_link`) |
 
+### Stock count
+
+`POST /stock-counts` (session) - what was counted on the shelf of one warehouse:
+```json
+{"count_no": "SAY-2026-001", "warehouse": "ANA-DEPO", "note": "Month end",
+ "lines": [{"lot_no": "SUC-2026-046", "counted_qty": 5, "expected_qty": 6, "reason": "Torn pack found"},
+           {"lot_no": "KZO-2026-001", "counted_qty": 5, "expected_qty": 5}]}
+```
+`count_no` defaults to `SAY-<UTC timestamp>`. The system quantity is the ledger balance when the
+count is saved (the balance row is locked). Each difference becomes an `ADJUSTMENT_IN` /
+`ADJUSTMENT_OUT` movement (`ref_type` `stock_count`) with its reason; a line without difference
+is kept as evidence. All lines or none: `422` for a difference without `reason` or a fraction of
+a pack, `409 CONFLICT` when a lot's balance is no longer `expected_qty` (the counter saw an old
+list) or for a used `count_no`, `404` for an unknown lot or warehouse. `201` with each line's
+`system_qty`, `counted_qty`, `diff_qty`, `value_eur` (difference × lot cost) and `movement_type`,
+plus `shortage_eur` / `surplus_eur`. A shortage above 10 € raises a `COUNT_SHORTAGE` alert
+(critical from 100 € and always for a recalled or blocked lot). In the mass balance a count
+difference is an undocumented gap.
+
+`GET /stock-counts` - the latest 20 counts with their lines.
+
 ## POS sync (SQLite -> MySQL)
 
 Customer returns through `/movements/return` cannot exceed recorded deliveries for the same
@@ -364,3 +385,64 @@ outside the 80 % interval). See [AI.md](AI.md). Orders recorded through `POST /p
 appear here too: with predictions only until they are received, then with actuals.
 
 `GET /yield` - raw `v_ml_prediction_deviation` rows (kept for compatibility).
+
+## Alerts (spec section 5)
+
+The API writes an alert when a production order is received with a yield outside the forecast's
+98 % band, when a butchery has unexpected waste or part weights, when a purchase price is more than
+10 % above the product's last three purchases, and when `/sync` refuses a POS sale of a recalled,
+blocked or expired lot. The ml-engine batch detector writes the same table. An alert never changes
+stock, cost or lot status. Details: [AI.md](AI.md#live-alerts-and-their-review).
+
+`GET /alerts[?status=open|closed|all]` (default `all`; `open` = `OPEN` + `ACKNOWLEDGED`) - up to 200
+alerts, open first, critical first, newest first, plus counts and the review outcome per check:
+
+```json
+{"alerts": [{"id": 7, "task": "PURCHASE_COST", "severity": "CRITICAL", "direction": "COST_INCREASE",
+  "status": "OPEN", "ref_type": "purchase_receipt_line", "ref_no": "ALS-2026-130", "ref_date": "2026-10-30",
+  "lot_no": "BAH-2026-004", "uom_code": "KG", "responsible": "Örnek Baharat Ltd.",
+  "expected_value": 24.333, "actual_value": 31, "deviation": 6.667, "est_loss_eur": 66.67,
+  "score": 27.397, "threshold_warn": 10, "threshold_crit": 25, "detector": "rule", "model_version": "rule-1",
+  "detail": "ref 24.33 €/kg, 3 alış", "message": "Alış fiyatı arttı: ...", "created_at": "..."}],
+ "open": 1, "critical_open": 1,
+ "feedback": [{"task": "PURCHASE_COST", "model_version": "rule-1", "alerts": 1, "open_alerts": 1,
+   "confirmed": 0, "false_alarms": 0, "precision_observed": null, "confirmed_loss_eur": 0}]}
+```
+
+`task` / `direction`: `PRODUCTION_YIELD` (`LOW_YIELD`, `HIGH_YIELD`), `BUTCHERY_YIELD` (`FIRE_HIGH`,
+`PART_MISMATCH`), `PURCHASE_COST` (`COST_INCREASE`), `LOT_MOVEMENT` (`BLOCKED_SALE`, `EXPIRED_SALE`:
+`event_ref` is the sale's UUIDv7, `detail` the device and sale time; `COUNT_SHORTAGE`: `ref_no` is the
+stock count, expected = ledger, actual = counted). Values are in the unit of the check: packs, kg,
+€ per unit or the lot's unit. `422` for an unknown `status`.
+
+`POST /alerts/review` (supervisor session) - `{"id": 7, "status": "ACKNOWLEDGED" | "RESOLVED" | "FALSE_ALARM",
+"note": "..."}`. `RESOLVED` means a real problem. Closing needs a `note` (max 255). The operator and
+time are stored and the change is written to `audit_log`. `404` unknown alert, `409 CONFLICT` for
+an alert already closed, `422` invalid status or missing note.
+
+`GET /alerts` also returns `missed` (problems found by hand per check: `task`, `findings`,
+`est_loss_eur`) and `missed_recent` (the latest 20).
+
+`GET /alerts/rules` - the thresholds in force and their defaults, the synthetic stress test
+(`calibration`, the content of `ml-engine/artifacts/ali/live_alert_calibration.json`) and the price
+volatility observed in the recorded purchases:
+```json
+{"rules": [{"rule": "BUTCHERY_YIELD", "unit": "band98", "warn": 1.5, "crit": 2, "default_warn": 1.5,
+            "default_crit": 2, "updated_by": "default"}, "..."],
+ "observed_price_changes": {"changes": 6, "p95_increase_pct": 4.2, "above_warn_pct": 0},
+ "calibration": {"production_yield": {"curve": [{"threshold": 1.0, "precision": 1.0, "recall": 0.644,
+                 "false_alarms_per_100": 0}, "..."]}, "butchery_yield": {}, "purchase_cost": {}}}
+```
+Units: `band98` = multiple of the 98 % band (`PRODUCTION_YIELD`, `BUTCHERY_YIELD`), `pct` = % above
+the reference price (`PURCHASE_COST`), `eur` = shortage value (`COUNT_SHORTAGE`).
+
+`POST /alerts/rules` (session) - `{"rule": "PURCHASE_COST", "warn": 15, "crit": 30}`. `warn > 0`,
+`crit > warn`, `crit` at most 10 bands / 500 % / 1,000,000 €; otherwise `422`. New alerts are graded
+with the new values (each alert stores the thresholds it was graded with); the change is written to
+`audit_log` (`THRESHOLD_CHANGE`).
+
+`POST /alerts/missed` (session) - a problem found by hand that no alert flagged:
+`{"task": "BUTCHERY_YIELD", "ref_no": "PRC-2026-003", "lot_no": "KUZU-2026-003", "note": "...",
+"est_loss_eur": 8.5}`. `task` is the check that should have caught it (`PRODUCTION_YIELD`,
+`BUTCHERY_YIELD`, `PURCHASE_COST`, `LOT_MOVEMENT`); `note` is required. `201` with its `id`, `404`
+for an unknown lot, `422` otherwise; audited (`MISSED_FINDING`). It counts against the check's recall.

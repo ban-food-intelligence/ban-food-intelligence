@@ -245,9 +245,9 @@ func storeForecast(ctx context.Context, q sqlRunner, orderID int64, fc *Producti
 	return nil
 }
 
-// recordForecastActuals fills in the actual packages and EKP of a received order and flags the
-// package forecast as an anomaly when the actual is outside the 98 % band. Rows that already
-// carry an actual (the seeded ones) are left as they are.
+// recordForecastActuals fills in the actual packages and EKP of a received order, flags the
+// package forecast as an anomaly when the actual is outside the 98 % band and raises the alert
+// (alerts.go). Rows that already carry an actual (the seeded ones) are left as they are.
 func recordForecastActuals(ctx context.Context, q sqlRunner, orderNo string) error {
 	o, err := loadOrderInputs(ctx, q, orderNo)
 	if err != nil {
@@ -270,11 +270,13 @@ func recordForecastActuals(ctx context.Context, q sqlRunner, orderNo string) err
 		return nil
 	}
 	band := o.in.MeatKg * productionModel.HalfWidth["98"] / 100 / o.in.PackSizeKg
-	_, err = q.ExecContext(ctx,
+	if _, err = q.ExecContext(ctx,
 		`UPDATE ml_prediction SET is_anomaly = (ABS(actual_value - predicted_value) > ?)
 		 WHERE ref_type = 'production_order' AND ref_id = ? AND model_name = ? AND target_name = 'actual_qty'
-		   AND is_anomaly IS NULL`, band, o.orderID, championModel)
-	return err
+		   AND is_anomaly IS NULL`, band, o.orderID, championModel); err != nil {
+		return err
+	}
+	return raiseProductionAlert(ctx, q, o, band)
 }
 
 // loadForecasts returns the stored production forecasts (seeded and live) by order number.

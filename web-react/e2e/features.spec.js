@@ -280,6 +280,46 @@ test('AI tab keeps the synthetic test apart from the records and labels their or
   await expect(box.getByText('saha başarımı ölçülmedi')).toBeVisible();
 });
 
+test('a purchase above recent prices raises an alert that a supervisor reviews and closes', async ({ page, request }) => {
+  const auth = await request.post(`${api}/auth/session`, { data: { pin: '246813' } });
+  expect(auth.ok()).toBeTruthy();
+  const { token } = await auth.json();
+  const run = Date.now();
+  const day = new Date().toISOString().slice(0, 10);
+  const expiry = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+  const receipt = `ALS-E2E-AL-${run}`;
+  const bought = await request.post(`${api}/purchases`, { headers: { Authorization: `Bearer ${token}` }, data: {
+    receipt_no: receipt, supplier_code: 'TED-BAH-01', receipt_date: day,
+    lines: [{ sku: 'HM-BAHARAT', lot_no: `BAH-E2E-${run}`, qty: 5, unit_price: 40, expiry_date: expiry }] } });
+  expect(bought.status()).toBe(201); // spice was bought at 24.00 €/kg until now
+
+  await page.goto('/#overview');
+  await page.getByRole('button', { name: /^Bildirimler/ }).click();
+  await page.getByRole('menuitem', { name: /Açık uyarı/ }).click();
+  await expect(page).toHaveURL(/#alerts$/);
+  const row = page.getByRole('row').filter({ hasText: receipt });
+  await expect(row).toContainText('Alış fiyatı artışı');
+  await expect(row).toContainText('Kritik');
+  await expect(row).toContainText('40,00 €/kg');
+  await page.screenshot({ path: 'test-results/alerts-open.png', fullPage: true });
+
+  await row.getByRole('button', { name: 'İncele' }).click();
+  await page.getByRole('combobox', { name: 'Karar' }).selectOption('RESOLVED');
+  await page.getByLabel('Yetkili PIN').fill('246813');
+  await expect(page.getByRole('button', { name: 'Kaydet', exact: true })).toBeDisabled(); // closing needs a note
+  await page.getByLabel('Not (kapatmak için zorunlu)').fill('Tedarikçi yeni fiyat listesi gönderdi.');
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await expect(page.getByText('Uyarı güncellendi.')).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: receipt })).toHaveCount(0);
+
+  await page.getByRole('tab', { name: 'Kapatılan' }).click();
+  const closed = page.getByRole('row').filter({ hasText: receipt });
+  await expect(closed).toContainText('Gerçek sorun · kapatıldı');
+  await expect(closed).toContainText('Tedarikçi yeni fiyat listesi gönderdi.');
+  const stock = (await (await request.get(`${api}/lots`)).json()).find((l) => l.lot_no === `BAH-E2E-${run}`);
+  expect(stock.qty).toBe(5); // an alert never moves stock
+});
+
 test('trace shows the lot flow and a mass balance that documents every quantity', async ({ page }) => {
   await page.goto('/#trace?lot=ET-2026-001');
   const flow = page.getByRole('group', { name: 'ET-2026-001 lotunun akış diyagramı' });
@@ -295,4 +335,58 @@ test('trace shows the lot flow and a mass balance that documents every quantity'
 
   await flow.getByRole('button', { name: /^SUC-2026-045/ }).click(); // a lot box opens the lot card
   await expect(page.getByRole('dialog')).toContainText('SUC-2026-045');
+});
+
+test('a stock count books a difference only with its reason and lists it in the history', async ({ page, request }) => {
+  const stockOf = async (lotNo) => (await (await request.get(`${api}/lots`)).json())
+    .find((l) => l.lot_no === lotNo && l.warehouse_code === 'ANA-DEPO')?.qty;
+  const lot = (await (await request.get(`${api}/lots`)).json())
+    .find((l) => l.warehouse_code === 'ANA-DEPO' && l.uom_code === 'PAKET' && l.qty >= 3);
+  expect(lot).toBeTruthy();
+
+  await page.goto('/#lots');
+  await page.getByRole('button', { name: 'Stok sayımı yap' }).click();
+  await page.getByLabel(`${lot.lot_no} sayılan miktar`).fill(String(lot.qty - 1));
+  await expect(page.getByText('Fark için gerekçe yazın.')).toBeVisible();
+  await page.getByLabel('Yetkili PIN').fill('246813');
+  await expect(page.getByRole('button', { name: 'Sayımı kaydet' })).toBeDisabled();
+  await page.getByLabel(`${lot.lot_no} fark gerekçesi`).fill('Ambalaj yırtık bulundu');
+  await page.screenshot({ path: 'test-results/stock-count.png', fullPage: true });
+  await page.getByRole('button', { name: 'Sayımı kaydet' }).click();
+  await expect(page.getByText(/kaydedildi: 1 lot/)).toBeVisible();
+  expect(await stockOf(lot.lot_no)).toBe(lot.qty - 1);
+  await expect(page.getByRole('row').filter({ hasText: 'Ambalaj yırtık bulundu' })).toBeVisible();
+});
+
+test('thresholds show their synthetic test and a missed problem is recorded for recall', async ({ page, request }) => {
+  const auth = await request.post(`${api}/auth/session`, { data: { pin: '246813' } });
+  const { token } = await auth.json();
+  await page.goto('/#alerts');
+  const rules = page.locator('.group-wrap').filter({ has: page.getByText('Uyarı eşikleri', { exact: true }) });
+  const butchery = rules.getByRole('row').filter({ hasText: 'Parçalama · YZ (B)' });
+  await expect(butchery).toContainText('1,50 × %98 bant');
+  await expect(butchery).toContainText('100 kayıtta');
+  try {
+    await butchery.getByRole('button', { name: 'Değiştir' }).click();
+    await rules.getByLabel('Uyarı eşiği').fill('1,25');
+    await expect(rules.getByText(/Sentetik testte 1,25 × %98 bant/)).toBeVisible();
+    await rules.getByLabel('Yetkili PIN').fill('246813');
+    await rules.getByRole('button', { name: 'Eşiği kaydet' }).click();
+    await expect(rules.getByText(/Eşik güncellendi/)).toBeVisible();
+    const after = await (await request.get(`${api}/alerts/rules`)).json();
+    expect(after.rules.find((r) => r.rule === 'BUTCHERY_YIELD')).toMatchObject({ warn: 1.25, updated_by: expect.any(String) });
+  } finally { // later runs grade with the default
+    await request.post(`${api}/alerts/rules`, { headers: { Authorization: `Bearer ${token}` }, data: { rule: 'BUTCHERY_YIELD', warn: 1.5, crit: 2 } });
+  }
+
+  const note = `Fire tartımı elle kontrol edildi ${Date.now()}`;
+  await page.getByRole('button', { name: 'Kaçırılan sorun kaydet' }).click();
+  await page.getByRole('combobox', { name: 'Hangi kontrol yakalamalıydı?' }).selectOption('BUTCHERY_YIELD');
+  await page.getByLabel('Ne bulundu?').fill(note);
+  await page.getByLabel('Tahmini kayıp (€)').fill('8,5');
+  await page.getByLabel('Yetkili PIN').fill('246813');
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await expect(page.getByText('Kaçırılan sorun kaydedildi.')).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: note })).toContainText('8,50 €');
+  await page.screenshot({ path: 'test-results/alert-accuracy.png', fullPage: true });
 });

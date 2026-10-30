@@ -7,10 +7,12 @@ import Butchery from './views/Butchery';
 import TraceRecall from './views/TraceRecall';
 import AI from './views/AI';
 import Lots from './views/Lots';
+import Alerts, { AlertBell } from './views/Alerts';
 import { LotPanelProvider } from './views/LotPanel';
 
 const TABS = [
   { id: 'overview', view: Overview },
+  { id: 'alerts', view: Alerts },
   { id: 'lots', view: Lots },
   { id: 'purchases', view: Purchases },
   { id: 'production', view: Production },
@@ -54,6 +56,7 @@ function Shell() {
             <div className="brand-name">{t('appName')}</div>
             <div className="brand-sub">{t('appSub')}</div>
           </div>
+          <AlertBell onOpen={open} />
           <nav className="nav" aria-label="Sections">
             {TABS.map((x) => (
               <button key={x.id} className={x.id === tab ? 'active' : ''} aria-current={x.id === tab ? 'page' : undefined} onClick={() => open(x.id)}>
