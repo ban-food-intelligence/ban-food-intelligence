@@ -1,4 +1,4 @@
-# FEFO, recovery follow-up and assessment PDF
+# FEFO, recovery follow-up, assessment PDF and mass balance
 
 ## Use
 
@@ -34,6 +34,15 @@ recall or changes stock. A missing scenario record or unavailable API produces a
 instead of an incomplete PDF. Turkish text and the Euro sign use bundled OFL Noto Sans fonts;
 no customer data is sent to a PDF service. Default scenario IDs can be changed through the
 API query parameters documented in API.md.
+
+**Dashboard → Trace & recall → Lot flow and Mass balance (forward trace):** the diagram draws the
+lots by depth, the customers by distribution tier and the stock, till, waste and gap positions,
+each arrow with its recorded quantity; a lot box opens the lot card, hover highlights its arrows.
+The mass balance shows, per lot, where its quantity went (used in other lots, shipped, sold,
+wasted, returned, in stock) and the undocumented gap, plus the final positions per unit: for
+ET-2026-001, 100 kg went into URT-2026-045 and the 85 packs are at Markets A/B/C. A stock-count
+write-off appears as a gap, because no document says where the goods went. The assessment PDF
+carries the same table.
 
 ## Existing installation
 

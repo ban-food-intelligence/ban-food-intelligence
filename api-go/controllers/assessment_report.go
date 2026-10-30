@@ -107,6 +107,9 @@ func loadAssessment(r *http.Request, q sqlRunner, order, root, rejected, posted 
 	if err = tc.loadLinks(r, &out.Trace); err != nil {
 		return nil, err
 	}
+	if out.Trace.MassBalance, err = loadMassBalance(ctx, q, out.Trace.Lots); err != nil {
+		return nil, err
+	}
 	out.Backward = TraceResponse{RootLotNumber: p.OutputLotNumber, Direction: "backward", Lots: []TraceLotDto{}, Links: []TraceLinkDto{}}
 	if err = tc.backward(r, p.OutputLotNumber, &out.Backward); err != nil {
 		return nil, err

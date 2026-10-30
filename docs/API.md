@@ -175,8 +175,21 @@ buyers (tier 1 and recorded tier 2) and POS sales. Backward: input lots, supplie
  "links":[{"link_type":"PRODUCTION","document_no":"URT-2026-045","input_lot_no":"ET-2026-001","qty_consumed":100,
            "output_lot_no":"SUC-2026-045","qty_produced":85}],
  "shipments":[{"tier":1,"customer_code":"MKT-A","customer_name":"Market A","contact_person":"...","phone":"...","qty":30}, "...",
-              {"tier":2,"customer_code":"REST-01","received_via":"Market C","qty":10}]}
+              {"tier":2,"customer_code":"REST-01","received_via":"Market C","qty":10}],
+ "mass_balance":{"balanced":true,
+   "lines":[{"lot_no":"ET-2026-001","uom_code":"KG","declared_qty":100,"used_in_lots":100,"shipped":0,"sold":0,"wasted":0,
+             "returned":0,"count_diff":0,"in_stock":0,"at_subcontractor":0,"accounted":100,"unexplained":0,"accounted_pct":100},
+            {"lot_no":"SUC-2026-045","uom_code":"PAKET","declared_qty":85,"shipped":85,"unexplained":0,"...":"..."}],
+   "totals":[{"uom_code":"PAKET","at_customers":85,"sold":0,"wasted":0,"in_stock":0,"at_subcontractor":0,"unexplained":0}]}}
 ```
+
+`mass_balance` (forward only) answers "where is every recorded quantity now" from the stock
+ledger, per lot: `declared_qty` (the lot quantity) = `used_in_lots` (production, butchery, rework;
+followed in the lots made from it) + `shipped` (tier 1) + `sold` (POS) + `wasted` + `in_stock` (all
+warehouses, `at_subcontractor` included) − `returned`. Transfers cancel out. `unexplained` is what
+no document explains: a stock-count adjustment (`count_diff`) or a lot quantity that was never
+booked in; `balanced` is false when any lot has one. `totals` sums the final positions per unit
+(`at_customers` = shipped − returned). The assessment report carries the same block in `trace`.
 
 `GET /recall` - recalls with affected lots and the per-customer call-down list (address,
 `second_tier` = `RECORDED` / `NOT_RECORDED`). `lock_enforced` is true while the recall is OPEN and
