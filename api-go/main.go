@@ -138,6 +138,7 @@ func main() {
 	mux.HandleFunc("/yield", yieldCtrl.PredictYield)
 	mux.HandleFunc("/ai/summary", aiCtrl.Summary)
 	mux.HandleFunc("/ai/forecast/butchery", aiCtrl.ButcheryForecast)
+	mux.HandleFunc("/ai/forecast/butchery/freeze", op(aiCtrl.FreezeButcheryForecast))
 
 	// Alert inbox: yield, purchase cost and refused POS sales; reviewed by a supervisor
 	mux.HandleFunc("/alerts", alertCtrl.List)
