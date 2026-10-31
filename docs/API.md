@@ -41,7 +41,7 @@ curl -X POST localhost:8080/recall -H "Authorization: Bearer $TOKEN" -d '{"trigg
 `POST /auth/session` `{"pin","device_id"?}` → `200 {"token","token_type":"Bearer","expires_at","username","display_name"}`
 (30 minutes); `401 INVALID_PIN` / `429 LOCKED_OUT` as for the supervisor unlock. Protected:
 `POST /recall`, `/movements/transfer|return|waste`, `/rework`, `/production`, `/production/orders`,
-`/purchases`, `/butchery/operations`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
+`/purchases`, `/butchery/operations`, `/ai/forecast/butchery/freeze`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
 The recall initiator and the movements' `created_by` are the signed-in supervisor.
 
 Limits for every request: body ≤ 1 MiB (`413 PAYLOAD_TOO_LARGE`), 20 requests/s per client IP
@@ -145,6 +145,10 @@ The response also includes `forecast`: six expected part weights, their 80% pred
 intervals and species baseline, recorded weights, and flags for actuals outside the 98% band.
 A posted operation stores six model and six baseline rows in `ml_prediction`; a dry run
 stores none. By-products are outside the model; cuts match by SKU and waste by output kind.
+If the carcass has a frozen forecast (below), the response adds `frozen_forecast` with the same
+part rows compared against the recorded weights, `frozen_at`, `input_weight_kg` and
+`input_matches` (frozen for the operation's input kg). Posting links it to the operation (`op_no`);
+a dry run does not.
 
 Example operation request:
 ```json
@@ -161,7 +165,18 @@ previews the forecast without saving. Weight must be finite and `0 < kg <= 500`.
 return `404 LOT_NOT_FOUND`, non-carcass lots or invalid fields `422 INVALID_INPUT`.
 The dashboard's *Record butchery* form calls it while the carcass lot and weight are typed and shows
 the expected kg and interval next to each weighed part (*Expected (AI)*); it can prefill the part
-products from the forecast, never their weights.
+products from the forecast, never their weights. If the carcass has a frozen forecast, the response
+also carries it as `frozen` (`frozen_at`, `frozen_by`, `input_weight_kg`, `op_date`, `op_no` once
+linked, `forecast`).
+
+`POST /ai/forecast/butchery/freeze` (session) `{"input_lot_no","input_weight_kg","op_date"?,"operator_name"?}`
+stores the forecast of a carcass before its parts are weighed (`butchery_forecast`,
+`butchery_forecast_part`): `201` with the frozen forecast. It never changes afterwards (database
+triggers), the time is the server's, and a carcass gets at most one, so no forecast can be picked
+after the outcome: `409 FORECAST_FROZEN` (details: the existing one), `409 FORECAST_TOO_LATE` once
+the carcass is cut. Validation as for the preview. The posted operation is compared with it (above);
+`ml-engine/field_audit_export.sql` exports a linked operation with its frozen forecast only, the only
+butchery forecast that can precede the weighing in `ml-engine/audit_field.py`.
 
 ## Task 3: traceability and recall
 

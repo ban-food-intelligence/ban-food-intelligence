@@ -366,10 +366,20 @@ interval but inside the 98 % band.
 
 - Both studies now run in the Go API. Study B's expected weight per part is shown live in the
   dashboard's butchery form, and the API verdict (model, baseline, actual, interval, anomaly) after
-  *Check* or *Save*. The forecast stored with a posted operation is still computed in the same
-  request as the actuals, so it is not a frozen pre-weighing forecast and cannot serve as
-  prospective field evidence. `TestIntegrationButcheryLiveForecast` verifies preview, dry run, stored
+  *Check* or *Save*. The forecast stored with a posted operation (`ml_prediction`) is computed in
+  the same request as the actuals, so it cannot serve as prospective field evidence.
+  `TestIntegrationButcheryLiveForecast` verifies preview, dry run, stored
   model/baseline/actual/interval/anomaly rows, `/ai/summary`, and rollback on a failed record.
+- A butchery forecast becomes prospective only when it is frozen before the parts are weighed
+  (*Freeze forecast* in the form, `POST /ai/forecast/butchery/freeze`). The frozen forecast never
+  changes, carries the server time, and a carcass gets one, made before it is cut; the posted
+  operation links to it and is compared with it. The field audit export then uses only the frozen
+  forecast for that operation, and `audit_field.py` excludes one frozen for another input weight.
+  Freezing is a precondition, not proof: the scale record must still show the weighing came after
+  `frozen_at`, and no verified field operation exists yet. The form only offers the freeze while no
+  part weight is entered; it cannot know whether the parts were already weighed.
+  `TestIntegrationFrozenButcheryForecast`, `database-mysql/tests/test_frozen_butchery_forecast.py`
+  and the e2e test *a forecast frozen before weighing…* cover it.
 - A production extrapolation with a nonpositive lower package bound or output exceeding the
   material mass is withheld (`forecast` null/absent). This guard prevents invalid arithmetic;
   it is not an estimate of accuracy outside the training distribution.
