@@ -155,6 +155,53 @@ test('butchery form shows the AI expectation per part and the API verdict after 
   await page.screenshot({ path: 'test-results/butchery-forecast.png', fullPage: true });
 });
 
+test('a forecast frozen before weighing is the one the saved butchery is compared with', async ({ page, request }) => {
+  const run = Date.now() % 1_000_000;
+  const day = (n) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  const { token } = await (await request.post(`${api}/auth/session`, { data: { pin: '246813' } })).json();
+  const lot = `KUZU-FZ-${run}`;
+  expect((await request.post(`${api}/purchases`, { headers: { Authorization: `Bearer ${token}` }, data: {
+    receipt_no: `ALS-FZ-${run}`, supplier_code: 'TED-HAY-01', receipt_date: day(0),
+    lines: [{ sku: 'KZ-KARKAS', lot_no: lot, supplier_lot_no: `KUPE-FZ-${run}`, qty: 24, unit_price: 11.8, expiry_date: day(5) }],
+  } })).status()).toBe(201);
+
+  await page.goto('/#butchery');
+  await page.getByRole('button', { name: 'Parçalama kaydet' }).click();
+  await page.getByLabel('İşlem no').fill(`PRC-FZ-${run}`);
+  await page.getByRole('combobox', { name: 'Girdi lotu' }).fill(lot);
+  await page.getByLabel('Giriş (kg)').fill('24');
+  await page.getByRole('button', { name: 'Parçaları tahminden ekle' }).click();
+  await page.getByLabel('Yetkili PIN').fill('246813');
+  const freeze = page.getByRole('button', { name: 'Tahmini dondur' });
+  await expect(freeze).toBeEnabled();
+  // once a weight is entered the forecast would no longer precede the weighing
+  const weights = page.getByRole('textbox', { name: 'Miktar', exact: true });
+  await weights.first().fill('6');
+  await expect(freeze).toBeDisabled();
+  await expect(page.getByText('Ağırlık girildi: bundan sonra dondurulan tahmin')).toBeVisible();
+  await weights.first().fill('');
+  await freeze.click();
+  await expect(page.getByText(/^Tahmin donduruldu: .*24,00 kg için/)).toBeVisible();
+  await expect(freeze).toHaveCount(0);
+
+  const fc = await (await request.get(`${api}/ai/forecast/butchery?input_lot_no=${lot}&input_weight_kg=24&op_date=${day(0)}&operator_name=`)).json();
+  expect(fc.frozen).toMatchObject({ input_weight_kg: 24, frozen_by: expect.any(String) });
+  expect(fc.frozen.op_no).toBeUndefined();
+  const kg = fc.frozen.forecast.parts.map((p) => p.kg);
+  kg[5] = Math.round((24 - kg.slice(0, 5).reduce((a, v) => a + v, 0)) * 1000) / 1000;
+  const lotFor = { but: 'FZB', sirt: 'FZS', omuz: 'FZO', kaburga: 'FZK', kiyma: 'FZY' };
+  const lots = page.getByRole('textbox', { name: 'Çıktı lotu' });
+  for (let i = 0; i < 6; i++) {
+    await weights.nth(i).fill(String(kg[i]).replace('.', ','));
+    if (i < 5) await lots.nth(i).fill(`${lotFor[fc.frozen.forecast.parts[i].part]}-${run}`);
+  }
+  await page.getByRole('button', { name: 'Parçalamayı kaydet' }).click();
+  await expect(page.getByText(/^Dondurulmuş YZ tahmini \(.+\) ve gerçekleşen$/)).toBeVisible();
+  const after = await (await request.get(`${api}/ai/forecast/butchery?input_lot_no=${lot}&input_weight_kg=24`)).json();
+  expect(after.frozen.op_no).toBe(`PRC-FZ-${run}`);
+  await page.screenshot({ path: 'test-results/butchery-frozen.png', fullPage: true });
+});
+
 test('lot card opens from any lot number, walks the chain and hands over to the trace', async ({ page }) => {
   await page.goto('/#lots');
   await expect(page.getByRole('heading', { name: 'Lotlar ve stok' })).toBeVisible();

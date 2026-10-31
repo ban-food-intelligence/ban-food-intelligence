@@ -6,6 +6,8 @@ Unverified/demo data are never included in field metrics. This program does not 
 rewrite forecasts, infer data origin from source='db', or infer independent carcasses from
 six correlated part rows. Source attestations and physical observation times must be supplied
 from verified field records; database booking timestamps alone cannot prove those facts.
+A butchery forecast can only precede the weighing if it was frozen beforehand
+(forecast_source 'butchery_forecast'); one stored with the operation never does.
 """
 from __future__ import annotations
 
@@ -57,6 +59,12 @@ def paired_rows(rows):
         if any(r.get('stored_actual') is not None and (not number(r['stored_actual']) or
                 abs(r['stored_actual'] - r['actual']) > 0.0001) for r in (model, baseline)):
             exclusions['stale_stored_actual'] += 1
+            continue
+        # A forecast frozen for another input weight than the one cut forecasts a different carcass.
+        if any(r.get('forecast_input_kg') is not None and (not number(r['forecast_input_kg']) or
+                not number(r.get('outcome_input_kg')) or abs(r['forecast_input_kg'] - r['outcome_input_kg']) > 0.0005)
+               for r in (model, baseline)):
+            exclusions['forecast_input_differs'] += 1
             continue
         paired.append((model, baseline))
     return paired, dict(exclusions)
@@ -142,6 +150,7 @@ def audit(rows, origins):
         except (ValueError, TypeError):
             before = False
         item['targets'].append({'target': model['target'], 'model_version': model['version'],
+            'forecast_source': model.get('forecast_source', 'unknown'),
             'both_forecasts_before_inventory_booking': before,
             'model_predicted_at': model.get('predicted_at'), 'outcome_booked_at': model.get('outcome_booked_at'),
             'field_exclusion': reason})

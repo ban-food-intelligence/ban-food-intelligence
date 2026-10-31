@@ -62,6 +62,22 @@ class FieldAuditTests(unittest.TestCase):
         self.assertEqual(metric['rows'], 6)
         self.assertEqual(metric['independent_operations'], 1)
 
+    def test_forecast_frozen_before_weighing_can_pass_the_field_gates(self):
+        rows = [dict(r, forecast_source='butchery_forecast', forecast_input_kg=25.0, outcome_input_kg=25.0)
+                for r in pair(ref_type='butchery_operation', target='but_kg')]
+        report = A.audit(rows, {'butchery_operation:OP-1': verified()})
+        self.assertEqual(report['status'], 'DESCRIPTIVE_FIELD_METRICS_ONLY')
+        target = report['operations']['butchery_operation:OP-1']['targets'][0]
+        self.assertEqual(target['forecast_source'], 'butchery_forecast')
+        self.assertIsNone(target['field_exclusion'])
+
+    def test_forecast_frozen_for_another_weight_is_not_scored(self):
+        rows = [dict(r, forecast_source='butchery_forecast', forecast_input_kg=25.4, outcome_input_kg=25.0)
+                for r in pair(ref_type='butchery_operation', target='but_kg')]
+        report = A.audit(rows, {'butchery_operation:OP-1': verified()})
+        self.assertEqual(report['invalid_pair_counts'], {'forecast_input_differs': 1})
+        self.assertEqual(report['field_metrics'], {})
+
     def test_duplicate_versions_are_not_cherry_picked(self):
         rows = pair()
         rows.append(copy.deepcopy(rows[0]))

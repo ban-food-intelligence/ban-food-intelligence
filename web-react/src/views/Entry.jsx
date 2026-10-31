@@ -256,6 +256,22 @@ const signedKg = (fmt, v) => {
   return `${r > 0 ? '+' : ''}${fmt.num(r === 0 ? 0 : r, 2)} kg`;
 };
 
+/**
+ * The forecast the form compares with and the freeze control: a frozen forecast wins over the live
+ * one; a forecast can be frozen only while no part weight is entered, i.e. before the weighing.
+ */
+export function freezeState(fc, inputKg, outputs) {
+  const frozen = fc?.frozen || null;
+  const weighed = outputs.some((o) => String(o.weight_kg).trim() !== '');
+  return {
+    frozen,
+    shown: frozen?.forecast || fc,
+    otherKg: !!frozen && !(Math.abs(frozen.input_weight_kg - inputKg) < 0.0005),
+    weighed,
+    canFreeze: !frozen && !!fc?.parts?.length && !weighed,
+  };
+}
+
 /** Expected weight (AI) of a part with its 80 % interval and, once weighed, the live deviation. */
 function ExpectedCell({ part, actual }) {
   const { t, fmt } = useLang();
@@ -310,7 +326,8 @@ export function ButcheryForm({ onDone, onCancel }) {
       `&op_date=${encodeURIComponent(head.op_date)}&operator_name=${encodeURIComponent(head.operator_name.trim())}`
     : null;
   const forecast = useApi(useDebounced(fcQuery, 400));
-  const fcParts = forecast.data?.parts || [];
+  const fz = freezeState(forecast.data, input, outputs);
+  const fcParts = fz.shown?.parts || [];
   // each part is shown once, on its first row; the deviation uses all rows of that part
   const firstRowOf = new Map();
   outputs.forEach((o, i) => {
@@ -354,6 +371,12 @@ export function ButcheryForm({ onDone, onCancel }) {
         onDone?.();
       }
     }
+  };
+
+  // stores the forecast before the parts are weighed; it never changes afterwards
+  const freeze = async () => {
+    const body = { input_lot_no: lotNo, input_weight_kg: input, op_date: head.op_date, operator_name: head.operator_name.trim() };
+    if (await run(() => apiWrite('/ai/forecast/butchery/freeze', body, pin))) forecast.reload();
   };
 
   const posted = result?.status === 'POSTED';
@@ -463,7 +486,20 @@ export function ButcheryForm({ onDone, onCancel }) {
             </table>
           </div>
           {fe.outputs && <p className="field-error entry-pad">{fe.outputs}</p>}
-          {fcParts.length > 0 && <p className="cell-sub entry-pad">{t('en_expectedNote', fmt.num(100 * forecast.data.interval_level, 0))}</p>}
+          {fcParts.length > 0 && <p className="cell-sub entry-pad">{t('en_expectedNote', fmt.num(100 * fz.shown.interval_level, 0))}</p>}
+          {fz.frozen && (
+            <p className="notice notice-ok entry-pad">
+              {fz.frozen.op_no
+                ? t('en_frozenLinked', fz.frozen.op_no)
+                : t('en_frozenAt', fmt.dateTime(fz.frozen.frozen_at), fmt.qty(fz.frozen.input_weight_kg, 'KG'), fz.frozen.frozen_by)}
+            </p>
+          )}
+          {fz.frozen && fz.otherKg && !fz.frozen.op_no && (
+            <p className="notice notice-bad entry-pad">{t('en_frozenOtherKg', fmt.qty(fz.frozen.input_weight_kg, 'KG'), fmt.qty(Number.isNaN(input) ? null : input, 'KG'))}</p>
+          )}
+          {!fz.frozen && fcParts.length > 0 && (
+            <p className="cell-sub entry-pad">{t(fz.weighed ? 'en_freezeWeighed' : 'en_freezeHint')}</p>
+          )}
         </fieldset>
 
         <div className="kpi-row">
@@ -491,6 +527,9 @@ export function ButcheryForm({ onDone, onCancel }) {
             onCancel={onCancel}
             actions={
               <>
+                {!fz.frozen && fcParts.length > 0 && (
+                  <button type="button" className="btn-text" onClick={freeze} disabled={busy || pin.length < 4 || !fz.canFreeze}>{t('en_freeze')}</button>
+                )}
                 <button type="button" className="btn-text" onClick={() => send(true)} disabled={busy || pin.length < 4}>{t('en_check')}</button>
                 <button type="submit" className="btn-primary" disabled={busy || pin.length < 4 || !balanced}>{t('en_saveButchery')}</button>
               </>
@@ -532,18 +571,25 @@ function ButcheryResult({ res }) {
           </tr>
         }
       />
-      {res.forecast && <ButcheryForecastTable fc={res.forecast} />}
+      {res.frozen_forecast ? <ButcheryForecastTable fc={res.frozen_forecast.forecast} frozen={res.frozen_forecast} inputKg={res.weight_check?.input_kg} />
+        : res.forecast && <ButcheryForecastTable fc={res.forecast} />}
     </>
   );
 }
 
-/** The API's verdict per part: model and baseline against the recorded weight (anomaly = outside the 98 % band). */
-function ButcheryForecastTable({ fc }) {
+/**
+ * The API's verdict per part: model and baseline against the recorded weight (anomaly = outside the
+ * 98 % band). With frozen, the forecast stored before the weighing; otherwise one computed with the record.
+ */
+function ButcheryForecastTable({ fc, frozen, inputKg }) {
   const { t, fmt } = useLang();
   const dev = (p) => (p.actual_kg == null ? '–' : signedKg(fmt, p.actual_kg - p.kg));
   return (
     <>
-      <h3 className="sub-title">{t('en_fcTitle')}</h3>
+      <h3 className="sub-title">{frozen ? t('en_fcFrozenTitle', fmt.dateTime(frozen.frozen_at)) : t('en_fcTitle')}</h3>
+      {frozen?.input_matches === false && (
+        <p className="notice notice-bad">{t('en_frozenOtherKg', fmt.qty(frozen.input_weight_kg, 'KG'), fmt.qty(inputKg, 'KG'))}</p>
+      )}
       <Table
         rows={fc.parts}
         rowKey={(p) => p.part}
@@ -560,7 +606,7 @@ function ButcheryForecastTable({ fc }) {
           },
         ]}
       />
-      <p className="group-footer">{t('en_fcFooter', fmt.num(100 * fc.interval_level, 0))}</p>
+      <p className="group-footer">{t('en_fcFooter', fmt.num(100 * fc.interval_level, 0))}{frozen ? '' : ` ${t('en_fcNotFrozen')}`}</p>
     </>
   );
 }
