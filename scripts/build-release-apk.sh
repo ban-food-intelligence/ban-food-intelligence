@@ -28,7 +28,8 @@ fi
 APK=$APP/build/outputs/apk/release/app-release.apk
 [ -f "$APK" ] || APK=$APP/build/outputs/apk/release/mobile-kotlin-release.apk
 mkdir -p dist-apk
-OUT=dist-apk/ban-shop-pos-v1.0.0-demo.apk
+VER=$(sed -n 's/.*versionName = "\([0-9.]*\).*/\1/p' $APP/build.gradle.kts)
+OUT=dist-apk/ban-shop-pos-v${VER}-demo.apk
 cp "$(ls $APP/build/outputs/apk/release/*.apk | head -1)" "$OUT"
 
 # Secret check: the NVIDIA key from local.properties must not appear anywhere in the APK.
