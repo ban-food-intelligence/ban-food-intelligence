@@ -68,9 +68,12 @@ func main() {
 	sessions := controllers.NewSessionManager()
 	authCtrl := controllers.NewSupervisorAuthController(db).WithSessions(sessions)
 	entryCtrl := controllers.NewEntryController(db)
-	// Back-office writes need a supervisor session (POST /auth/session); reads stay open.
+	// Back-office writes need a supervisor session (POST /auth/session) with a role that may do
+	// them; reads stay open. ADMIN may do everything, VIEWER nothing.
 	// The POS only writes through /sync (ECDSA-signed) and /auth/supervisor/verify.
-	op := sessions.RequireOperator
+	op := sessions.RequireRoles(controllers.RoleOperator)     // stock, production, butchery, shipments
+	quality := sessions.RequireRoles(controllers.RoleQuality) // recall and alerts
+	admin := sessions.RequireRoles()                          // ADMIN only
 	movementsCtrl := controllers.NewMovementsController(db)
 	shipmentCtrl := controllers.NewShipmentController(db)
 	aiCtrl := controllers.NewAIController(db)
@@ -107,10 +110,10 @@ func main() {
 	mux.HandleFunc("/butchery/operations", op(entryCtrl.ButcheryOperation))
 
 	// Task 3: Recursive Lot Traceability & Emergency Recall
-	mux.HandleFunc("/recall", op(recallCtrl.TriggerRecall))
+	mux.HandleFunc("/recall", quality(recallCtrl.TriggerRecall))
 	mux.HandleFunc("/recall/contacts.csv", recallCtrl.ContactsCSV)
 	mux.HandleFunc("/recall/progress", recallCtrl.Progress)
-	mux.HandleFunc("/recall/followup", op(recallCtrl.Followup))
+	mux.HandleFunc("/recall/followup", quality(recallCtrl.Followup))
 	mux.HandleFunc("/shipments", getOrPost(shipmentCtrl.List, op(shipmentCtrl.Create)))
 	mux.HandleFunc("/customers", shipmentCtrl.Customers)
 	mux.HandleFunc("/trace/", traceCtrl.TraceHandler)
@@ -142,13 +145,13 @@ func main() {
 
 	// Alert inbox: yield, purchase cost and refused POS sales; reviewed by a supervisor
 	mux.HandleFunc("/alerts", alertCtrl.List)
-	mux.HandleFunc("/alerts/review", op(alertCtrl.Review))
-	mux.HandleFunc("/alerts/rules", getOrPost(alertCtrl.Rules, op(alertCtrl.UpdateRule)))
-	mux.HandleFunc("/alerts/missed", op(alertCtrl.Missed))
+	mux.HandleFunc("/alerts/review", quality(alertCtrl.Review))
+	mux.HandleFunc("/alerts/rules", getOrPost(alertCtrl.Rules, quality(alertCtrl.UpdateRule)))
+	mux.HandleFunc("/alerts/missed", quality(alertCtrl.Missed))
 
 	// Offline Edge POS Synchronization (Hardware ECDSA P-256 + UUIDv7 Idempotency)
 	mux.HandleFunc("/sync", syncCtrl.IngestOutbox)
-	mux.HandleFunc("/sync/register-key", op(syncCtrl.RegisterDeviceKey))
+	mux.HandleFunc("/sync/register-key", admin(syncCtrl.RegisterDeviceKey))
 
 	port := os.Getenv("PORT")
 	if port == "" {

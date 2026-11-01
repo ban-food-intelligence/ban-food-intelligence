@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiWrite, useApi } from '../lib/api';
+import { apiWrite, currentSession, useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { ErrorState, Group, Kpi, Mono, Pill, Segmented, Table } from '../lib/ui';
 import { LotLink } from './LotPanel';
@@ -34,10 +34,28 @@ function CellInput({ error, ...props }) {
 }
 
 /** PIN + submit row; the same rules as the recall confirmation. */
+/** Who the last back-office write was made as, and with which role (from POST /auth/session). */
+export function SessionBadge() {
+  const { t } = useLang();
+  const [s, setS] = useState(currentSession);
+  useEffect(() => {
+    const update = () => setS(currentSession());
+    window.addEventListener('session:changed', update);
+    return () => window.removeEventListener('session:changed', update);
+  }, []);
+  if (!s) return null;
+  return (
+    <span className="session-badge muted" data-role={s.role}>
+      {t('signedInAs', s.displayName || s.username, t(`role_${s.role}`))}
+    </span>
+  );
+}
+
 function SubmitBar({ pin, setPin, busy, onCancel, actions }) {
   const { t } = useLang();
   return (
     <div className="entry-submit">
+      <SessionBadge />
       <label className="pin-field">
         <span>{t('supervisorPin')}</span>
         <input

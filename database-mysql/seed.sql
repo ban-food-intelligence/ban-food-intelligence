@@ -45,10 +45,14 @@ INSERT INTO supplier (code, name, supplier_type, contact_person, phone, email, a
   ('FAS-01',     'Örnek Fason Sucuk Üretim',     'SUBCONTRACTOR', 'Üretim Müdürü',    '+90 212 000 00 04', 'uretim@fason.example',        'Afyon'),
   ('TED-HAY-01', 'Örnek Besi Çiftliği',          'LIVESTOCK',     'Çiftlik Sahibi',   '+90 212 000 00 05', 'ciftlik@besi.example',        'Balıkesir');
 
--- POS kilit açma yetkilisi (yalnızca demo). PIN yalnızca bcrypt özeti olarak saklanır;
--- demo PIN'i README.md "Demo credentials" bölümündedir.
-INSERT INTO supervisor (username, display_name, pin_hash) VALUES
-  ('kalite_muduru', 'Kalite Müdürü (demo)', '$2a$12$63SzM09Iqm1GeXxrWgoRJ.NDhh31OV2JaNWWY2fKHi0nzfBmdD3E2');
+-- Back-office kullanıcıları (yalnızca demo). PIN yalnızca bcrypt özeti olarak saklanır;
+-- demo PIN'leri README.md "Demo credentials" bölümündedir. kalite_muduru tam yetkilidir
+-- (demo akışının tamamı tek PIN ile yürür); diğerleri rol ayrımını göstermek içindir.
+INSERT INTO supervisor (username, display_name, role, pin_hash) VALUES
+  ('kalite_muduru', 'Kalite Müdürü (demo)',      'ADMIN',    '$2a$12$63SzM09Iqm1GeXxrWgoRJ.NDhh31OV2JaNWWY2fKHi0nzfBmdD3E2'),
+  ('kalite_uzmani', 'Kalite Uzmanı (demo)',      'QUALITY',  '$2a$12$aDoWEqnQ4UhG13ZPE4Y4M.ZtsIDM.TVsAkOCr0oS/hWfb/kuFuOE6'),
+  ('uretim_sefi',   'Üretim Şefi (demo)',        'OPERATOR', '$2a$12$CiL3gk8TdOtFELikX0tyy.7C3g5JzRX1qdJ3eTg2SgF.PATOR.Zqq'),
+  ('denetci',       'Denetçi, salt okur (demo)', 'VIEWER',   '$2a$12$PSprPHM3S0bMpKgAWhpWveEO0cBxNP60zlQlM4voZo/DbCZPxooEO');
 
 INSERT INTO customer (code, name, customer_type, contact_person, phone, email, address) VALUES
   ('MKT-A', 'Market A', 'MARKET', 'Şube Müdürü A', '+90 216 000 00 0A', 'market-a@musteri.example', 'Kadıköy'),

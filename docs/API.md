@@ -38,10 +38,22 @@ TOKEN=$(curl -s -X POST localhost:8080/auth/session -d '{"pin":"246813"}' | jq -
 curl -X POST localhost:8080/recall -H "Authorization: Bearer $TOKEN" -d '{"trigger_lot":"ET-2026-001"}'
 ```
 
-`POST /auth/session` `{"pin","device_id"?}` → `200 {"token","token_type":"Bearer","expires_at","username","display_name"}`
-(30 minutes); `401 INVALID_PIN` / `429 LOCKED_OUT` as for the supervisor unlock. Protected:
-`POST /recall`, `/movements/transfer|return|waste`, `/rework`, `/production`, `/production/orders`,
-`/purchases`, `/butchery/operations`, `/ai/forecast/butchery/freeze`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
+`POST /auth/session` `{"pin","device_id"?}` → `200 {"token","token_type":"Bearer","expires_at","username","display_name","role"}`
+(30 minutes); `401 INVALID_PIN` / `429 LOCKED_OUT` as for the supervisor unlock. The PIN identifies
+the user; the user's role (`supervisor.role`) is signed into the token. Without a valid token:
+`401 AUTH_REQUIRED`; with a role that may not do the write: `403 FORBIDDEN`
+`{"details":{"role":"OPERATOR","allowed_roles":["ADMIN","QUALITY"]}}`.
+
+| Role | May write |
+|---|---|
+| `ADMIN` | everything |
+| `QUALITY` | `POST /recall`, `/recall/followup`, `/alerts/review`, `/alerts/rules`, `/alerts/missed`; releases the POS recall lock (`/auth/supervisor/verify`) |
+| `OPERATOR` | `POST /purchases`, `/production`, `/production/orders`, `/butchery/operations`, `/ai/forecast/butchery/freeze`, `/movements/transfer\|return\|waste`, `/rework`, `/shipments`, `/stock-counts` |
+| `VIEWER` | nothing (reads are open to everybody anyway) |
+
+`POST /sync/register-key` is `ADMIN` only. A role change takes effect at the next sign-in.
+`POST /auth/supervisor/verify` with a correct PIN of an `OPERATOR` or `VIEWER` is `403 FORBIDDEN`
+and audited as `SUPERVISOR_UNLOCK_FORBIDDEN`.
 The recall initiator and the movements' `created_by` are the signed-in supervisor.
 
 Limits for every request: body ≤ 1 MiB (`413 PAYLOAD_TOO_LARGE`), 20 requests/s per client IP

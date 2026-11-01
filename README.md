@@ -112,7 +112,10 @@ Optional, in the gitignored `mobile-kotlin/local.properties`:
 |---|---|---|
 | Phone supervisor PIN (Android POS) | `246813` | Releases the recall stop screen on the phone. Five wrong PINs lock the device (ten per client IP) for 5 minutes. The app's offline fallback uses a PBKDF2 hash from the gitignored `local.properties`; without it, unlock works online only. |
 | Dashboard PIN (recall + back-office forms) | `246813` | Same supervisor PIN. Asked when starting a recall and when recording a receipt or butchery operation on the dashboard; for the API, `POST /auth/session` with this PIN returns the bearer token for back-office writes. |
-| Both | | Demo value only. MySQL stores only its bcrypt hash (`supervisor.pin_hash`). |
+| Role demo: quality | `314159` | `kalite_uzmani`, role **QUALITY**: recall, recall follow-up, alerts, POS unlock. Cannot record stock or production (`403 FORBIDDEN`). |
+| Role demo: operations | `271828` | `uretim_sefi`, role **OPERATOR**: purchases, production, butchery, movements, shipments, stock counts. Cannot start a recall or unlock the POS. |
+| Role demo: read only | `161803` | `denetci`, role **VIEWER**: can sign in, every write is refused. |
+| All | | `246813` is `kalite_muduru` with role **ADMIN** (everything), so the whole demo runs on one PIN. Demo values only. MySQL stores only bcrypt hashes (`supervisor.pin_hash`). |
 | MySQL | `root` / `ban` | Local docker compose only. |
 
 The previous supervisor PIN was committed in plain text in earlier history; it is considered

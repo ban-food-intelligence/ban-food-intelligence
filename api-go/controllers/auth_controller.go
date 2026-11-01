@@ -43,6 +43,7 @@ type SupervisorVerifyResponse struct {
 	OK          bool      `json:"ok"`
 	Username    string    `json:"username"`
 	DisplayName string    `json:"display_name"`
+	Role        string    `json:"role"`
 	UnlockedAt  time.Time `json:"unlocked_at"`
 }
 
@@ -82,12 +83,18 @@ func (c *SupervisorAuthController) Verify(w http.ResponseWriter, r *http.Request
 	details, _ := json.Marshal(map[string]string{
 		"device_id": req.DeviceID, "lot_no": req.LotNo, "recall_code": req.RecallCode,
 	})
-	_, username, display, ok := c.checkPIN(w, r, req.PIN, req.DeviceID, "terminal_lock", "SUPERVISOR_UNLOCK", details)
+	id, username, display, role, ok := c.checkPIN(w, r, req.PIN, req.DeviceID, "terminal_lock", "SUPERVISOR_UNLOCK", details)
 	if !ok {
 		return
 	}
+	// The PIN was right, but only quality (or an admin) may release a recall lock on the till.
+	if role != RoleAdmin && role != RoleQuality {
+		c.audit(r, "terminal_lock", id, "SUPERVISOR_UNLOCK_FORBIDDEN", details, username)
+		writeAPIError(w, r, http.StatusForbidden, "FORBIDDEN", map[string]interface{}{"role": role, "allowed_roles": []string{RoleAdmin, RoleQuality}})
+		return
+	}
 	log.Printf("[INFO] [AUTH] supervisor=%s unlocked device=%s lot=%s recall=%s", username, req.DeviceID, req.LotNo, req.RecallCode)
-	writeJSON(w, SupervisorVerifyResponse{OK: true, Username: username, DisplayName: display, UnlockedAt: c.now().UTC()})
+	writeJSON(w, SupervisorVerifyResponse{OK: true, Username: username, DisplayName: display, Role: role, UnlockedAt: c.now().UTC()})
 }
 
 // OperatorSessionResponse is the body of a successful POST /auth/session.
@@ -97,6 +104,7 @@ type OperatorSessionResponse struct {
 	ExpiresAt   time.Time `json:"expires_at"`
 	Username    string    `json:"username"`
 	DisplayName string    `json:"display_name"`
+	Role        string    `json:"role"` // ADMIN | QUALITY | OPERATOR | VIEWER
 }
 
 // Session handles POST /auth/session {pin, device_id?}: a supervisor PIN (same lockout as
@@ -113,13 +121,17 @@ func (c *SupervisorAuthController) Session(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	details, _ := json.Marshal(map[string]string{"device_id": req.DeviceID, "client_ip": ClientIP(r)})
-	_, username, display, ok := c.checkPIN(w, r, req.PIN, req.DeviceID, "operator_session", "OPERATOR_SESSION", details)
+	_, username, display, role, ok := c.checkPIN(w, r, req.PIN, req.DeviceID, "operator_session", "OPERATOR_SESSION", details)
 	if !ok {
 		return
 	}
-	token, exp := c.sessions.Issue(username)
-	log.Printf("[INFO] [AUTH] operator session for %s from %s", username, ClientIP(r))
-	writeJSON(w, OperatorSessionResponse{Token: token, TokenType: "Bearer", ExpiresAt: exp, Username: username, DisplayName: display})
+	if !ValidRole(role) {
+		writeAPIError(w, r, http.StatusForbidden, "FORBIDDEN", map[string]string{"role": role})
+		return
+	}
+	token, exp := c.sessions.IssueRole(username, role)
+	log.Printf("[INFO] [AUTH] operator session for %s (%s) from %s", username, role, ClientIP(r))
+	writeJSON(w, OperatorSessionResponse{Token: token, TokenType: "Bearer", ExpiresAt: exp, Username: username, DisplayName: display, Role: role})
 }
 
 type lockKey struct {
@@ -131,7 +143,7 @@ type lockKey struct {
 // device_id does not help), compares the PIN with every active supervisor's bcrypt hash and
 // audits the attempt in audit_log under auditTable. On failure it has already written the
 // 401/429 response.
-func (c *SupervisorAuthController) checkPIN(w http.ResponseWriter, r *http.Request, pin, deviceID, auditTable, action string, details []byte) (int64, string, string, bool) {
+func (c *SupervisorAuthController) checkPIN(w http.ResponseWriter, r *http.Request, pin, deviceID, auditTable, action string, details []byte) (int64, string, string, string, bool) {
 	keys := []lockKey{{"ip:" + ClientIP(r), supervisorMaxFailuresPerIP}}
 	if deviceID != "" {
 		keys = append(keys, lockKey{"dev:" + deviceID, supervisorMaxFailures})
@@ -145,25 +157,25 @@ func (c *SupervisorAuthController) checkPIN(w http.ResponseWriter, r *http.Reque
 	if wait > 0 {
 		w.Header().Set("Retry-After", itoa(int(wait.Seconds())))
 		writeAPIError(w, r, http.StatusTooManyRequests, "LOCKED_OUT", map[string]int{"retry_after_seconds": int(wait.Seconds())})
-		return 0, "", "", false
+		return 0, "", "", "", false
 	}
 
 	rows, err := c.db.QueryContext(r.Context(),
-		`SELECT id, username, display_name, pin_hash FROM supervisor WHERE is_active = TRUE`)
+		`SELECT id, username, display_name, role, pin_hash FROM supervisor WHERE is_active = TRUE`)
 	if err != nil {
 		writeDBError(w, r, err)
-		return 0, "", "", false
+		return 0, "", "", "", false
 	}
 	var matchID int64
-	var username, display string
+	var username, display, role string
 	for rows.Next() {
 		var id int64
-		var u, d, hash string
-		if err := rows.Scan(&id, &u, &d, &hash); err != nil {
+		var u, d, ro, hash string
+		if err := rows.Scan(&id, &u, &d, &ro, &hash); err != nil {
 			continue
 		}
 		if matchID == 0 && bcrypt.CompareHashAndPassword([]byte(hash), []byte(pin)) == nil {
-			matchID, username, display = id, u, d
+			matchID, username, display, role = id, u, d, ro
 		}
 	}
 	rows.Close()
@@ -180,16 +192,16 @@ func (c *SupervisorAuthController) checkPIN(w http.ResponseWriter, r *http.Reque
 			w.Header().Set("Retry-After", itoa(int(supervisorLockout.Seconds())))
 			writeAPIError(w, r, http.StatusTooManyRequests, "LOCKED_OUT",
 				map[string]int{"retry_after_seconds": int(supervisorLockout.Seconds())})
-			return 0, "", "", false
+			return 0, "", "", "", false
 		}
 		writeAPIError(w, r, http.StatusUnauthorized, "INVALID_PIN", map[string]int{"attempts_left": left})
-		return 0, "", "", false
+		return 0, "", "", "", false
 	}
 	for _, k := range keys {
 		c.reset(k.key)
 	}
 	c.audit(r, auditTable, matchID, action, details, username)
-	return matchID, username, display, true
+	return matchID, username, display, role, true
 }
 
 // Audit handles GET /auth/supervisor/audit: the latest unlock attempts (who, when, which lot).

@@ -622,6 +622,9 @@ CREATE TABLE supervisor (
   username      VARCHAR(50)  NOT NULL UNIQUE,
   display_name  VARCHAR(100) NOT NULL,
   pin_hash      VARCHAR(100) NOT NULL,                   -- bcrypt ($2a$/$2b$, cost >= 10)
+  -- Yetki: ADMIN her şey; QUALITY geri çağırma, uyarılar, POS kilidi; OPERATOR stok, üretim,
+  -- parçalama, sevkiyat, sayım; VIEWER yalnızca okur. PIN kişiyi tanımlar, bu yüzden tekildir.
+  role          ENUM('ADMIN','QUALITY','OPERATOR','VIEWER') NOT NULL DEFAULT 'VIEWER',
   is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
   created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   CONSTRAINT ck_sup_hash CHECK (pin_hash LIKE '$2%')

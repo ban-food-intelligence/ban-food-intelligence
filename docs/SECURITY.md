@@ -90,8 +90,10 @@ Notes:
 
 ## Known limitations (prototype)
 
-- **Demo PIN** `246813` is published in the README for the judges; one PIN unlocks everything
-  (no per-user roles yet). The old PIN `590314` is in git history and no longer valid.
+- **Demo PINs** are published in the README for the judges. `246813` is an ADMIN and can do
+  everything; three more demo users show the roles (QUALITY, OPERATOR, VIEWER). A role is
+  checked per endpoint, not per record (no per-warehouse or per-customer scoping), and a role
+  change applies at the next sign-in. The old PIN `590314` is in git history and no longer valid.
 - **HTTP, not HTTPS.** Traffic is local (USB `adb reverse`, emulator, or a LAN in the debug
   build). Signatures protect sale integrity, not confidentiality.
 - **Trust on first use** for POS keys: the first device to sync under a `device_id` pins it.

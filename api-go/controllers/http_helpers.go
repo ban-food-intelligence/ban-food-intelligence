@@ -18,6 +18,7 @@ type APIError struct {
 
 var errorMessages = map[string]map[string]string{
 	"INVALID_INPUT":       {"en": "The request is not valid.", "tr": "İstek geçersiz.", "de": "Die Anfrage ist ungültig."},
+	"FORBIDDEN":           {"en": "Your role may not do this.", "tr": "Rolünüz bu işlem için yetkili değil.", "de": "Ihre Rolle darf diese Aktion nicht ausführen."},
 	"NOT_FOUND":           {"en": "Record not found.", "tr": "Kayıt bulunamadı.", "de": "Datensatz nicht gefunden."},
 	"LOT_NOT_FOUND":       {"en": "Lot not found.", "tr": "Lot bulunamadı.", "de": "Charge nicht gefunden."},
 	"METHOD_NOT_ALLOWED":  {"en": "This method is not allowed here.", "tr": "Bu işlem burada kullanılamaz.", "de": "Diese Methode ist hier nicht erlaubt."},

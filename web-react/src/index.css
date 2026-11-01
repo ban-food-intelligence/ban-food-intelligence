@@ -315,6 +315,7 @@ button { font: inherit; cursor: pointer; }
 .cell-input.invalid, .field input[aria-invalid='true'] { border-color: var(--bad); }
 .entry-submit { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 4px 16px 12px; border-top: 1px solid var(--separator); }
 .entry-submit .confirm-actions { margin-top: 10px; align-items: center; }
+.session-badge { flex-basis: 100%; font-size: 12px; padding-top: 8px; }
 .recall-progress { border-top: 1px solid var(--separator); padding: 14px 16px; }
 .recall-progress summary { cursor: pointer; font-weight: 600; color: var(--accent); }
 .recall-progress > .muted { margin: 10px 0; max-width: 80ch; }
