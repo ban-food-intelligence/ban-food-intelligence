@@ -138,6 +138,14 @@ POS satışı için `sale.sale_uuid` (UUIDv7) benzersizdir; aynı outbox paketi 
 `sync_inbox.event_uuid` birincil anahtarı tekrar işlemeyi engeller. `sale_line` eklenince tetikleyici
 SALE stok hareketini yazar ve satırın `stock_movement_id`'sine bağlar.
 
+## Ana veri API'sine geçiş
+
+Mevcut kurulumda önce önceki migration dosyalarını, ardından
+`migrations/20261102_master_data.sql` dosyasını uygulayın. Bu dosya
+`v_butchery_cost_allocation` görünümüne SKU ekler; API, adı değiştirilen ürünün kayıtlı
+maliyetini SKU ile bulur. Migration stok veya demo kayıtlarını sıfırlamaz. Temiz kurulumdaki
+`schema.sql` bu görünümü zaten içerir. Uygulama: [API ana veriler](../docs/API.md#master-data).
+
 ## KI anomali uyarıları (API için)
 
 Üretici: `ml-engine/anomaly_ali.py` + `predict_ali.py --emit-sql` (yöntem ve ölçüm:

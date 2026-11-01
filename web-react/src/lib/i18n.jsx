@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { setApiLanguage } from './api';
+import { masterDataText } from './masterDataText';
 
 // Terms follow docs/GLOSSARY.md.
 export const DICT = {
   tr: {
+    ...masterDataText.tr,
     dr_title: 'Geri çağırma tatbikatı', dr_note: 'Tatbikat bir lotun izlenebilirlik testidir: lotlar bloke edilmez, stok ve geri çağırma kayıtları değişmez. İleri/geri iz ve kütle dengesi başlangıçta bulunduğu haliyle saklanır. Sonucu sistem hesaplar: her miktar belgeyle açıklanmış, her müşteriye ulaşılmış ve hedef süre aşılmamışsa Geçti. Kayıt sonradan değiştirilemez.',
     dr_start: '{0} için tatbikat başlat', dr_confirm: '{0} için tatbikat başlatılsın mı? Süre şimdi başlar. Lot satışa açık kalır.',
     dr_targetLabel: 'Hedef süre (dakika)', dr_badTarget: '1 ile 10080 arasında tam dakika', dr_noteLabel: 'Not (ör. yıllık test, denetçi)', dr_begin: 'Tatbikatı başlat',
@@ -228,6 +230,7 @@ export const DICT = {
     en_fcNotFrozen: 'Bu tahmin kayıtla birlikte hesaplandı, tartımdan önce dondurulmadı; saha doğruluğuna kanıt sayılmaz.',
   },
   en: {
+    ...masterDataText.en,
     dr_title: 'Recall drill', dr_note: 'A drill is a traceability test of one lot: nothing is blocked, stock and recall records stay as they are. The forward/backward trace and the mass balance are kept as found at the start. The system computes the result: Pass when every quantity is documented, every customer was reached and the target time was kept. The record cannot be changed afterwards.',
     dr_start: 'Start drill for {0}', dr_confirm: 'Start a drill for {0}? The clock starts now. The lot stays on sale.',
     dr_targetLabel: 'Target time (minutes)', dr_badTarget: 'Whole minutes from 1 to 10080', dr_noteLabel: 'Note (e.g. annual test, auditor)', dr_begin: 'Start drill',

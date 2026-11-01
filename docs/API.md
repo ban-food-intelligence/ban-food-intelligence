@@ -42,8 +42,63 @@ curl -X POST localhost:8080/recall -H "Authorization: Bearer $TOKEN" -d '{"trigg
 (30 minutes); `401 INVALID_PIN` / `429 LOCKED_OUT` as for the supervisor unlock. Protected:
 `POST /recall`, `/recall/followup`, `/recall/drills`, `/recall/drills/contact`, `/recall/drills/close`,
 `/movements/transfer|return|waste`, `/rework`, `/production`, `/production/orders`, `/purchases/invoice`,
-`/purchases`, `/butchery/operations`, `/ai/forecast/butchery/freeze`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
+`/purchases`, `/butchery/operations`, `/products`, `/products/update`, `/units`,
+`/suppliers`, `/suppliers/update`, `/customers`, `/customers/update`, `/butchery/recipes`,
+`/ai/forecast/butchery/freeze`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
 The recall initiator and the movements' `created_by` are the signed-in supervisor.
+
+## Master data
+
+Reads are public; writes below require the supervisor bearer token. A create returns `201` and the
+saved card; an update returns `200`. Duplicate codes return `409 CONFLICT`, unknown update codes
+`404 NOT_FOUND`, validation `422 INVALID_INPUT` with field names in `details`. Every successful
+change commits an `audit_log` row with old/new values and the supervisor's identity. Failed changes
+roll back data and audit records together.
+
+| GET | POST create | POST update | Fields |
+|---|---|---|---|
+| `/products` | `/products` | `/products/update` | `sku`, `name`, `product_type`, `uom_code`, nullable `pack_size_kg`, `species`, `standard_purchase_price`, `sale_price`, `shelf_life_days`; `is_active` on update |
+| `/units` | `/units` | none | `code`, `name`, `is_weight` |
+| `/suppliers` | `/suppliers` | `/suppliers/update` | `code`, `name`, `type`, `contact_person`, `phone`, `email`, `address` |
+| `/customers` | `/customers` | `/customers/update` | same partner fields |
+| `/butchery/recipes` | `/butchery/recipes` | none | `code`, `name`, `species`, `default_allocation`, `lines[]` |
+
+Product types: `RAW_MATERIAL`, `FINISHED_GOOD`, `CARCASS`, `CUT`, `BY_PRODUCT`, `WASTE`.
+Supplier types: `RAW_MATERIAL`, `SUBCONTRACTOR`, `LIVESTOCK`. Customer types: `MARKET`,
+`WHOLESALER`, `RESTAURANT`, `WALK_IN`. Partner responses also retain `supplier_type` or
+`customer_type` for existing consumers, and include the read-only `documents` count.
+
+Products are created active. A product used by lots or recipe lines keeps its unit/type (`409`
+otherwise); list responses include read-only `lots` and `recipes` counts. A changed standard price
+does not update existing lot costs. Inactive cards remain visible but cannot be used for a new
+purchase. A supplier used by lots, receipts or production orders keeps its type. Partner contact
+changes appear in shipment/recall reports through the recorded partner ID.
+
+Units are append-only (code: 1–10 A–Z letters). Recipes are versioned by **new code**, with no update
+endpoint. Each line has `sku`, `output_kind` (`CUT`, `BY_PRODUCT`, `WASTE`), `expected_yield_pct`
+and nullable `value_price_per_kg`. Products must be active, in `KG`, and of the specified type.
+SKUs are unique within a recipe, 1–30 lines, yields total 100% ±1 percentage point; non-waste lines
+need a positive value price. Waste receives no cost.
+
+```json
+{
+  "code": "REC-KUZU-V2", "name": "Kuzu reçetesi v2", "species": "KUZU",
+  "default_allocation": "QUANTITY",
+  "lines": [
+    { "sku": "KZ-BUT", "output_kind": "CUT", "expected_yield_pct": 90, "value_price_per_kg": 22 },
+    { "sku": "KZ-FIRE", "output_kind": "WASTE", "expected_yield_pct": 10, "value_price_per_kg": null }
+  ]
+}
+```
+
+`POST /butchery/operations` accepts `recipe_code` (legacy default `REC-KUZU-STD`); omitted
+`allocation_method` uses that recipe's default. VALUE uses predefined recipe prices, falling back
+to the product sale price for outputs outside the recipe. Stored VALUE allocation bases remain
+stable after later price changes. Outputs are matched by SKU, so renaming a product does not lose
+its allocation. Expected shares never substitute for actual weighed `outputs[].weight_kg`.
+
+Existing databases need `database-mysql/migrations/20261102_master_data.sql` after earlier
+migrations; clean installations include the updated view in `schema.sql`.
 
 Limits for every request: body ≤ 1 MiB (`413 PAYLOAD_TOO_LARGE`), 20 requests/s per client IP
 with a burst of 120 (`429 RATE_LIMITED`, `Retry-After`). See [SECURITY.md](SECURITY.md).

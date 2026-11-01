@@ -1,4 +1,30 @@
-# FEFO, recovery, assessment PDF, alerts, mass balance, stock count, recall drill, invoice reading and lot scan
+# Master data, FEFO, recovery, assessment PDF, alerts, mass balance, stock count, recall drill, invoice reading and lot scan
+
+**Dashboard → Master data:** create and edit product cards (type, unit, purchase/sale prices,
+pack weight, species, shelf life), create units, manage suppliers/customers and their recall contact
+details, and define butchery recipes with a default allocation key. Cards used by lots or recipes
+keep their unit/type; suppliers used in documents keep their type. Product deactivation prevents
+new purchases without hiding historical lots. Every change is audited under the supervisor session.
+Units and recipes cannot be overwritten: **Create new version** copies a recipe into a new code.
+
+The menu groups the screens by the assessment's external production, butchery/sales,
+stock/traceability and AI sections. All new controls have Turkish and English text.
+
+**Butchery → Record butchery:** choose a predefined recipe and **Fill from recipe**. It fills product
+SKUs/output types and the default allocation key; actual weights and output lot numbers stay blank
+for the operator. Existing entries cannot be overwritten by this action. New product cards are
+available immediately, including products without stock. Receipt suggestions likewise use master
+data, so a supplier or raw material needs no earlier receipt to be selectable.
+
+**Stock movements → Customer return:** choose the lot, customer, receiving warehouse (quarantine
+by default), quantity and note. Lots with zero remaining stock are eligible. The API caps returns at
+recorded deliveries minus onward shipments and earlier returns, and books the physical stock only
+when the transaction succeeds. Customer contact acknowledgement remains separate from a return.
+
+Tests: `integration_master_data_test.go` covers costs/audit, immutable units/types, partner contacts,
+recipe validation and both allocation keys after renaming a product; `e2e/master-data.spec.js`
+exercises the forms against MySQL/API, including a complete recipe-based butchery and a return
+from a depleted lot. See [API.md](API.md#master-data) for fields and migration requirements.
 
 ## Use
 

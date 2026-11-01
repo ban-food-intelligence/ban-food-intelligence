@@ -14,7 +14,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const parseNum = (v) => (String(v).trim() === '' ? NaN : Number(String(v).replace(',', '.')));
 const toJsonNum = (v) => (Number.isNaN(parseNum(v)) ? null : parseNum(v));
 
-function Field({ label, error, children, wide }) {
+export function Field({ label, error, children, wide }) {
   return (
     <label className={`field ${wide ? 'field-wide' : ''}`}>
       <span>{label}</span>
@@ -34,7 +34,7 @@ function CellInput({ error, ...props }) {
 }
 
 /** PIN + submit row; the same rules as the recall confirmation. */
-function SubmitBar({ pin, setPin, busy, onCancel, actions }) {
+export function SubmitBar({ pin, setPin, busy, onCancel, actions }) {
   const { t } = useLang();
   return (
     <div className="entry-submit">
@@ -58,7 +58,7 @@ function SubmitBar({ pin, setPin, busy, onCancel, actions }) {
 }
 
 /** Splits an API error into per-field messages (422 INVALID_INPUT) and a general error. */
-function useSubmit() {
+export function useSubmit() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
@@ -190,8 +190,8 @@ function InvoiceReview({ s }) {
 
 export function ReceiptForm({ onDone, onCancel }) {
   const { t, fmt } = useLang();
-  const purchases = useApi('/purchases');
-  const lots = useApi('/lots');
+  const productCards = useApi('/products');
+  const supplierCards = useApi('/suppliers');
   const [head, setHead] = useState({ receipt_no: '', supplier_code: '', receipt_date: today(), invoice_no: '' });
   const [lines, setLines] = useState([emptyLine()]);
   const [pin, setPin] = useState('');
@@ -205,9 +205,9 @@ export function ReceiptForm({ onDone, onCancel }) {
     setInvoice(s);
   };
 
-  const suppliers = unique((purchases.data || []).map((p) => p.supplier_code));
-  const supplierName = Object.fromEntries((purchases.data || []).map((p) => [p.supplier_code, p.supplier_name]));
-  const skus = unique([...(lots.data || []).map((l) => l.sku), ...(purchases.data || []).map((p) => p.sku)]);
+  const suppliers = (supplierCards.data || []).filter((s) => s.type !== 'SUBCONTRACTOR').map((s) => s.code);
+  const supplierName = Object.fromEntries((supplierCards.data || []).map((s) => [s.code, s.name]));
+  const skus = (productCards.data || []).filter((p) => p.is_active && ['RAW_MATERIAL', 'CARCASS'].includes(p.product_type)).map((p) => p.sku);
   const setLine = (i, k, v) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
   const total = lines.reduce((a, l) => a + (parseNum(l.qty) * parseNum(l.unit_price) || 0), 0);
 
@@ -404,18 +404,21 @@ function ExpectedCell({ part, actual }) {
 export function ButcheryForm({ onDone, onCancel }) {
   const { t, fmt } = useLang();
   const lots = useApi('/lots');
+  const products = useApi('/products');
+  const recipes = useApi('/butchery/recipes');
   const [head, setHead] = useState({
     op_no: '', input_lot_no: '', input_weight_kg: '', allocation_method: 'VALUE', op_date: today(),
-    operator_name: '', additional_cost: '', additional_cost_note: '',
+    operator_name: '', additional_cost: '', additional_cost_note: '', recipe_code: 'REC-KUZU-STD',
   });
   const [outputs, setOutputs] = useState([emptyOutput(), emptyOutput('WASTE')]);
   const [pin, setPin] = useState('');
   const [result, setResult] = useState(null); // API response (DRY_RUN or POSTED)
   const { busy, error, fieldErrors: fe, run } = useSubmit();
 
-  const kgLots = (lots.data || []).filter((l) => (l.uom_code || '').toUpperCase() === 'KG' && l.qty > 0);
+  const carcasses = new Set((products.data || []).filter((p) => p.product_type === 'CARCASS').map((p) => p.sku));
+  const kgLots = (lots.data || []).filter((l) => carcasses.has(l.sku) && l.qty > 0);
   const inputLots = unique(kgLots.map((l) => l.lot_no));
-  const skus = unique((lots.data || []).filter((l) => (l.uom_code || '').toUpperCase() === 'KG').map((l) => l.sku));
+  const skus = unique((products.data || []).filter((p) => ['CUT', 'BY_PRODUCT', 'WASTE'].includes(p.product_type) && p.uom_code === 'KG' && p.is_active).map((p) => p.sku));
   const setOut = (i, k, v) => {
     setResult(null);
     setOutputs((os) => os.map((o, j) => (j === i ? { ...o, [k]: v } : o)));
@@ -451,6 +454,13 @@ export function ButcheryForm({ onDone, onCancel }) {
     return rows.length ? rows.reduce((a, o) => a + (parseNum(o.weight_kg) || 0), 0) : null;
   };
   const blankOutputs = outputs.every((o) => !o.sku.trim() && !o.weight_kg.trim() && !o.lot_no.trim());
+  const recipe = (recipes.data || []).find((r) => r.code === head.recipe_code);
+  const outputsFromRecipe = () => {
+    if (!recipe || !blankOutputs) return;
+    setResult(null);
+    setHead((h) => ({ ...h, allocation_method: recipe.default_allocation }));
+    setOutputs(recipe.lines.map((l) => ({ ...emptyOutput(l.output_kind), sku: l.sku })));
+  };
   // prefill the products only; the weights come from the scale, never from the forecast
   const outputsFromForecast = () => {
     setResult(null);
@@ -463,6 +473,7 @@ export function ButcheryForm({ onDone, onCancel }) {
       input_lot_no: head.input_lot_no.trim().toUpperCase(),
       input_weight_kg: toJsonNum(head.input_weight_kg),
       allocation_method: head.allocation_method,
+      recipe_code: head.recipe_code,
       op_date: head.op_date,
       operator_name: head.operator_name.trim(),
       additional_cost: toJsonNum(head.additional_cost) ?? 0,
@@ -527,6 +538,16 @@ export function ButcheryForm({ onDone, onCancel }) {
             )}
           </div>
           <div className="toolbar entry-tight">
+            <Field label={t('en_recipe')} error={fe.recipe_code}>
+              <select value={head.recipe_code} onChange={(e) => {
+                const next = (recipes.data || []).find((r) => r.code === e.target.value);
+                setResult(null);
+                setHead((h) => ({ ...h, recipe_code: e.target.value, allocation_method: next?.default_allocation || h.allocation_method }));
+              }}>
+                {(recipes.data || []).map((r) => <option key={r.code} value={r.code}>{r.code} · {r.name}</option>)}
+              </select>
+            </Field>
+            <button type="button" className="btn-text" disabled={!recipe || !blankOutputs} onClick={outputsFromRecipe}>{t('en_fromRecipe')}</button>
             <Segmented
               label={t('allocationPreview')}
               value={head.allocation_method}
@@ -535,6 +556,9 @@ export function ButcheryForm({ onDone, onCancel }) {
             />
             {fe.allocation_method && <span className="field-error">{fe.allocation_method}</span>}
           </div>
+          <p className="cell-sub entry-pad">{t('en_recipeNote')}</p>
+          {recipes.error && <ErrorState error={recipes.error} onRetry={recipes.reload} />}
+          {products.error && <ErrorState error={products.error} onRetry={products.reload} />}
 
           <datalist id="en-cut-skus">{skus.map((s) => <option key={s} value={s} />)}</datalist>
           <div className="table-scroll">
@@ -1211,16 +1235,18 @@ export function ShipmentForm({ onDone, onCancel }) {
 
 const MOVES = {
   transfer: { path: '/movements/transfer', type: 'TRANSFER_IN' },
+  return: { path: '/movements/return', type: 'RETURN' },
   waste: { path: '/movements/waste', type: 'WASTE' },
   rework: { path: '/rework', type: 'REWORK_OUTPUT' },
 };
-const emptyMove = () => ({ lot_no: '', from: '', to: '', qty: '', output_lot_no: '', output_qty: '', note: '' });
+const emptyMove = () => ({ lot_no: '', from: '', to: '', qty: '', output_lot_no: '', output_qty: '', note: '', customer_code: '' });
 
 /** Transfer between warehouses, waste or rework of one lot (POST /movements/transfer|waste, /rework). */
 export function MovementForm({ onDone, onCancel }) {
   const { t, fmt, movementType } = useLang();
   const lots = useApi('/lots');
   const warehouses = useApi('/warehouses');
+  const customers = useApi('/customers');
   const [kind, setKind] = useState('transfer');
   const [f, setF] = useState(emptyMove);
   const [pin, setPin] = useState('');
@@ -1228,17 +1254,22 @@ export function MovementForm({ onDone, onCancel }) {
   const { busy, error, run } = useSubmit();
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
 
-  const stock = (lots.data || []).filter((l) => l.qty > 0);
+  const returning = kind === 'return';
+  const stock = (lots.data || []).filter((l) => returning || l.qty > 0);
   const lotNo = f.lot_no.trim().toUpperCase();
   const here = stock.filter((l) => l.lot_no === lotNo); // the warehouses this lot has stock in
-  const from = here.some((l) => l.warehouse_code === f.from) ? f.from : here[0]?.warehouse_code || '';
-  const row = here.find((l) => l.warehouse_code === from);
+  const returnWarehouses = (warehouses.data || []).filter((w) => w.warehouse_type !== 'SUBCONTRACTOR');
+  const returnDefault = returnWarehouses.find((w) => w.warehouse_type === 'QUARANTINE')?.code || returnWarehouses[0]?.code || '';
+  const from = returning ? (returnWarehouses.some((w) => w.code === f.from) ? f.from : returnDefault)
+    : here.some((l) => l.warehouse_code === f.from) ? f.from : here[0]?.warehouse_code || '';
+  const row = returning ? here[0] : here.find((l) => l.warehouse_code === from);
   // material goes to the subcontractor only with a production order (it fixes the cost there)
   const targets = (warehouses.data || []).filter((w) => w.code !== from && w.warehouse_type !== 'SUBCONTRACTOR');
   const to = targets.some((w) => w.code === f.to) ? f.to : targets[0]?.code || '';
   const qty = parseNum(f.qty);
-  const tooMuch = !!row && qty > row.qty;
+  const tooMuch = !returning && !!row && qty > row.qty;
   const missing = !row || !(qty > 0) || (kind === 'transfer' && !to) || (kind === 'waste' && !f.note.trim())
+    || (returning && (!from || !f.customer_code))
     || (kind === 'rework' && (!f.output_lot_no.trim() || !(parseNum(f.output_qty) > 0)));
 
   const submit = async (e) => {
@@ -1246,6 +1277,7 @@ export function MovementForm({ onDone, onCancel }) {
     const note = f.note.trim();
     const body = {
       transfer: { lot_no: lotNo, from_warehouse: from, to_warehouse: to, qty, note },
+      return: { lot_no: lotNo, warehouse: from, customer_code: f.customer_code, qty, note },
       waste: { lot_no: lotNo, warehouse: from, qty, reason: note },
       rework: { input_lot_no: lotNo, warehouse: from, qty_consumed: qty, output_lot_no: f.output_lot_no.trim().toUpperCase(), output_qty: toJsonNum(f.output_qty), note },
     }[kind];
@@ -1283,7 +1315,7 @@ export function MovementForm({ onDone, onCancel }) {
           <Segmented
             label={t('mf_title')}
             value={kind}
-            onChange={setKind}
+            onChange={(v) => { setKind(v); set('from', ''); }}
             options={Object.keys(MOVES).map((k) => ({ value: k, label: t(`mf_${k}`) }))}
           />
         </div>
@@ -1291,14 +1323,20 @@ export function MovementForm({ onDone, onCancel }) {
           {unique(stock.map((l) => l.lot_no)).map((l) => <option key={l} value={l}>{stock.find((s) => s.lot_no === l).product_name}</option>)}
         </datalist>
         <div className="toolbar">
-          <Field label={kind === 'rework' ? t('inputLot') : t('lot')}>
+          <Field label={returning ? t('mf_returnLot') : kind === 'rework' ? t('inputLot') : t('lot')}>
             <input list="mf-lots" value={f.lot_no} onChange={(e) => set('lot_no', e.target.value)} spellCheck={false} required />
           </Field>
-          <Field label={kind === 'transfer' ? t('sh_fromWarehouse') : t('warehouse')}>
-            <select value={from} onChange={(e) => set('from', e.target.value)} disabled={here.length === 0}>
-              {here.map((l) => <option key={l.warehouse_code} value={l.warehouse_code}>{`${l.warehouse_code} · ${fmt.qty(l.qty, l.uom_code)}`}</option>)}
+          <Field label={returning ? t('mf_returnWarehouse') : kind === 'transfer' ? t('sh_fromWarehouse') : t('warehouse')}>
+            <select value={from} onChange={(e) => set('from', e.target.value)} disabled={!returning && here.length === 0}>
+              {returning ? returnWarehouses.map((w) => <option key={w.code} value={w.code}>{w.code} · {w.name}</option>)
+                : here.map((l) => <option key={l.warehouse_code} value={l.warehouse_code}>{`${l.warehouse_code} · ${fmt.qty(l.qty, l.uom_code)}`}</option>)}
             </select>
           </Field>
+          {returning && <Field label={t('customer')}>
+            <select value={f.customer_code} onChange={(e) => set('customer_code', e.target.value)} required>
+              <option value="">–</option>{(customers.data || []).map((c) => <option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}
+            </select>
+          </Field>}
           {kind === 'transfer' && (
             <Field label={t('mf_to')}>
               <select value={to} onChange={(e) => set('to', e.target.value)}>
@@ -1323,6 +1361,8 @@ export function MovementForm({ onDone, onCancel }) {
             <input value={f.note} onChange={(e) => set('note', e.target.value)} maxLength={255} required={kind === 'waste'} />
           </Field>
         </div>
+        {returning && <p className="cell-sub entry-pad">{t('mf_quarantine')}</p>}
+        {returning && customers.error && <ErrorState error={customers.error} onRetry={customers.reload} />}
         {lotNo && lots.data && here.length === 0 && <p className="field-error entry-pad">{t('mf_noStock', lotNo)}</p>}
         {error && <ErrorState error={error} />}
         <SubmitBar

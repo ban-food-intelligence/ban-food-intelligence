@@ -243,7 +243,13 @@ func TestIntegrationMasterDataLists(t *testing.T) {
 	}
 	code, body = call(t, NewShipmentController(db).Customers, "GET", "/customers", nil)
 	var cs []CustomerDto
-	if err := json.Unmarshal(body, &cs); code != 200 || err != nil || len(cs) < 5 || cs[0].Code != "MKT-A" || cs[0].ContactPerson == "" {
+	if err := json.Unmarshal(body, &cs); code != 200 || err != nil || len(cs) < 5 {
 		t.Fatalf("customers %d %s", code, body)
 	}
+	for _, c := range cs {
+		if c.Code == "MKT-A" && c.ContactPerson != "" {
+			return
+		}
+	}
+	t.Fatalf("seed customer MKT-A and its contact missing: %s", body)
 }

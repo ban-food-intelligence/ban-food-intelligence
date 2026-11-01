@@ -170,7 +170,7 @@ func (c *EntryController) Purchase(w http.ResponseWriter, r *http.Request) {
 		var productType, uom string
 		var shelf sql.NullInt64
 		var active bool
-		if err := tx.QueryRowContext(ctx, `SELECT id, product_type, uom_code, shelf_life_days, is_active FROM product WHERE sku = ?`, l.SKU).
+		if err := tx.QueryRowContext(ctx, `SELECT id, product_type, uom_code, shelf_life_days, is_active FROM product WHERE sku = ? FOR UPDATE`, l.SKU).
 			Scan(&productID, &productType, &uom, &shelf, &active); err != nil {
 			writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "product "+l.SKU)
 			return

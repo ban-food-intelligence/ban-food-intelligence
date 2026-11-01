@@ -7,6 +7,7 @@ import Butchery from './views/Butchery';
 import TraceRecall from './views/TraceRecall';
 import AI from './views/AI';
 import Lots from './views/Lots';
+import MasterData from './views/MasterData';
 import Alerts, { AlertBell } from './views/Alerts';
 import { LotPanelProvider } from './views/LotPanel';
 
@@ -22,6 +23,15 @@ const TABS = [
   { id: 'sales', view: Sales },
   { id: 'trace', view: TraceRecall },
   { id: 'ai', view: AI },
+  { id: 'master', view: MasterData },
+];
+
+const NAV_GROUPS = [
+  { key: 'general', tabs: ['overview', 'alerts', 'master'] },
+  { key: 'task1', tabs: ['purchases', 'production'] },
+  { key: 'task2', tabs: ['butchery', 'sales'] },
+  { key: 'task3', tabs: ['lots', 'movements', 'shipments', 'trace'] },
+  { key: 'task4', tabs: ['ai'] },
 ];
 
 // #trace or #trace?lot=SUC-2026-045: the tab, then optional parameters for it.
@@ -58,10 +68,15 @@ function Shell() {
           </div>
           <AlertBell onOpen={open} />
           <nav className="nav" aria-label="Sections">
-            {TABS.map((x) => (
-              <button key={x.id} className={x.id === tab ? 'active' : ''} aria-current={x.id === tab ? 'page' : undefined} onClick={() => open(x.id)}>
-                {t(`tab_${x.id}`)}
-              </button>
+            {NAV_GROUPS.map((group) => (
+              <div className="nav-group" key={group.key} role="group" aria-label={t(`nav_${group.key}`)}>
+                <div className="nav-heading">{t(`nav_${group.key}`)}</div>
+                {group.tabs.map((id) => (
+                  <button key={id} className={id === tab ? 'active' : ''} aria-current={id === tab ? 'page' : undefined} onClick={() => open(id)}>
+                    {t(`tab_${id}`)}
+                  </button>
+                ))}
+              </div>
             ))}
           </nav>
           <div className="lang" role="group" aria-label="Language">

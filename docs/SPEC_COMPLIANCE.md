@@ -10,6 +10,17 @@ All tests run in CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) 
 Status: **Done** = implemented and proven; **Done (fixed 2026-10-28)** = a gap found in this audit and
 closed; **Partial** = works, with a stated limit.
 
+Master-data follow-up (2026-11-01, `feat/master-data`): product/unit/partner management and
+predefined recipe creation are now available through supervisor-protected APIs and the bilingual
+dashboard **Master data** page. `TestIntegrationMasterDataProductsProtectPastCostsAndAudit`,
+`TestIntegrationMasterDataUnitsPartnersAndRecallContacts`,
+`TestIntegrationMasterDataRecipeKeysAndRenamedProducts` and `e2e/master-data.spec.js` exercise
+these paths beyond the seeded examples. **Butchery** can fill product rows/key from a recipe while
+keeping actual weights blank; **Stock movements** records customer returns including depleted lots.
+Menu sections follow the brief's task groups. See [FEATURES.md](FEATURES.md) and
+[API.md](API.md#master-data). Automated Android checks establish build/rule correctness; they do
+not establish usability on a physical device. Synthetic ML metrics do not establish field accuracy.
+
 ## Task 1 - External production and real cost (EKP)
 
 | Requirement | Where | Evidence | Status |

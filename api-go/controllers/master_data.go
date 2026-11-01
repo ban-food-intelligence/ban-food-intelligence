@@ -50,7 +50,8 @@ type ProductCardDto struct {
 	SalePrice             *float64 `json:"sale_price"`
 	ShelfLifeDays         *int     `json:"shelf_life_days"`
 	IsActive              bool     `json:"is_active"`
-	Lots                  int      `json:"lots"` // read only: lots of this product (unit and type are then fixed)
+	Lots                  int      `json:"lots"`    // read only: lots of this product (unit and type are then fixed)
+	Recipes               int      `json:"recipes"` // a predefined recipe also fixes unit and type
 }
 
 func validAmount(v *float64) bool {
@@ -101,7 +102,8 @@ func validateProduct(p *ProductCardDto) fieldErrors {
 func (c *MasterDataController) Products(w http.ResponseWriter, r *http.Request) {
 	rows, err := c.db.QueryContext(r.Context(),
 		`SELECT p.sku, p.name, p.product_type, p.uom_code, p.pack_size_kg, p.species, p.standard_purchase_price, p.sale_price,
-		        p.shelf_life_days, p.is_active, (SELECT COUNT(*) FROM lot l WHERE l.product_id = p.id)
+		        p.shelf_life_days, p.is_active, (SELECT COUNT(*) FROM lot l WHERE l.product_id = p.id),
+		        (SELECT COUNT(*) FROM butchery_recipe_line rl WHERE rl.product_id = p.id)
 		 FROM product p ORDER BY p.product_type, p.sku`)
 	if err != nil {
 		writeDBError(w, r, err)
@@ -114,7 +116,7 @@ func (c *MasterDataController) Products(w http.ResponseWriter, r *http.Request) 
 		var pack, buy, sale sql.NullFloat64
 		var species sql.NullString
 		var shelf sql.NullInt64
-		if err := rows.Scan(&p.SKU, &p.Name, &p.ProductType, &p.Uom, &pack, &species, &buy, &sale, &shelf, &p.IsActive, &p.Lots); err != nil {
+		if err := rows.Scan(&p.SKU, &p.Name, &p.ProductType, &p.Uom, &pack, &species, &buy, &sale, &shelf, &p.IsActive, &p.Lots, &p.Recipes); err != nil {
 			writeDBError(w, r, err)
 			return
 		}
@@ -193,9 +195,10 @@ func (c *MasterDataController) saveProduct(w http.ResponseWriter, r *http.Reques
 		var shelf sql.NullInt64
 		err := tx.QueryRowContext(ctx,
 			`SELECT p.id, p.name, p.product_type, p.uom_code, p.pack_size_kg, p.species, p.standard_purchase_price, p.sale_price,
-			        p.shelf_life_days, p.is_active, (SELECT COUNT(*) FROM lot l WHERE l.product_id = p.id)
+			        p.shelf_life_days, p.is_active, (SELECT COUNT(*) FROM lot l WHERE l.product_id = p.id),
+			        (SELECT COUNT(*) FROM butchery_recipe_line rl WHERE rl.product_id = p.id)
 			 FROM product p WHERE p.sku = ? FOR UPDATE`, p.SKU).
-			Scan(&id, &cur.Name, &cur.ProductType, &cur.Uom, &pack, &species, &buy, &sale, &shelf, &cur.IsActive, &cur.Lots)
+			Scan(&id, &cur.Name, &cur.ProductType, &cur.Uom, &pack, &species, &buy, &sale, &shelf, &cur.IsActive, &cur.Lots, &cur.Recipes)
 		if err == sql.ErrNoRows {
 			writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "product "+p.SKU)
 			return
@@ -212,9 +215,9 @@ func (c *MasterDataController) saveProduct(w http.ResponseWriter, r *http.Reques
 			v := int(shelf.Int64)
 			cur.ShelfLifeDays = &v
 		}
-		if cur.Lots > 0 && (cur.Uom != p.Uom || cur.ProductType != p.ProductType) {
+		if (cur.Lots > 0 || cur.Recipes > 0) && (cur.Uom != p.Uom || cur.ProductType != p.ProductType) {
 			writeAPIError(w, r, http.StatusConflict, "CONFLICT",
-				fmt.Sprintf("%s has %d lots: its unit and type cannot change; create a new product card", p.SKU, cur.Lots))
+				fmt.Sprintf("%s has %d lots and %d recipe lines: its unit and type cannot change; create a new product card", p.SKU, cur.Lots, cur.Recipes))
 			return
 		}
 		old, _ = json.Marshal(cur)
@@ -226,6 +229,7 @@ func (c *MasterDataController) saveProduct(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		p.Lots = cur.Lots
+		p.Recipes = cur.Recipes
 	} else {
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO product (sku, name, product_type, uom_code, pack_size_kg, species, standard_purchase_price, sale_price, shelf_life_days, is_active)
@@ -295,6 +299,10 @@ func (c *MasterDataController) Units(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out = append(out, u)
+	}
+	if err := rows.Err(); err != nil {
+		writeDBError(w, r, err)
+		return
 	}
 	writeJSON(w, out)
 }
@@ -411,7 +419,9 @@ func (k partnerKind) named(p *PartnerDto) {
 }
 
 // Suppliers handles GET /suppliers.
-func (c *MasterDataController) Suppliers(w http.ResponseWriter, r *http.Request) { c.listPartners(w, r, supplierKind) }
+func (c *MasterDataController) Suppliers(w http.ResponseWriter, r *http.Request) {
+	c.listPartners(w, r, supplierKind)
+}
 
 // CreateSupplier / UpdateSupplier handle POST /suppliers and /suppliers/update (supervisor session).
 func (c *MasterDataController) CreateSupplier(w http.ResponseWriter, r *http.Request) {
@@ -422,7 +432,9 @@ func (c *MasterDataController) UpdateSupplier(w http.ResponseWriter, r *http.Req
 }
 
 // Customers handles GET /customers (code, name, customer_type, contacts, documents).
-func (c *MasterDataController) Customers(w http.ResponseWriter, r *http.Request) { c.listPartners(w, r, customerKind) }
+func (c *MasterDataController) Customers(w http.ResponseWriter, r *http.Request) {
+	c.listPartners(w, r, customerKind)
+}
 
 // CreateCustomer / UpdateCustomer handle POST /customers and /customers/update (supervisor
 // session). The contacts are what the recall call-down list prints.
@@ -450,6 +462,10 @@ func (c *MasterDataController) listPartners(w http.ResponseWriter, r *http.Reque
 		}
 		k.named(&p)
 		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		writeDBError(w, r, err)
+		return
 	}
 	writeJSON(w, out)
 }
@@ -664,8 +680,9 @@ func (c *MasterDataController) CreateRecipe(w http.ResponseWriter, r *http.Reque
 	recipeID, _ := res.LastInsertId()
 	for i, l := range rc.Lines {
 		var productID int64
-		var ptype string
-		err := tx.QueryRowContext(ctx, `SELECT id, product_type FROM product WHERE sku = ?`, l.SKU).Scan(&productID, &ptype)
+		var ptype, uom string
+		var active bool
+		err := tx.QueryRowContext(ctx, `SELECT id, product_type, uom_code, is_active FROM product WHERE sku = ? FOR UPDATE`, l.SKU).Scan(&productID, &ptype, &uom, &active)
 		if err == sql.ErrNoRows {
 			writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fieldErrors{fmt.Sprintf("lines[%d].sku", i): "unknown product " + l.SKU})
 			return
@@ -674,9 +691,9 @@ func (c *MasterDataController) CreateRecipe(w http.ResponseWriter, r *http.Reque
 			writeDBError(w, r, err)
 			return
 		}
-		if ptype != l.OutputKind {
+		if ptype != l.OutputKind || uom != "KG" || !active {
 			writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT",
-				fieldErrors{fmt.Sprintf("lines[%d].sku", i): fmt.Sprintf("%s is a %s product, not %s", l.SKU, ptype, l.OutputKind)})
+				fieldErrors{fmt.Sprintf("lines[%d].sku", i): fmt.Sprintf("%s must be an active %s product in KG", l.SKU, l.OutputKind)})
 			return
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO butchery_recipe_line (recipe_id, product_id, output_kind, expected_yield_pct, value_price_per_kg)

@@ -85,6 +85,13 @@ button { font: inherit; cursor: pointer; }
 .brand-name { font-weight: 700; font-size: 17px; }
 .brand-sub { color: var(--secondary); font-size: 13px; margin-top: 2px; }
 .nav { display: flex; flex-direction: column; gap: 2px; }
+.nav { overflow-y: auto; min-height: 0; }
+.nav-group { display: flex; flex-direction: column; flex-shrink: 0; }
+.nav-heading { color: var(--secondary); font-size: 11px; font-weight: 600; padding: 12px 10px 4px; }
+.master-tabs { overflow-x: auto; margin-bottom: 16px; }
+.master-tabs .segmented { flex-wrap: wrap; }
+.master-checkbox { display: flex; align-items: center; gap: 8px; padding: 12px; }
+.master-checkbox input { width: auto; }
 .nav button {
   text-align: left; background: none; border: 0; color: var(--label);
   padding: 9px 10px; border-radius: 8px; font-size: 15px;
@@ -275,6 +282,9 @@ button { font: inherit; cursor: pointer; }
   .sidebar { position: sticky; height: auto; z-index: 2; flex-direction: row; align-items: center; gap: 12px; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--separator); overflow-x: auto; }
   .brand { display: none; }
   .nav { flex-direction: row; }
+  .nav { overflow: visible; }
+  .nav-group { flex-direction: row; align-items: center; }
+  .nav-heading { max-width: 120px; padding: 0 8px; }
   .nav button { white-space: nowrap; }
   .lang { margin: 0 0 0 auto; }
   .bell-btn { width: auto; }
