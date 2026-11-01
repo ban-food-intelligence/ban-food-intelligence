@@ -115,7 +115,16 @@ func (c *ButcheryController) ReconcileButchery(w http.ResponseWriter, r *http.Re
 	defer rows.Close()
 
 	var summary ButcheryOperationSummaryDto
-	if rows.Next() {
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			writeDBError(w, r, err)
+			return
+		}
+		// No such operation: do not answer with an all-zero summary that reads as "BALANCED".
+		writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "butchery operation "+opNo)
+		return
+	}
+	{
 		var declaredCost sql.NullFloat64
 		var declaredDiff sql.NullFloat64
 		if err := rows.Scan(

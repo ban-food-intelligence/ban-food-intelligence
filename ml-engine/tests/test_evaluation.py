@@ -141,7 +141,7 @@ def test_ai_summary_is_backward_compatible(bundles, tmp_path):
     (tmp_path / "ai_summary.json").write_text(json.dumps(payload), encoding="utf-8")
     payload = json.loads((tmp_path / "ai_summary.json").read_text(encoding="utf-8"))
 
-    assert list(payload)[:5] == S.SUMMARY_KEYS
+    assert list(payload)[:len(S.SUMMARY_KEYS)] == S.SUMMARY_KEYS
     assert payload["model"] == "ali_ridge" and payload["baseline"] == "baseline_hist_mean"
     num = (int, float)
     optional_metric = {"wmape_pct", "mae_ci_low", "mae_ci_high", "cv_mae_mean", "cv_mae_std", "cv_folds"}

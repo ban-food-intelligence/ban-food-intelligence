@@ -3,7 +3,9 @@ package controllers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -44,6 +46,8 @@ type ProductionOrderDto struct {
 	OutputLotNumber    string                 `json:"output_lot_number,omitempty"`
 	Breakdown          []CostBreakdownLineDto `json:"breakdown,omitempty"`
 	Forecast           *ProductionForecastDto `json:"forecast,omitempty"` // AI 4A: packages and EKP, with actuals once received
+	// Open orders: the raw-material lots at the subcontractor (qty = sent − already returned).
+	Inputs []ProductionInputRequest `json:"inputs,omitempty"`
 }
 
 type CompleteProductionRequest struct {
@@ -55,6 +59,11 @@ type CompleteProductionRequest struct {
 	SubWarehouse string  `json:"sub_warehouse"` // e.g. "WH-FASON"
 	TargetWh     string  `json:"target_wh"`     // e.g. "WH-MAMUL"
 	InvoiceNo    string  `json:"invoice_no"`    // e.g. "FTR-FASON-2026-045"
+	// Leftover raw material the subcontractor sends back with the goods (quantity variance on
+	// the input side). Each line moves the lot back from SubWarehouse to ReturnWarehouse and
+	// raises production_input.qty_returned, so only the consumed quantity is costed in the EKP.
+	ReturnedInputs  []ProductionInputRequest `json:"returned_inputs,omitempty"`
+	ReturnWarehouse string                   `json:"return_warehouse,omitempty"` // default ANA-DEPO
 }
 
 type ProductionController struct {
@@ -154,6 +163,34 @@ func (c *ProductionController) ListOrders(w http.ResponseWriter, r *http.Request
 		o.MaterialCost = round(o.MaterialCost, 2)
 		orders = append(orders, o)
 	}
+	if err := openRows.Err(); err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	openRows.Close() // the input queries below must not wait for this connection
+	for i := range orders {
+		if orders[i].Status != "PLANNED" && orders[i].Status != "MATERIAL_SENT" {
+			continue
+		}
+		in, err := c.db.QueryContext(r.Context(),
+			`SELECT l.lot_no, pi.qty_consumed FROM production_input pi
+			 JOIN production_order po ON po.id = pi.production_order_id JOIN lot l ON l.id = pi.lot_id
+			 WHERE po.order_no = ? ORDER BY l.lot_no`, orders[i].OrderNo)
+		if err != nil {
+			writeDBError(w, r, err)
+			return
+		}
+		for in.Next() {
+			var line ProductionInputRequest
+			if err := in.Scan(&line.LotNo, &line.Qty); err != nil {
+				in.Close()
+				writeDBError(w, r, err)
+				return
+			}
+			orders[i].Inputs = append(orders[i].Inputs, line)
+		}
+		in.Close()
+	}
 
 	forecasts := loadForecasts(r.Context(), c.db)
 	for i := range orders {
@@ -200,35 +237,48 @@ func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWrit
 			fe["expiry_date"] = "before lot_date"
 		}
 	}
+	receiving := req.ActualQty > 0 && req.OutputLotNo != ""
+	seen := map[string]bool{}
+	for i, in := range req.ReturnedInputs {
+		switch {
+		case !receiving:
+			fe["returned_inputs"] = "only with a receipt (actual_qty, output_lot_no)"
+		case strings.TrimSpace(in.LotNo) == "":
+			fe[fmt.Sprintf("returned_inputs[%d].lot_no", i)] = "required"
+		case seen[in.LotNo]:
+			fe[fmt.Sprintf("returned_inputs[%d].lot_no", i)] = "lot listed twice"
+		}
+		seen[in.LotNo] = true
+		if !(in.Qty > 0) || math.IsInf(in.Qty, 0) {
+			fe[fmt.Sprintf("returned_inputs[%d].qty", i)] = "must be > 0"
+		}
+	}
 	if len(fe) > 0 {
 		writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fe)
 		return
 	}
 
-	// If an unreceived order is being completed, invoke sp_production_complete first
-	if req.ActualQty > 0 && req.OutputLotNo != "" {
+	var exists bool
+	if err := c.db.QueryRowContext(r.Context(), `SELECT EXISTS (SELECT 1 FROM production_order WHERE order_no = ?)`, req.OrderNo).Scan(&exists); err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	if !exists {
+		writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "production order "+req.OrderNo)
+		return
+	}
+
+	// Receipt: leftover returns, the finished-goods lot and the forecast actuals in one transaction.
+	if receiving {
 		// Warehouse codes from seed.sql: subcontractor stock and main cold store.
-		if req.SubWarehouse == "" {
-			req.SubWarehouse = "FASON-01"
-		}
-		if req.TargetWh == "" {
-			req.TargetWh = "ANA-DEPO"
-		}
-		_, err := c.db.ExecContext(
-			r.Context(),
-			`CALL sp_production_complete(?, ?, ?, ?, ?, ?, ?, ?)`,
-			req.OrderNo, req.ActualQty, req.OutputLotNo, req.LotDate, req.ExpiryDate,
-			req.SubWarehouse, req.TargetWh, req.InvoiceNo,
-		)
-		if err != nil {
+		req.SubWarehouse = nonEmpty(req.SubWarehouse, "FASON-01")
+		req.TargetWh = nonEmpty(req.TargetWh, "ANA-DEPO")
+		req.ReturnWarehouse = nonEmpty(req.ReturnWarehouse, "ANA-DEPO")
+		if err := c.receive(r, &req); err != nil {
 			// e.g. ORDER_STATE (already received), INSUFFICIENT_STOCK, duplicate lot number
-			log.Printf("[WARN] [MYSQL-SP] sp_production_complete failed for %s: %v", req.OrderNo, err)
+			log.Printf("[WARN] [MYSQL-SP] receipt failed for %s: %v", req.OrderNo, err)
 			writeDBError(w, r, err)
 			return
-		}
-		// AI 4A: the forecast made when the material was sent now gets its actual and anomaly flag.
-		if err := recordForecastActuals(r.Context(), c.db, req.OrderNo); err != nil {
-			log.Printf("[WARN] [AI] actuals for %s not recorded: %v", req.OrderNo, err)
 		}
 	}
 
@@ -262,6 +312,33 @@ func (c *ProductionController) CalculateOrCompleteProduction(w http.ResponseWrit
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+// receive books the subcontractor's leftover returns and the finished goods atomically.
+func (c *ProductionController) receive(r *http.Request, req *CompleteProductionRequest) error {
+	ctx := r.Context()
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	operator := nonEmpty(OperatorFrom(ctx), "api")
+	for _, in := range req.ReturnedInputs {
+		if _, err := tx.ExecContext(ctx, `CALL sp_production_return_input(?, ?, ?, ?, ?, ?)`,
+			req.OrderNo, in.LotNo, in.Qty, req.SubWarehouse, req.ReturnWarehouse, operator); err != nil {
+			return fmt.Errorf("returned lot %s: %w", in.LotNo, err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `CALL sp_production_receive(?, ?, ?, ?, ?, ?, ?, ?)`,
+		req.OrderNo, req.ActualQty, req.OutputLotNo, req.LotDate, req.ExpiryDate,
+		req.SubWarehouse, req.TargetWh, req.InvoiceNo); err != nil {
+		return err
+	}
+	// AI 4A: the forecast made when the material was sent now gets its actual and anomaly flag.
+	if err := recordForecastActuals(ctx, tx, req.OrderNo); err != nil {
+		log.Printf("[WARN] [AI] actuals for %s not recorded: %v", req.OrderNo, err)
+	}
+	return tx.Commit()
 }
 
 func (c *ProductionController) fetchCostBreakdown(r *http.Request, orderNo string) []CostBreakdownLineDto {
