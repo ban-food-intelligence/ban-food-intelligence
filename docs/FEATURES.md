@@ -86,6 +86,7 @@ docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migr
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261031_frozen_butchery_forecast.sql
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261101_subcontractor_returns.sql
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261101_roles.sql
+docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261101_recall_preview.sql
 docker compose up -d --build api-go web-react
 ```
 

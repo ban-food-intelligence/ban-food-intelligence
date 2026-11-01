@@ -18,6 +18,18 @@ type RecallTriggerRequest struct {
 	Reason         string `json:"reason"`           // e.g. "Salmonella / Quality Issue"
 	Initiator      string `json:"initiator"`        // e.g. "kalite_muduru"
 	BroadcastToPOS bool   `json:"broadcast_to_pos"` // Legacy field; POS currently learns recalls by polling.
+	// DryRun previews the recall: the real procedure and report run inside a transaction that
+	// is rolled back, so the preview equals what saving would do and nothing is written.
+	DryRun bool `json:"dry_run"`
+}
+
+// RecallStockDto is stock of an affected lot that the recall blocks, per warehouse.
+type RecallStockDto struct {
+	LotNo     string  `json:"lot_no"`
+	Product   string  `json:"product_name"`
+	Warehouse string  `json:"warehouse_code"`
+	Qty       float64 `json:"qty"`
+	Uom       string  `json:"uom_code"`
 }
 
 type RecallMarketLineDto struct {
@@ -46,6 +58,7 @@ type RecallEventDto struct {
 	AffectedLots    []string              `json:"affected_lots"`
 	TargetMarkets   []string              `json:"target_markets"`
 	AffectedMarkets []RecallMarketLineDto `json:"affected_markets"`
+	BlockedStock    []RecallStockDto      `json:"blocked_stock"` // stock of affected lots still in our warehouses
 	LockEnforced    bool                  `json:"lock_enforced"`
 	InitiatedBy     string                `json:"initiated_by"`
 	Timestamp       time.Time             `json:"timestamp"`
@@ -107,6 +120,11 @@ func (c *RecallController) TriggerRecall(w http.ResponseWriter, r *http.Request)
 		req.Initiator = "kalite_muduru"
 	}
 
+	if req.DryRun {
+		c.previewRecall(w, r, req)
+		return
+	}
+
 	// Insert once. A duplicate code is a conflict, including under concurrent requests.
 	_, err := c.db.ExecContext(
 		r.Context(),
@@ -120,7 +138,7 @@ func (c *RecallController) TriggerRecall(w http.ResponseWriter, r *http.Request)
 	}
 	log.Printf("[WARN] [RECALL] Emergency recall triggered for lot=%s (code=%s)", req.TriggerLot, req.RecallCode)
 
-	event, err := c.loadRecallEventFromDB(r, req.RecallCode, req.TriggerLot)
+	event, err := c.loadRecallEventFromDB(r, c.db, req.RecallCode, req.TriggerLot)
 	if err != nil {
 		writeDBError(w, r, err)
 		return
@@ -168,7 +186,7 @@ func (c *RecallController) GetActiveRecalls(w http.ResponseWriter, r *http.Reque
 	rows.Close() // details queries must not wait for a connection held by the outer rows
 	events := []RecallEventDto{}
 	for _, ref := range refs {
-		ev, err := c.loadRecallEventFromDB(r, ref.code, ref.lot)
+		ev, err := c.loadRecallEventFromDB(r, c.db, ref.code, ref.lot)
 		if err != nil {
 			writeDBError(w, r, err)
 			return
@@ -178,14 +196,42 @@ func (c *RecallController) GetActiveRecalls(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, events)
 }
 
-func (c *RecallController) loadRecallEventFromDB(r *http.Request, recallNo string, fallbackLot string) (RecallEventDto, error) {
+// previewRecall answers POST /recall {"dry_run": true}: 200 {"status":"DRY_RUN","recall_summary"}
+// with the lots that would be blocked, the customers to call and the stock to pull. The
+// recall is applied inside a transaction that is always rolled back.
+func (c *RecallController) previewRecall(w http.ResponseWriter, r *http.Request, req RecallTriggerRequest) {
+	ctx := r.Context()
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	defer tx.Rollback() // a preview never commits
+	if _, err := tx.ExecContext(ctx, `CALL sp_recall_apply(?, ?, ?, ?)`,
+		req.RecallCode, req.TriggerLot, req.Reason, req.Initiator); err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	ev, err := c.loadRecallEventFromDB(r, tx, req.RecallCode, req.TriggerLot)
+	if err != nil {
+		writeDBError(w, r, err)
+		return
+	}
+	writeJSON(w, map[string]interface{}{
+		"status":         "DRY_RUN",
+		"message":        "Preview only: nothing was blocked or recorded.",
+		"recall_summary": ev,
+	})
+}
+
+func (c *RecallController) loadRecallEventFromDB(r *http.Request, q sqlRunner, recallNo string, fallbackLot string) (RecallEventDto, error) {
 	var ev RecallEventDto
 	ev.RecallCode = recallNo
 	ev.TriggerLot = fallbackLot
 
 	// lock_enforced comes from the DB: the recall is OPEN and every lot in its
 	// recall_lot set is still RECALLED (so trg_sm_before_insert rejects SALE/SHIPMENT).
-	err := c.db.QueryRowContext(
+	err := q.QueryRowContext(
 		r.Context(),
 		`SELECT rc.recall_no, rc.status, rc.severity, rc.reason, l.lot_no, rc.initiated_by, rc.initiated_at,
 		        (rc.status = 'OPEN' AND NOT EXISTS (
@@ -201,7 +247,7 @@ func (c *RecallController) loadRecallEventFromDB(r *http.Request, recallNo strin
 	}
 
 	// Affected lots from recall_lot
-	lotRows, err := c.db.QueryContext(
+	lotRows, err := q.QueryContext(
 		r.Context(),
 		`SELECT l.lot_no
 		 FROM recall_lot rl
@@ -228,7 +274,7 @@ func (c *RecallController) loadRecallEventFromDB(r *http.Request, recallNo strin
 	lotRows.Close()
 
 	// Execute `CALL sp_recall_report(?)` to get Market A/B/C quantities & contacts
-	repRows, err := c.db.QueryContext(r.Context(), `CALL sp_recall_report(?)`, recallNo)
+	repRows, err := q.QueryContext(r.Context(), `CALL sp_recall_report(?)`, recallNo)
 	if err != nil {
 		return ev, err
 	}
@@ -261,7 +307,30 @@ func (c *RecallController) loadRecallEventFromDB(r *http.Request, recallNo strin
 	}
 	repRows.Close()
 
-	return ev, nil
+	// Stock of the affected lots still in our warehouses: blocked by the recall, to be pulled.
+	ev.BlockedStock = []RecallStockDto{}
+	stockRows, err := q.QueryContext(r.Context(),
+		`SELECT l.lot_no, p.name, w.code, sb.qty, l.uom_code
+		 FROM recall_lot rl
+		 JOIN recall rc ON rc.id = rl.recall_id
+		 JOIN lot l ON l.id = rl.lot_id
+		 JOIN product p ON p.id = l.product_id
+		 JOIN stock_balance sb ON sb.lot_id = l.id AND sb.qty > 0
+		 JOIN warehouse w ON w.id = sb.warehouse_id
+		 WHERE rc.recall_no = ?
+		 ORDER BY rl.depth, l.lot_no, w.code`, recallNo)
+	if err != nil {
+		return ev, err
+	}
+	defer stockRows.Close()
+	for stockRows.Next() {
+		var st RecallStockDto
+		if err := stockRows.Scan(&st.LotNo, &st.Product, &st.Warehouse, &st.Qty, &st.Uom); err != nil {
+			return ev, err
+		}
+		ev.BlockedStock = append(ev.BlockedStock, st)
+	}
+	return ev, stockRows.Err()
 }
 
 // ContactsCSV handles GET /recall/contacts.csv?recall_code=...: the customer contact list of
@@ -272,7 +341,7 @@ func (c *RecallController) ContactsCSV(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, r, http.StatusBadRequest, "INVALID_INPUT", "recall_code is required")
 		return
 	}
-	ev, err := c.loadRecallEventFromDB(r, code, "")
+	ev, err := c.loadRecallEventFromDB(r, c.db, code, "")
 	if err != nil {
 		if err == sql.ErrNoRows {
 			writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "recall "+code)

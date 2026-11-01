@@ -1465,17 +1465,17 @@ END$$
 -- ---------------------------------------------------------------------
 -- Kök lot ve ileri izlemede bulunan tüm lotlar RECALLED olur (tek transaction).
 -- Bloke lotlarda SALE/SHIPMENT/üretim tüketimi tetikleyici tarafından reddedilir.
-CREATE PROCEDURE sp_recall_initiate(
+-- Geri çağırmanın gövdesi: transaction yönetmez. API önizlemesi (dry_run) bunu bir transaction
+-- içinde çalıştırıp raporu okur ve geri alır; böylece önizleme gerçek geri çağırmayla aynıdır.
+CREATE PROCEDURE sp_recall_apply(
   IN p_recall_no VARCHAR(30), IN p_lot_no VARCHAR(30),
   IN p_reason VARCHAR(500), IN p_user VARCHAR(64))
 BEGIN
   DECLARE v_recall INT UNSIGNED; DECLARE v_root INT UNSIGNED;
-  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
 
   CALL sp_fill_trace(p_lot_no, 'DOWN');
   SELECT id INTO v_root FROM lot WHERE lot_no = p_lot_no;
 
-  START TRANSACTION;
   SET @app_user = p_user;
   INSERT INTO recall (recall_no, root_lot_id, reason, initiated_by)
   VALUES (p_recall_no, v_root, p_reason, p_user);
@@ -1488,10 +1488,21 @@ BEGIN
   UPDATE lot l JOIN tmp_trace_lot t ON t.lot_id = l.id
      SET l.status = 'RECALLED',
          l.blocked_reason = CONCAT(p_recall_no, ': ', p_reason);
-  COMMIT;
   SET @app_user = NULL;
+END$$
 
-  SELECT v_recall AS recall_id, COUNT(*) AS blocked_lots FROM recall_lot WHERE recall_id = v_recall;
+-- Tek transaction'lık sarmalayıcı (imza ve sonuç kümesi değişmedi).
+CREATE PROCEDURE sp_recall_initiate(
+  IN p_recall_no VARCHAR(30), IN p_lot_no VARCHAR(30),
+  IN p_reason VARCHAR(500), IN p_user VARCHAR(64))
+BEGIN
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; SET @app_user = NULL; RESIGNAL; END;
+  START TRANSACTION;
+  CALL sp_recall_apply(p_recall_no, p_lot_no, p_reason, p_user);
+  COMMIT;
+  SELECT r.id AS recall_id, COUNT(rl.lot_id) AS blocked_lots
+    FROM recall r LEFT JOIN recall_lot rl ON rl.recall_id = r.id
+   WHERE r.recall_no = p_recall_no GROUP BY r.id;
 END$$
 
 -- Müşteri/market bazlı miktar, sevkiyat ve iletişim listesi + depodaki bloke stok

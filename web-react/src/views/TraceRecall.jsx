@@ -166,12 +166,73 @@ function MassBalance({ mb }) {
   );
 }
 
+/** What a recall would do (dry run): lots to block, stock to pull, customers to call. */
+export function RecallPreview({ summary }) {
+  const { t, fmt } = useLang();
+  const lots = summary.affected_lots || [];
+  const stock = summary.blocked_stock || [];
+  const markets = summary.affected_markets || [];
+  return (
+    <div className="recall-preview" data-testid="recall-preview">
+      <p className="notice">{t('recallPreviewNote', lots.length, markets.length, stock.length)}</p>
+      {markets.length > 0 && (
+        <table className="table">
+          <thead>
+            <tr><th>{t('customer')}</th><th>{t('tier')}</th><th className="num">{t('qty')}</th><th>{t('phone')}</th></tr>
+          </thead>
+          <tbody>
+            {markets.map((m) => (
+              <tr key={`${m.tier}-${m.customer_code}-${m.lots}`}>
+                <td>{m.customer_name}</td>
+                <td>{m.tier}</td>
+                <td className="num">{fmt.num(m.qty_shipped - (m.qty_returned || 0), 0)}</td>
+                <td>{m.phone}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {stock.length > 0 && (
+        <table className="table">
+          <thead>
+            <tr><th>{t('lot')}</th><th>{t('warehouse')}</th><th className="num">{t('qty')}</th></tr>
+          </thead>
+          <tbody>
+            {stock.map((s) => (
+              <tr key={`${s.lot_no}-${s.warehouse_code}`}>
+                <td>{s.lot_no}</td>
+                <td>{s.warehouse_code}</td>
+                <td className="num">{fmt.qty(s.qty, s.uom_code)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 function RecallPanel({ lot, recalls }) {
   const { t, fmt } = useLang();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState(null); // { ok, text } or { error }
   const [pin, setPin] = useState('');
+  const [preview, setPreview] = useState(null); // recall_summary of a dry run
+
+  // Dry run: the API applies the recall in a transaction and rolls it back.
+  const runPreview = async () => {
+    setBusy(true);
+    setOutcome(null);
+    try {
+      const res = await apiWrite('/recall', { trigger_lot: lot, reason: t('recallReason'), dry_run: true }, pin);
+      setPreview(res.recall_summary);
+    } catch (error) {
+      setOutcome({ error });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const start = async () => {
     setBusy(true);
@@ -186,8 +247,13 @@ function RecallPanel({ lot, recalls }) {
     } finally {
       setBusy(false);
       setConfirming(false);
+      setPreview(null);
       setPin('');
     }
+  };
+  const cancel = () => {
+    setConfirming(false);
+    setPreview(null);
   };
 
   return (
@@ -216,8 +282,10 @@ function RecallPanel({ lot, recalls }) {
             />
           </label>
           <p className="muted">{t('pinHint')}</p>
+          {preview && <RecallPreview summary={preview} />}
           <div className="confirm-actions">
-            <button className="btn-text" onClick={() => setConfirming(false)}>{t('cancel')}</button>
+            <button className="btn-text" onClick={cancel}>{t('cancel')}</button>
+            <button className="btn-primary" onClick={runPreview} disabled={busy || pin.length < 4}>{t('recallPreview')}</button>
             <button className="btn-danger" onClick={start} disabled={busy || pin.length < 4}>{t('confirm')}</button>
           </div>
         </div>
