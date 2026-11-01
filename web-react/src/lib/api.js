@@ -80,6 +80,11 @@ export function hasSession() {
   return !!session && Date.parse(session.expiresAt) - Date.now() >= 30_000;
 }
 
+/** True while a supervisor session is open (apiWrite would not use a PIN now). */
+export function hasSession() {
+  return !!session && Date.parse(session.expiresAt) - Date.now() >= 30_000;
+}
+
 /** Calls a write endpoint as the supervisor; asks the API for a token first if needed. */
 export async function apiWrite(path, body, pin) {
   // No PIN typed (the form hides the field while a session is open): reuse the session.

@@ -2,6 +2,8 @@
 
 Base URL: `http://localhost:8080` (docker compose). All responses are JSON unless stated.
 Money values are EUR, quantities are in the lot's unit (`KG`, `PAKET`).
+The same routes as an OpenAPI 3.0 contract: [openapi.yaml](openapi.yaml) (a Go test fails if a
+route or its session requirement is missing there).
 
 ## Conventions
 
@@ -396,7 +398,7 @@ The report never initiates a recall or books a stock movement. ML evidence is la
 |---|---|
 | `GET /purchases` | receipt, date, supplier, lot, supplier lot, qty, unit price, line total, expiry |
 | `GET /movements[?lot_no=]` | stock ledger with `balance_after` per lot and warehouse; 404 for a lot without movements |
-| `GET /sales` | POS sale lines with revenue, lot cost and gross profit |
+| `GET /sales` | POS sale lines with revenue, lot cost and gross profit; `voided` / `void_reason` after `POST /sales/void` |
 
 Example `GET /movements?lot_no=KZB-2026-001` row:
 ```json
@@ -415,6 +417,19 @@ The dashboard's *Lot movements → Record movement* form uses transfer, waste an
 | `POST /movements/return` | `{"lot_no","warehouse","customer_code","qty","note"}` (counted as returned in the recall report) |
 | `POST /movements/waste` | `{"lot_no","warehouse","qty","reason"}` |
 | `POST /rework` | `{"input_lot_no","warehouse","qty_consumed","output_lot_no","output_qty","note"}` (new REWORK lot linked in `lot_link`) |
+
+### Voiding a wrong POS sale
+
+`POST /sales/void` (session) `{"sale_uuid": "019a2b3c-...", "reason": "Wrong product scanned"}`.
+Nothing is deleted: the sale, its lines and their `SALE` movements stay in the append-only ledger.
+Each line gets a `RETURN` movement of the same quantity back into the warehouse it was sold from
+(`ref_type` `sale_void`, `ref_id` = the sale) and the void is written to the append-only `audit_log`
+(`SALE_VOID`, operator, reason, lines) in the same transaction. No table of its own and no
+migration: the `RETURN` movements mark the sale as voided, so it is voided once. `201` with each
+line's `balance_after`; `409 CONFLICT` for a second void of the same sale, `404` for an unknown
+`sale_uuid`, `422` without a reason of 3-200 characters. `GET /sales` keeps the lines with
+`voided: true` and `void_reason`; the dashboard's *Sales* totals leave them out and each sale has
+a *Void sale* action (reason + supervisor PIN).
 
 ### Stock count
 

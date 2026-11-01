@@ -87,6 +87,8 @@ func main() {
 		logInfo("OCR", "Invoice reading disabled: NVIDIA_API_KEY is not set")
 	}
 
+	saleVoidCtrl := controllers.NewSaleVoidController(db)
+
 	mux := http.NewServeMux()
 
 	// Health & Readiness Endpoint
@@ -122,11 +124,11 @@ func main() {
 	mux.HandleFunc("/recall", quality(recallCtrl.TriggerRecall))
 	mux.HandleFunc("/recall/contacts.csv", recallCtrl.ContactsCSV)
 	mux.HandleFunc("/recall/progress", recallCtrl.Progress)
-	mux.HandleFunc("/recall/followup", quality(recallCtrl.Followup))
+	mux.HandleFunc("/recall/followup", op(recallCtrl.Followup))
 	// Recall drill: a timed traceability test that blocks nothing and moves no stock
-	mux.HandleFunc("/recall/drills", getOrPost(recallCtrl.ListDrills, quality(recallCtrl.StartDrill)))
-	mux.HandleFunc("/recall/drills/contact", quality(recallCtrl.DrillContact))
-	mux.HandleFunc("/recall/drills/close", quality(recallCtrl.CloseDrill))
+	mux.HandleFunc("/recall/drills", getOrPost(recallCtrl.ListDrills, op(recallCtrl.StartDrill)))
+	mux.HandleFunc("/recall/drills/contact", op(recallCtrl.DrillContact))
+	mux.HandleFunc("/recall/drills/close", op(recallCtrl.CloseDrill))
 	mux.HandleFunc("/shipments", getOrPost(shipmentCtrl.List, op(shipmentCtrl.Create)))
 	mux.HandleFunc("/customers", shipmentCtrl.Customers)
 	mux.HandleFunc("/trace/", traceCtrl.TraceHandler)
@@ -141,6 +143,8 @@ func main() {
 	// Reports: purchases, lot movement ledger, POS sales
 	mux.HandleFunc("/movements", reportsCtrl.Movements)
 	mux.HandleFunc("/sales", reportsCtrl.Sales)
+	// Wrong POS sale: RETURN movements back into the store + audit_log, nothing deleted
+	mux.HandleFunc("/sales/void", op(saleVoidCtrl.Void))
 	mux.HandleFunc("/reports/assessment", reportsCtrl.Assessment)
 
 	// Lot movements: transfer, customer return, waste, rework (sale/shipment/production elsewhere)

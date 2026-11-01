@@ -66,7 +66,7 @@ flowchart LR
 ```
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (data model, many-to-many lot design,
-SQLite ↔ MySQL sync). API reference: [docs/API.md](docs/API.md). Terms: [docs/GLOSSARY.md](docs/GLOSSARY.md).
+SQLite ↔ MySQL sync). API reference: [docs/API.md](docs/API.md), machine-readable contract [docs/openapi.yaml](docs/openapi.yaml) (OpenAPI 3.0, every route; import into Swagger UI or Postman). Terms: [docs/GLOSSARY.md](docs/GLOSSARY.md).
 
 ## Quick start
 
@@ -94,6 +94,7 @@ its records: apply the migrations listed in [docs/FEATURES.md](docs/FEATURES.md#
 [Releases](https://github.com/ban-food-intelligence/ban-food-intelligence/releases) and install it
 (`adb install -r ban-shop-pos-v1.1.0-demo.apk`, or open the file on the phone and allow the
 install). v1.1.0 is signed with a new demo key: uninstall an older demo app first
+install; Android 8.0+). v1.1.0 is signed with a new demo key: uninstall an older demo app first
 (`adb uninstall com.ban.foodintelligence.pos`). Then connect it to the API as described below (USB: `adb reverse tcp:8080 tcp:8080`).
 The demo APK talks to `127.0.0.1` / the emulator host only. It carries no API key: invoice reading
 (*Lots → Receive goods from an invoice*) goes through the API, which holds the key, and the receipt
@@ -182,7 +183,7 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 | Spec inconsistencies explained (287.50 vs 351.00; 22 vs 25 kg) | `DECLARED_COST_MISMATCH`, `WEIGHT_IMBALANCE` (rejected record PRC-2026-000) vs posted PRC-2026-001 |
 | Supplier, lot, date, quantity, expiry on every receipt | `lot.supplier_id/supplier_lot_no/lot_date/expiry_date` |
 | Many-to-many lot relations with quantities | `lot_link(parent, child, qty_consumed, qty_produced)` for production, butchery and rework |
-| Transfer, sale, return, rework, waste per lot | `POST /movements/transfer|return|waste`, `POST /rework`, POS sales, `POST /shipments` (dashboard *Shipments*) |
+| Transfer, sale, return, rework, waste per lot | `POST /movements/transfer\|return\|waste`, `POST /rework`, POS sales, `POST /shipments` (dashboard *Shipments*); a wrong POS sale is voided by a reversal (`POST /sales/void`, dashboard *Sales → Void sale*), never deleted |
 | Forward trace: lots, stock, shipments, buyers | `sp_trace_forward`, `GET /trace/{lot}?direction=forward` |
 | Backward trace: raw lots, suppliers, production orders | `sp_trace_backward`, `GET /trace/{lot}?direction=backward` |
 | Recall screen blocks products; per-customer quantity, shipment, contact list; tier 2 only if recorded | `sp_recall_initiate`, `sp_recall_report`, `GET/POST /recall`, `GET /recall/contacts.csv`, dashboard *Trace & recall*; `second_tier` RECORDED / NOT_RECORDED; a customer's onward delivery is recorded with `POST /shipments` (`from_customer_code`), capped at what it received; recall drills (`/recall/drills`) test it without blocking |
@@ -192,18 +193,21 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 | Optional: invoice reading with human approval | `POST /purchases/invoice` (NVIDIA Nemotron VL called by the API, suggestions only); dashboard *Purchases → New receipt → Read from invoice*; Android *Lots → Receive goods from an invoice* (same endpoint, receipt saved with `POST /purchases`) |
 | SQLite ↔ MySQL sync approach explained | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#sqlite--mysql-sync) |
 | Reports: purchase, production, butchery, lot movements, sales, recall | dashboard tabs + `docs/API.md` |
-| Data model, API description, sample records, basic automated tests | ARCHITECTURE.md, API.md, [docs/samples/](docs/samples/), the test suites above |
+| Data model, API description, sample records, basic automated tests | ARCHITECTURE.md, API.md, [docs/openapi.yaml](docs/openapi.yaml) (kept in step with the registered routes by `TestOpenAPIMatchesRegisteredRoutes`), [docs/samples/](docs/samples/), the test suites above |
 
 ## Repository layout
 
-| Folder | Content |
+| Folder / file | Content |
 |---|---|
-| `database-mysql/` | `schema.sql` (tables, views, triggers, procedures), `seed.sql` (demo data), tests |
+| `database-mysql/` | `schema.sql` (tables, views, triggers, procedures), `seed.sql` (demo data), `migrations/` (for existing databases), `queries/`, `demo/`, tests |
 | `api-go/` | Go REST API |
 | `web-react/` | React dashboard |
 | `mobile-kotlin/` | Android POS |
-| `ml-engine/` | data generator, training, evaluation (`export_ai_report.py`) |
+| `ml-engine/` | data generators, training (two model families plus a stacking meta-learner), evaluation (`export_ai_report.py`), live-alert calibration, field audit |
 | `scripts/` | `demo-reset.sh`, `check-all.sh`, `test-db.sh`, `export-samples.sh`, `build-release-apk.sh` |
-| `docs/` | architecture, API, AI, security, spec compliance, glossary, demo script, samples, screenshots |
+| `docs/` | architecture, API, AI, security, spec compliance, glossary, demo script, samples, screenshots, review notes, release notes |
+| `.github/workflows/ci.yml` | GitHub Actions CI |
+| `docker-compose.yml`, `Makefile` | one-command stack and shortcuts (`make up`, `make demo-reset`, `make check`, `make test-db`, `make phone`) |
+| `SECURITY.md` | how to report a vulnerability (details: [docs/SECURITY.md](docs/SECURITY.md)) |
 
 Team: Ali (database, ML), Berke (Go API, React), Nuri (Android POS, sync, OCR).
