@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { apiWrite, useApi } from '../lib/api';
+import { apiWrite, hasSession, useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { Async, ErrorState, Group, Kpi, Pill, Table } from '../lib/ui';
 import { LotLink } from './LotPanel';
@@ -59,6 +59,7 @@ export default function RecallDrill({ lot }) {
   const loadedAt = useMemo(() => Date.now(), [drills.data]);
   const now = useNow((drills.data || []).some((d) => d.status === 'OPEN'));
   const minutes = parseTarget(target);
+  const needPin = !hasSession();
 
   const start = async (e) => {
     e.preventDefault();
@@ -100,16 +101,18 @@ export default function RecallDrill({ lot }) {
               <span>{t('dr_noteLabel')}</span>
               <input value={note} maxLength={255} onChange={(e) => setNote(e.target.value)} />
             </label>
-            <label className="field">
-              <span>{t('supervisorPin')}</span>
-              <input type="password" inputMode="numeric" autoComplete="off" maxLength={12} value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
-            </label>
+            {needPin && (
+              <label className="field">
+                <span>{t('supervisorPin')}</span>
+                <input type="password" inputMode="numeric" autoComplete="off" maxLength={12} value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
+              </label>
+            )}
           </div>
           {error && <ErrorState error={error} />}
           <div className="confirm-actions">
             <button type="button" className="btn-text" disabled={busy} onClick={() => { setStarting(false); setPin(''); }}>{t('cancel')}</button>
-            <button type="submit" className="btn-primary" disabled={busy || pin.length < 4 || minutes == null}>{t('dr_begin')}</button>
+            <button type="submit" className="btn-primary" disabled={busy || (needPin && pin.length < 4) || minutes == null}>{t('dr_begin')}</button>
           </div>
         </form>
       )}
@@ -131,6 +134,7 @@ function Drill({ drill: d, elapsed, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const open = d.status === 'OPEN';
+  const needPin = !hasSession(); // a supervisor session from an earlier action needs no PIN
   const verdict = open ? drillVerdict(d, elapsed) : { result: d.result, reasons: d.fail_reasons || [] };
   const over = elapsed > d.target_minutes * 60;
   const reasonText = (reasons) => reasons.map((r) => t(`dr_reason_${r}`)).join(' · ');
@@ -223,17 +227,19 @@ function Drill({ drill: d, elapsed, onChanged }) {
               <span>{entry.mode === 'close' ? t(verdict.result === 'PASS' ? 'dr_findingsOptional' : 'dr_findings') : t('dr_contactNote')}</span>
               <input value={text} maxLength={entry.mode === 'close' ? 1000 : 255} onChange={(e) => setText(e.target.value)} />
             </label>
-            <label className="field">
-              <span>{t('supervisorPin')}</span>
-              <input type="password" inputMode="numeric" autoComplete="off" maxLength={12} value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
-            </label>
+            {needPin && (
+              <label className="field">
+                <span>{t('supervisorPin')}</span>
+                <input type="password" inputMode="numeric" autoComplete="off" maxLength={12} value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
+              </label>
+            )}
           </div>
           {error && <ErrorState error={error} />}
           <div className="confirm-actions">
             <button type="button" className="btn-text" disabled={busy} onClick={() => setEntry(null)}>{t('cancel')}</button>
             <button type="submit" className="btn-primary"
-              disabled={busy || pin.length < 4 || (entry.mode === 'close' && verdict.result === 'FAIL' && !text.trim())}>
+              disabled={busy || (needPin && pin.length < 4) || (entry.mode === 'close' && verdict.result === 'FAIL' && !text.trim())}>
               {entry.mode === 'close' ? t('dr_closeNow') : t('dr_saveReached')}
             </button>
           </div>
