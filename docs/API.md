@@ -40,7 +40,8 @@ curl -X POST localhost:8080/recall -H "Authorization: Bearer $TOKEN" -d '{"trigg
 
 `POST /auth/session` `{"pin","device_id"?}` → `200 {"token","token_type":"Bearer","expires_at","username","display_name"}`
 (30 minutes); `401 INVALID_PIN` / `429 LOCKED_OUT` as for the supervisor unlock. Protected:
-`POST /recall`, `/movements/transfer|return|waste`, `/rework`, `/production`, `/production/orders`,
+`POST /recall`, `/recall/followup`, `/recall/drills`, `/recall/drills/contact`, `/recall/drills/close`,
+`/movements/transfer|return|waste`, `/rework`, `/production`, `/production/orders`,
 `/purchases`, `/butchery/operations`, `/ai/forecast/butchery/freeze`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
 The recall initiator and the movements' `created_by` are the signed-in supervisor.
 
@@ -251,6 +252,45 @@ The customer must have a recorded affected delivery. Closed recalls reject updat
 unknown recall/unaffected customer returns `404`. Each change records the supervisor and an
 append-only audit entry. Record actual recovered goods with `POST /movements/return` into
 `KARANTINA`, not by changing contact status.
+
+### Recall drill (traceability test)
+
+A drill tests how fast a lot can be traced and its customers reached, without a real recall:
+**no lot is blocked, no stock moves, no `recall` row is written.**
+
+`POST /recall/drills` (session) `{"lot_no":"ET-2026-001","target_minutes":240,"note":"Annual test","drill_no"?}`
+traces the lot forward and backward and takes the mass balance in one transaction, stores that
+snapshot as found and lists every customer of the recorded shipments (tier 1 and recorded tier 2)
+to be reached. `target_minutes` defaults to 240 (4 hours, a common audit target), 1 to 10080;
+`drill_no` defaults to `TAT-<UTC timestamp>`. `201` with the open drill; `404 LOT_NOT_FOUND`,
+`409 CONFLICT` for a used drill number, `422` per field.
+
+`POST /recall/drills/contact` (session) `{"drill_no","customer_code","note"?}` marks a customer
+reached at the server time, once. `404` customer not on the drill's list, `409` already reached or
+drill closed.
+
+`POST /recall/drills/close` (session) `{"drill_no","findings"?}` computes the result at the server
+time and closes the drill for good. **PASS** only when every traced quantity was documented at the
+start (`balanced`), every listed customer was reached and the drill is closed within
+`target_minutes`; otherwise **FAIL** with `fail_reasons` (`UNEXPLAINED_QTY`,
+`CUSTOMER_NOT_REACHED`, `OVER_TIME`). A failing drill needs `findings` (the corrective action):
+without it `422` and the drill stays open.
+
+`GET /recall/drills` - the latest 20 drills; `GET /recall/drills?drill_no=` - one drill with its
+`snapshot` (`forward`, `backward` traces as found). Each drill (contacts shortened to one of four):
+```json
+{"drill_no":"TAT-20261101-101500","lot_no":"ET-2026-001","target_minutes":240,"started_by":"supervisor",
+ "started_at":"2026-11-01T10:15:00.123Z","trace_ms":21,"lots_forward":2,"lots_backward":1,"suppliers":1,"balanced":true,
+ "mass_balance_totals":[{"uom_code":"PAKET","at_customers":85,"sold":0,"wasted":0,"in_stock":0,"at_subcontractor":0,"unexplained":0}],
+ "contacts":[{"tier":1,"customer_code":"MKT-A","customer_name":"Market A","contact_person":"...","phone":"...","email":"...",
+   "lots":["SUC-2026-045"],"quantities":[{"qty":30,"uom_code":"PAKET"}],
+   "reached_at":"2026-11-01T10:21:40.500Z","reached_by":"supervisor","minutes_to_reach":6.67}],
+ "customers_reached":4,"status":"CLOSED","elapsed_seconds":1250.4,"closed_by":"supervisor",
+ "closed_at":"2026-11-01T10:35:50.523Z","result":"PASS","fail_reasons":[]}
+```
+`elapsed_seconds` runs on the server clock until the drill closes. Triggers keep drills and their
+contacts append-only (times from the server, reached once, closed once, never deleted) and refuse
+a PASS that misses any of the three conditions. Start, each contact and the close are audited.
 
 `GET /lots` - stock per lot and warehouse with status, sale price (VKP) and expiry date.
 

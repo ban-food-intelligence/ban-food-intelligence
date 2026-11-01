@@ -108,28 +108,37 @@ func (c *TraceController) TraceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := TraceResponse{RootLotNumber: lotNumber, Direction: direction, Lots: []TraceLotDto{}, Links: []TraceLinkDto{}}
-	var err error
-	if direction == "forward" {
-		err = c.forward(r, lotNumber, &resp)
-	} else {
-		err = c.backward(r, lotNumber, &resp)
-	}
+	resp, err := traceLot(r, c.db, lotNumber, direction)
 	if err != nil {
 		writeDBError(w, r, err)
 		return
 	}
-	if err := c.loadLinks(r, &resp); err != nil {
-		writeDBError(w, r, err)
-		return
+	writeJSON(w, resp)
+}
+
+// traceLot builds a trace from the recorded relations only; a forward trace also has the stock,
+// buyers, till sales and mass balance. q may be a transaction (recall drills snapshot it).
+func traceLot(r *http.Request, q sqlRunner, lotNo, direction string) (*TraceResponse, error) {
+	c := &TraceController{db: q}
+	resp := &TraceResponse{RootLotNumber: lotNo, Direction: direction, Lots: []TraceLotDto{}, Links: []TraceLinkDto{}}
+	var err error
+	if direction == "forward" {
+		err = c.forward(r, lotNo, resp)
+	} else {
+		err = c.backward(r, lotNo, resp)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := c.loadLinks(r, resp); err != nil {
+		return nil, err
 	}
 	if direction == "forward" {
-		if resp.MassBalance, err = loadMassBalance(r.Context(), c.db, resp.Lots); err != nil {
-			writeDBError(w, r, err)
-			return
+		if resp.MassBalance, err = loadMassBalance(r.Context(), q, resp.Lots); err != nil {
+			return nil, err
 		}
 	}
-	writeJSON(w, resp)
+	return resp, nil
 }
 
 func (c *TraceController) forward(r *http.Request, lotNo string, resp *TraceResponse) error {

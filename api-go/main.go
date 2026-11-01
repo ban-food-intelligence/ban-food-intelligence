@@ -111,6 +111,10 @@ func main() {
 	mux.HandleFunc("/recall/contacts.csv", recallCtrl.ContactsCSV)
 	mux.HandleFunc("/recall/progress", recallCtrl.Progress)
 	mux.HandleFunc("/recall/followup", op(recallCtrl.Followup))
+	// Recall drill: a timed traceability test that blocks nothing and moves no stock
+	mux.HandleFunc("/recall/drills", getOrPost(recallCtrl.ListDrills, op(recallCtrl.StartDrill)))
+	mux.HandleFunc("/recall/drills/contact", op(recallCtrl.DrillContact))
+	mux.HandleFunc("/recall/drills/close", op(recallCtrl.CloseDrill))
 	mux.HandleFunc("/shipments", getOrPost(shipmentCtrl.List, op(shipmentCtrl.Create)))
 	mux.HandleFunc("/customers", shipmentCtrl.Customers)
 	mux.HandleFunc("/trace/", traceCtrl.TraceHandler)

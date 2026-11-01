@@ -1,4 +1,4 @@
-# FEFO, recovery, assessment PDF, alerts, mass balance and stock count
+# FEFO, recovery, assessment PDF, alerts, mass balance, stock count and recall drill
 
 ## Use
 
@@ -64,6 +64,15 @@ ET-2026-001, 100 kg went into URT-2026-045 and the 85 packs are at Markets A/B/C
 write-off appears as a gap, because no document says where the goods went. The assessment PDF
 carries the same table.
 
+**Dashboard → Trace & recall → Recall drill:** tests the traceability of the lot on screen
+without a real recall. **Start drill** (target time, default 4 hours, and a note; supervisor PIN)
+traces the lot both ways and takes the mass balance as found; the clock starts. Each recorded
+customer (tier 1 and recorded tier 2) is listed with contact, lots and quantity; **Reached** saves
+the time it was reached. **Finish drill** shows the result before saving: **Passed** when every
+quantity was documented, every customer was reached and the target time was kept, otherwise
+**Failed** with the reasons, and a corrective action must be written. Nothing is blocked, no
+stock moves and the drill never appears as a recall; the record cannot be changed afterwards.
+
 **Dashboard → Lots & stock → Count stock:** pick a warehouse, type what is on the shelf for the
 lots you counted (empty rows are not counted), give a reason for every difference and save with
 the supervisor PIN. Each difference is booked as a count adjustment; *Recent counts* lists the
@@ -85,6 +94,7 @@ docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migr
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261031_alert_rules.sql
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261031_frozen_butchery_forecast.sql
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261101_subcontractor_returns.sql
+docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261101_recall_drill.sql
 docker compose up -d --build api-go web-react
 ```
 
@@ -95,10 +105,14 @@ phone's installed app. No app installation or public release is performed by the
 
 - Go integration: 30 → 20 + 10 tier responsibility, contact vs physical return, operator
   authentication, append-only audit, closed-recall writes, return cap, report evidence,
-  missing records, no stock side effects and a concurrent-change snapshot test.
+  missing records, no stock side effects and a concurrent-change snapshot test. Recall drill:
+  nothing blocked or moved, customers reached once, computed PASS/FAIL, findings required on a
+  FAIL, immutable record and a refused forced PASS (`integration_recall_drill_test.go`,
+  `database-mysql/tests/test_recall_drill.py`).
 - Android: five FEFO tests plus the existing validation/security tests; lint and debug build.
 - Browser: real PDF download, report failure without download, contact acknowledgement and
-  physical return through the actual forms.
+  physical return through the actual forms; a recall drill started, every customer reached and
+  closed through the forms with the lot statuses unchanged.
 - `python scripts/verify-assessment-pdf.py`: extracts the exported PDF with pypdf and checks
   Turkish text, the required amounts, lots and market names. Optional `--preview` also needs
   PyMuPDF and renders two preview PNGs next to the PDF.

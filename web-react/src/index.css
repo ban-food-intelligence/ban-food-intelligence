@@ -319,6 +319,8 @@ button { font: inherit; cursor: pointer; }
 .recall-progress summary { cursor: pointer; font-weight: 600; color: var(--accent); }
 .recall-progress > .muted { margin: 10px 0; max-width: 80ch; }
 .recall-progress-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.drill-actions { padding: 4px 16px 14px; }
+.drill-outcome { padding: 8px 16px 14px; display: grid; gap: 4px; max-width: 90ch; }
 .report-action { margin-bottom: 18px; }
 
 /* ---------- lot links and the lot panel (drawer) ---------- */
