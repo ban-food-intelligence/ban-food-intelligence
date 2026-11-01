@@ -107,6 +107,12 @@ Notes:
 - The session secret is random per process unless `API_SESSION_SECRET` is set.
 - MySQL runs as `root` with a demo password in `docker-compose.yml`.
 - The demo APK is signed with a demo-only key kept outside git; it is not a store key.
+- Invoice reading (`POST /purchases/invoice`): the vision key is an API environment variable
+  (`NVIDIA_API_KEY`, e.g. from a gitignored `.env` for compose) and never reaches a browser or
+  the phone (the APK no longer has a key field at all).
+  The photo of a supplier invoice is sent to NVIDIA's API only when a signed-in supervisor asks
+  for it; nothing is stored, the log keeps size, line count and latency only. The upstream error
+  body is not passed on. At most two reads run at once (cost and abuse bound).
 
 ## Production hardening plan
 

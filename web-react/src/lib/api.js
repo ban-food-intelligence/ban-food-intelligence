@@ -65,8 +65,8 @@ export function useApi(path) {
 
 // Back-office writes need a supervisor session: POST /auth/session with the PIN returns a
 // 30-minute bearer token and the user's role. It is kept in memory only (gone on reload),
-// never in storage, and belongs to the PIN that opened it: another PIN signs in again, so a
-// write is always made as the person who typed the PIN.
+// never in storage, and belongs to the PIN that opened it: another typed PIN signs in again,
+// so a write is always made as the person who typed the PIN.
 let session = null; // { token, expiresAt, pin, username, displayName, role }
 
 /** The current back-office session ({ username, displayName, role }) or null. */
@@ -75,9 +75,16 @@ export function currentSession() {
   return { username: session.username, displayName: session.displayName, role: session.role };
 }
 
+/** True while a supervisor session is open (apiWrite would not use a PIN now). */
+export function hasSession() {
+  return !!session && Date.parse(session.expiresAt) - Date.now() >= 30_000;
+}
+
 /** Calls a write endpoint as the supervisor; asks the API for a token first if needed. */
 export async function apiWrite(path, body, pin) {
-  if (!session || session.pin !== pin || Date.parse(session.expiresAt) - Date.now() < 30_000) {
+  // No PIN typed (the form hides the field while a session is open): reuse the session.
+  // A typed PIN that differs from the session's signs in again as that person.
+  if (!hasSession() || (pin && session.pin !== pin)) {
     session = null;
     const s = await apiFetch('/auth/session', { method: 'POST', body: JSON.stringify({ pin }) });
     session = { token: s.token, expiresAt: s.expires_at, pin, username: s.username, displayName: s.display_name, role: s.role };

@@ -1,6 +1,7 @@
 package com.ban.foodintelligence.pos.ui
 
 import android.view.HapticFeedbackConstants
+import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.ReportProblem
 import androidx.compose.material.icons.rounded.Search
@@ -57,6 +60,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -65,6 +69,9 @@ import com.ban.foodintelligence.pos.catalog.CatalogSource
 import com.ban.foodintelligence.pos.catalog.PosInventoryLot
 import com.ban.foodintelligence.pos.catalog.fefoSaleLots
 import com.ban.foodintelligence.pos.catalog.fefoRecommendedLotNos
+import com.ban.foodintelligence.pos.scan.CameraLotScanner
+import com.ban.foodintelligence.pos.scan.LotScan
+import com.ban.foodintelligence.pos.scan.LotScanResult
 import com.ban.foodintelligence.pos.security.DeviceIdentity
 import com.ban.foodintelligence.pos.ui.design.Figure
 import com.ban.foodintelligence.pos.ui.design.Fmt
@@ -92,6 +99,29 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecal
     var blocked by remember { mutableStateOf<PosInventoryLot?>(null) }
     val scope = rememberCoroutineScope()
     val catalog = state.catalog
+    val context = LocalContext.current
+    val scanUnavailable = stringResource(R.string.scan_unavailable)
+
+    // A scanned or typed lot number opens that lot: the sale sheet, or the red sheet when it is
+    // recalled or expired. A lot that is only on a recall list, or unknown, stays in the search
+    // so the list shows the blocked row or "no lot matches".
+    fun openLot(raw: String) {
+        val code = LotScan.parse(raw) ?: return
+        val recalledLots = catalog?.recalls.orEmpty().flatMap { it.affectedLots }
+        when (val found = LotScan.resolve(code, state.lots, recalledLots)) {
+            is LotScanResult.Found -> {
+                val lot = found.lot
+                when {
+                    lot.isBlocked || lot.isExpired -> { query = ""; blocked = lot }
+                    lot.availableQty > 0 -> { query = ""; selling = lot }
+                    else -> query = lot.lotNo
+                }
+            }
+            is LotScanResult.RecalledElsewhere -> query = found.lotNo
+            is LotScanResult.Unknown -> query = found.code
+        }
+    }
+
     LaunchedEffect(catalog) {
         val open = selling ?: return@LaunchedEffect
         val current = state.lots.firstOrNull { it.lotNo == open.lotNo }
@@ -115,7 +145,14 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecal
         .distinctBy { it.first }
 
     PosScreen(title = stringResource(R.string.sell_title), trailing = { trailing() }) {
-        item(key = "search") { SearchField(query) { query = it } }
+        item(key = "search") {
+            SearchField(
+                query = query,
+                onChange = { query = it },
+                onSubmit = { openLot(query) },
+                onScan = { CameraLotScanner.scan(context, onCode = { openLot(it) }, onUnavailable = { Toast.makeText(context, scanUnavailable, Toast.LENGTH_LONG).show() }) }
+            )
+        }
         catalogBanner(state)
         val recalls = catalog?.recalls.orEmpty()
         if (recalls.isNotEmpty() && query.isBlank()) item(key = "recall-banner") {
@@ -182,11 +219,14 @@ fun SellScreen(state: PosAppState, trailing: @Composable () -> Unit, onOpenRecal
 }
 
 @Composable
-private fun SearchField(query: String, onChange: (String) -> Unit) {
+private fun SearchField(query: String, onChange: (String) -> Unit, onSubmit: () -> Unit, onScan: () -> Unit) {
     OutlinedTextField(
         value = query,
         onValueChange = onChange,
         singleLine = true,
+        // a keyboard-wedge hand scanner types the code and presses Enter
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
         leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = palette.secondaryLabel) },
         trailingIcon = if (query.isNotEmpty()) {
             {
@@ -194,7 +234,13 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
                     Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.action_cancel), tint = palette.secondaryLabel)
                 }
             }
-        } else null,
+        } else {
+            {
+                androidx.compose.material3.IconButton(onClick = onScan) {
+                    Icon(Icons.Rounded.QrCodeScanner, contentDescription = stringResource(R.string.scan_lot), tint = palette.accent)
+                }
+            }
+        },
         placeholder = { Text(stringResource(R.string.sell_search_hint), style = PosType.body, color = palette.tertiaryLabel) },
         shape = Shapes.button,
         textStyle = PosType.body,

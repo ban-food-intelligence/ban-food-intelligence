@@ -103,6 +103,109 @@ const unique = (xs) => [...new Set(xs.filter(Boolean))].sort();
 
 const emptyLine = () => ({ sku: '', lot_no: '', supplier_lot_no: '', qty: '', unit_price: '', expiry_date: '' });
 
+/** Size that fits a photo inside max x max pixels, never enlarged. */
+export function fitWithin(width, height, max = 1600) {
+  const s = Math.min(1, max / Math.max(width, height));
+  return { width: Math.round(width * s), height: Math.round(height * s) };
+}
+
+/** A phone photo as a JPEG (base64) small enough for the API's 768 KB image limit. */
+async function photoToJpegBase64(file) {
+  const bitmap = await createImageBitmap(file);
+  const { width, height } = fitWithin(bitmap.width, bitmap.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+  for (const quality of [0.85, 0.7, 0.55]) {
+    const url = canvas.toDataURL('image/jpeg', quality);
+    const b64 = url.slice(url.indexOf(',') + 1);
+    if (b64.length * 0.75 <= 700 * 1024) return b64;
+  }
+  throw Object.assign(new Error('TOO_LARGE'), { code: 'TOO_LARGE' });
+}
+
+/** Puts the invoice suggestions into the receipt form: filled lines stay, read lines are added. */
+export function applyInvoice(head, lines, s) {
+  const str = (v) => (v == null ? '' : String(v));
+  const read = s.lines.map((l) => ({ sku: l.sku || '', lot_no: '', supplier_lot_no: l.supplier_lot_no || '', qty: str(l.qty),
+    unit_price: str(l.unit_price), expiry_date: l.expiry_date || '' }));
+  const kept = lines.filter((l) => Object.values(l).some((v) => String(v).trim() !== ''));
+  return {
+    head: { ...head, supplier_code: s.supplier_code || head.supplier_code, invoice_no: s.invoice_no || head.invoice_no },
+    lines: kept.length + read.length ? [...kept, ...read] : [emptyLine()],
+  };
+}
+
+const MATCH_TONE = { EXACT: 'ok', PARTIAL: 'warn', NONE: 'bad' };
+
+/** Photo in, suggestions out (POST /purchases/invoice); nothing is saved here. */
+function InvoiceReader({ pin, onRead }) {
+  const { t } = useLang();
+  const status = useApi('/purchases/invoice');
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  if (!status.data) return null;
+  if (!status.data.configured) return <p className="muted entry-pad">{t('iv_notConfigured')}</p>;
+  const read = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const image = await photoToJpegBase64(file).catch((e) => {
+        throw e.code === 'TOO_LARGE' ? e : Object.assign(new Error(t('iv_notImage')), { code: 'INVALID_INPUT', details: t('iv_notImage') });
+      });
+      onRead(await apiWrite('/purchases/invoice', { image_base64: image }, pin));
+    } catch (e) {
+      setError(e.code === 'TOO_LARGE' ? Object.assign(e, { message: t('iv_tooLarge'), details: t('iv_tooLarge') }) : e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="invoice-reader">
+      <div className="toolbar">
+        <Field label={t('iv_photo')} wide>
+          <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        </Field>
+        <button type="button" className="btn-primary" disabled={busy || !file || pin.length < 4} onClick={read}>
+          {busy ? t('iv_reading') : t('iv_read')}
+        </button>
+      </div>
+      <p className="muted entry-pad">{pin.length < 4 ? t('iv_pinFirst') : t('iv_hint', status.data.model)}</p>
+      {error && <ErrorState error={error} />}
+    </div>
+  );
+}
+
+function InvoiceReview({ s }) {
+  const { t, fmt } = useLang();
+  return (
+    <div className="invoice-review" role="status">
+      <p className="notice">{t('iv_review', s.lines.length)} <span className="cell-sub">{t('iv_meta', s.model, fmt.num(s.latency_ms, 0))}</span></p>
+      <p className="entry-pad">
+        {t('supplier')}: {s.supplier_name || '–'} → {s.supplier_code ? <Mono>{s.supplier_code}</Mono> : '–'}{' '}
+        <Pill tone={MATCH_TONE[s.supplier_match]}>{t(`iv_${s.supplier_match}`)}</Pill>
+        {s.invoice_no && <> · {t('invoice')}: <Mono>{s.invoice_no}</Mono></>}
+        {s.invoice_date && <> · {fmt.date(s.invoice_date)}</>}
+      </p>
+      <Table
+        rows={s.lines}
+        rowKey={(l, i) => `${i}:${l.product_name}`}
+        rowTone={(l) => (l.match === 'NONE' ? 'bad' : '')}
+        columns={[
+          { key: 'product_name', label: t('iv_printed') },
+          { key: 'sku', label: t('iv_matched'), render: (l) => <>{l.sku ? <Mono>{l.sku}</Mono> : '–'} <Pill tone={MATCH_TONE[l.match]}>{t(`iv_${l.match}`)}</Pill>{l.sku_name && <div className="cell-sub">{l.sku_name}</div>}</> },
+          { key: 'qty', label: t('qty'), align: 'num', render: (l) => (l.qty == null ? '–' : `${fmt.num(l.qty, 3)} ${l.unit || ''}`) },
+          { key: 'unit_price', label: t('unitPrice'), align: 'num', render: (l) => (l.unit_price == null ? '–' : `${fmt.num(l.unit_price, 2)} ${l.currency || ''}`) },
+          { key: 'warnings', label: t('iv_check'), render: (l) => (l.warnings.length === 0 ? '–' : l.warnings.map((w) => <div key={w} className="field-error">{t(`iv_warn_${w}`)}</div>)) },
+        ]}
+      />
+      <p className="muted entry-pad">{t('iv_reviewNote')}</p>
+    </div>
+  );
+}
+
 export function ReceiptForm({ onDone, onCancel }) {
   const { t, fmt } = useLang();
   const purchases = useApi('/purchases');
@@ -111,7 +214,14 @@ export function ReceiptForm({ onDone, onCancel }) {
   const [lines, setLines] = useState([emptyLine()]);
   const [pin, setPin] = useState('');
   const [saved, setSaved] = useState(null);
+  const [invoice, setInvoice] = useState(null);
   const { busy, error, fieldErrors: fe, run } = useSubmit();
+  const onInvoice = (s) => {
+    const next = applyInvoice(head, lines, s);
+    setHead(next.head);
+    setLines(next.lines);
+    setInvoice(s);
+  };
 
   const suppliers = unique((purchases.data || []).map((p) => p.supplier_code));
   const supplierName = Object.fromEntries((purchases.data || []).map((p) => [p.supplier_code, p.supplier_name]));
@@ -165,6 +275,8 @@ export function ReceiptForm({ onDone, onCancel }) {
 
   return (
     <Group title={t('en_receiptTitle')} footer={t('en_receiptNote')}>
+      <InvoiceReader pin={pin} onRead={onInvoice} />
+      {invoice && <InvoiceReview s={invoice} />}
       <form onSubmit={submit} noValidate>
         <div className="toolbar">
           <Field label={t('receipt')} error={fe.receipt_no}>

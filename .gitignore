@@ -3,6 +3,8 @@ mobile-kotlin/build/
 mobile-kotlin/.kotlin/
 mobile-kotlin/.idea/
 mobile-kotlin/local.properties
+# compose reads secrets such as NVIDIA_API_KEY from here
+.env
 web-react/node_modules/
 web-react/dist/
 web-react/test-results/

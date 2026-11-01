@@ -79,6 +79,13 @@ func main() {
 	aiCtrl := controllers.NewAIController(db)
 	alertCtrl := controllers.NewAlertController(db)
 	countCtrl := controllers.NewStockCountController(db)
+	invoiceReader := controllers.NewInvoiceReaderFromEnv()
+	invoiceCtrl := controllers.NewInvoiceController(db, invoiceReader)
+	if invoiceReader.Configured() {
+		logInfo("OCR", "Invoice reading enabled (%s)", invoiceReader.Model)
+	} else {
+		logInfo("OCR", "Invoice reading disabled: NVIDIA_API_KEY is not set")
+	}
 
 	mux := http.NewServeMux()
 
@@ -103,6 +110,8 @@ func main() {
 	mux.HandleFunc("/production", op(productionCtrl.ListOrders))
 	mux.HandleFunc("/production/orders", op(entryCtrl.ProductionOrder))
 	mux.HandleFunc("/purchases", getOrPost(reportsCtrl.Purchases, op(entryCtrl.Purchase)))
+	// Invoice reading: suggestions for the receipt form; the vision API key stays on the server
+	mux.HandleFunc("/purchases/invoice", getOrPost(invoiceCtrl.Status, op(invoiceCtrl.Read)))
 
 	// Task 2: Whole Lamb Butchery & Cost Allocation
 	mux.HandleFunc("/butchery", butcheryCtrl.ReconcileButchery)
@@ -114,6 +123,10 @@ func main() {
 	mux.HandleFunc("/recall/contacts.csv", recallCtrl.ContactsCSV)
 	mux.HandleFunc("/recall/progress", recallCtrl.Progress)
 	mux.HandleFunc("/recall/followup", quality(recallCtrl.Followup))
+	// Recall drill: a timed traceability test that blocks nothing and moves no stock
+	mux.HandleFunc("/recall/drills", getOrPost(recallCtrl.ListDrills, quality(recallCtrl.StartDrill)))
+	mux.HandleFunc("/recall/drills/contact", quality(recallCtrl.DrillContact))
+	mux.HandleFunc("/recall/drills/close", quality(recallCtrl.CloseDrill))
 	mux.HandleFunc("/shipments", getOrPost(shipmentCtrl.List, op(shipmentCtrl.Create)))
 	mux.HandleFunc("/customers", shipmentCtrl.Customers)
 	mux.HandleFunc("/trace/", traceCtrl.TraceHandler)
@@ -230,6 +243,9 @@ func (r *statusRecorder) WriteHeader(code int) {
 	r.status = code
 	r.ResponseWriter.WriteHeader(code)
 }
+
+// Unwrap lets http.ResponseController reach the connection (a slow invoice read extends its write deadline).
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
 func withCORSAndLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -43,3 +43,25 @@ describe('apiWrite session per PIN', () => {
     await expect(apiWrite('/recall', {}, '161803')).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
   });
 });
+
+describe('apiWrite without a PIN', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const reply = (status, body) => ({ ok: status < 400, status, text: async () => JSON.stringify(body) });
+
+  it('reuses the open session when the form sends no PIN', async () => {
+    const calls = [];
+    vi.stubGlobal('fetch', async (url) => {
+      calls.push(url);
+      if (url.endsWith('/auth/session')) {
+        return reply(200, { token: 'tok', role: 'QUALITY', username: 'kalite_uzmani', expires_at: new Date(Date.now() + 600_000).toISOString() });
+      }
+      return reply(201, {});
+    });
+    vi.resetModules();
+    const { apiWrite, hasSession } = await import('../lib/api.js');
+    await apiWrite('/recall/drills', {}, '314159');
+    expect(hasSession()).toBe(true);
+    await apiWrite('/recall/drills/contact', {}, '');
+    expect(calls.filter((u) => u.endsWith('/auth/session'))).toHaveLength(1);
+  });
+});

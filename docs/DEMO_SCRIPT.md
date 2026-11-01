@@ -15,6 +15,13 @@ adb reverse tcp:8080 tcp:8080      # USB phone (or emulator)
 - Phone: app installed, Settings → Server → *Test connection* shows "connected", Sync tab shows
   0 waiting. Do Not Disturb on, brightness up, screen recording via `scrcpy` or the phone's recorder.
 - Have `curl` in a terminal for the API shots (optional).
+- Phone app from this version (lot scan, stock count, invoice reading through the API): install the
+  APK from the latest release or `./gradlew assembleDebug`.
+- Lot labels to scan: dashboard → *Lots & stock* → click **KZB-2026-001** → *Print lot label (QR)*;
+  the same for **SUC-2026-046**. Print them, or keep the label windows open on a second screen.
+- Invoice reading (optional shot): put `NVIDIA_API_KEY=nvapi-...` into `.env` next to
+  `docker-compose.yml` and run `docker compose up -d --build api-go`. Without a key the screens say
+  reading is not set up; skip that shot.
 
 ## 1. Introduction (0:00 - 1:00)
 
@@ -26,7 +33,7 @@ adb reverse tcp:8080 tcp:8080      # USB phone (or emulator)
 > kasa uygulaması var. İş kuralları veritabanında: negatif stok, geri çağrılmış lotun satışı ve
 > hareket defterinin değiştirilmesi tetikleyicilerle engelleniyor."
 
-## 2. Task 1: external production and EKP (1:00 - 3:00)
+## 2. Task 1: external production and EKP (1:00 - 2:30)
 
 **Shot:** Dashboard → *Purchases* (ET-2026-001, 100 kg × 9.70 €), then *Production (EKP)*,
 order URT-2026-045 expanded.
@@ -53,7 +60,7 @@ the three receipts under *Purchases* before recording (or do it before the video
 > paket sayısını ve EKP'yi tahmin ediyor. Mamulü teslim aldığımda gerçek EKP hesaplanıyor ve
 > tahminle karşılaştırılıyor."
 
-## 3. Task 2: butchery (3:00 - 6:00)
+## 3. Task 2: butchery (2:30 - 5:00)
 
 **Shot:** *Butchery*, the rejected record PRC-2026-000 at the top.
 
@@ -72,12 +79,15 @@ the three receipts under *Purchases* before recording (or do it before the video
 > "Maliyeti ağırlığa göre ya da satış değerine göre dağıtabiliyoruz. Yuvarlamada en büyük kalan
 > yöntemi kullanıyoruz, bu yüzden kuruşlar her zaman toplama eşit. Fire maliyet almıyor."
 
-**Shot:** phone, *Sell* tab: pick KZB-2026-001 (Kuzu but), enter 0,5 kg, confirm. Then *Sync* tab
-until "0 waiting". Then dashboard *Sales* (refresh) shows the new line with cost and gross profit.
+**Shot:** phone, *Sell* tab: tap the scan icon in the search field and scan the **KZB-2026-001**
+label (Kuzu but): the sale sheet opens on that lot. Enter 0,5 kg, confirm. Then *Sync* tab until
+"0 waiting". Then dashboard *Sales* (refresh) shows the new line with cost and gross profit.
+(No camera scanner on the device: type `KZB-2026-001` in the search and press Enter.)
 
-> "Parça lotları kasada satılıyor. Kuzu buttan yarım kilo satıyorum. Satış önce telefondaki SQLite
-> veritabanına yazılıyor, imzalanıyor ve arka planda sunucuya gönderiliyor. Panelde satış, lot
-> maliyeti ve brüt kârla birlikte görünüyor."
+> "Parça lotları kasada satılıyor. Kasiyer listeden seçmiyor, elindeki paketin lot etiketini
+> okutuyor; böylece yanlış lot satılamıyor. Kuzu buttan yarım kilo satıyorum. Satış önce telefondaki
+> SQLite veritabanına yazılıyor, imzalanıyor ve arka planda sunucuya gönderiliyor. Panelde satış,
+> lot maliyeti ve brüt kârla birlikte görünüyor."
 
 **Shot (30 s):** still on *Sell*: Kuzu kıyma (KZY-2026-001) is listed under *SKT geçti, satış
 engellendi*; tap it. (The seed calendar is relative to the day of `demo-reset.sh`: the 2-day minced
@@ -86,7 +96,7 @@ lamb always expired yesterday.)
 > "Kıymanın son tüketim tarihi dün doldu. Kasa bu lotu satmıyor, sunucu da son tüketim tarihi
 > geçmiş bir lotun satışını ve sevkini reddediyor. Lot raftan kaldırılıp fire olarak kaydedilir."
 
-## 4. Task 3: trace and recall (6:00 - 11:00)
+## 4. Task 3: trace and recall (5:00 - 10:45)
 
 **Shot:** *Trace & recall*, lot ET-2026-001, *Forward trace*.
 
@@ -96,12 +106,27 @@ lamb always expired yesterday.)
 > için ikinci seviye olarak görünüyor. Bu sonuçların hepsi veritabanındaki lot ilişkilerinden
 > geliyor, yapay zekâ kullanılmıyor."
 
+**Shot:** scroll to *Mass balance*: "every quantity documented", 85 packs at customers.
+
+> "Kütle dengesi her miktarın nerede olduğunu gösteriyor: 100 kilo etin tamamı sucuğa işlenmiş,
+> 85 paketin tamamı müşterilerde. Belgesiz tek bir paket olsaydı burada kırmızı görünürdü."
+
 **Shot:** switch to *Backward trace* with SUC-2026-045.
 
 > "Geriye doğru izlemede sucuk lotunun hangi et, baharat ve bağırsak lotlarından, hangi
 > tedarikçiden geldiği görünüyor. Bir lot birden çok lota, birden çok lot da bir lota bağlanabiliyor."
 
-**Shot:** forward trace ET-2026-001 again → *Start recall* → enter the supervisor PIN `246813`
+**Shot (1 min):** forward trace ET-2026-001 again, scroll to *Recall drill* → *Start drill for
+ET-2026-001* (target 240 minutes, note "Yıllık test", PIN `246813`). The clock runs; tap *Reached*
+for Market A, B, C and Örnek Lokanta (PIN once, a short note); *Finish drill* shows "Passed" before
+saving → *Finish and record the result*.
+
+> "Gerçek bir geri çağırmadan önce tatbikat yapıyoruz. Tatbikat hiçbir lotu bloke etmiyor, stok
+> değişmiyor; sadece süreyi ölçüyor. Dört müşteriye ulaştım, her miktar belgeli ve hedef sürenin
+> içindeyiz: sonucu sistem hesaplıyor, geçti. Kayıt sonradan değiştirilemiyor; denetçiye bu kanıt
+> gösteriliyor."
+
+**Shot:** *Start recall* → enter the supervisor PIN `246813`
 → confirm (only a supervisor can start a recall; it is recorded under that name). Show the recall report:
 affected lots RECALLED, customer list with quantities, shipment documents, contacts; download the
 CSV; open print view.
@@ -126,12 +151,12 @@ shop is affected and sales continue.)
 > kaldırılana kadar bekliyor."
 
 **Shot:** enter a wrong PIN once ("4 attempts left"), then the demo PIN → unlocked. *Sell* tab:
-SUC-2026-046 is shown as recalled and opening it shows "sale blocked".
+scan the **SUC-2026-046** label: the red sheet opens, "sale blocked".
 
 > "Yanlış PIN girersem kalan deneme sayısı gösteriliyor; beş yanlış denemede cihaz beş dakika
 > kilitleniyor. Doğru PIN ile sorumlu kişi rafın boşaltıldığını onaylıyor ve bu bir denetim
 > kaydına yazılıyor. Geri çağrılmış lot satış ekranında kilitli; internet olmasa bile telefondaki
-> önbellekten engelleniyor."
+> önbellekten engelleniyor. Paketi okuttuğumda da kasa satışı açmıyor, nedenini gösteriyor."
 
 **Shot (optional, 30 s):** cut the connection (`adb reverse --remove tcp:8080`, or stop Wi-Fi when
 using a LAN address): the pill turns *Çevrimdışı* within about 15 s. The recalled lot stays
@@ -140,7 +165,7 @@ blocked; a normal sale shows "Gönderilmeyi bekliyor" on *Sync*. Restore the con
 *Gönderildi*, without restarting the app. (Airplane mode alone does not cut a USB `adb reverse`
 connection.)
 
-## 5. AI (11:00 - 13:30)
+## 5. AI and alerts (10:45 - 13:30)
 
 **Shot:** dashboard *AI*: MAPE chart and metric table.
 
@@ -157,11 +182,25 @@ connection.)
 > kayda değil test kümesinin tamamına dayandırıyoruz. Yapay zekâ sadece tahmin ve öneri veriyor;
 > izlenebilirlik ve geri çağırma kararları her zaman kayıtlı verilerden geliyor."
 
-**Shot (optional):** phone *Lots → Receive goods from an invoice*: photo of a sample invoice →
-read fields → user checks and approves.
+**Shot (40 s):** the clean seed has no open alert, so make one: *Purchases* → *New receipt*,
+supplier `TED-BAH-01`, product `HM-BAHARAT`, lot `BAH-DEMO-1`, 5 kg at **40,00 €** (the last
+purchases were 24,00 €/kg), expiry a year ahead, PIN → saved. The sidebar bell now counts it:
+*Alerts* shows a critical *purchase price increase*; open *Review* (a note is required to close
+it), then *Alerts → accuracy and thresholds*.
 
-> "İsteğe bağlı olarak fatura okuma da var: NVIDIA'nın görüntü modeli alanları okuyor, kullanıcı
-> kontrol edip onaylamadan hiçbir şey kaydedilmiyor."
+> "Kayıt girildiği anda uyarı üretiliyor: tahmin bandının dışında kalan verim, beklenmedik fire,
+> son alışlardan yüzde 10 pahalı bir fiyat, geri çağrılmış ya da tarihi geçmiş lotun reddedilen
+> satışı, sayımda eksik. Eşikler sentetik bir stres testinden geliyor; yetkili her uyarıyı
+> inceleyip kapatıyor, isabet oranı bu incelemelerden hesaplanıyor."
+
+**Shot (optional, needs the key):** dashboard *Purchases* → *New receipt* → *Read from invoice*:
+choose a photo of a supplier invoice, PIN → the form fills; the review table shows printed vs
+matched and what to check. (Phone: *Lots → Receive goods from an invoice* → *Use sample invoice*.)
+
+> "Fatura okuma isteğe bağlı. Fotoğraf sunucuya gidiyor; NVIDIA'nın görüntü modelinin anahtarı
+> sadece sunucuda, ne tarayıcıya ne telefona iniyor. Tedarikçi ve ürünler kayıtlarımızla kural
+> tabanlı eşleşiyor; birim farkı, eksik son tüketim tarihi gibi şüpheler işaretleniyor. Lot
+> numarasını biz veriyoruz ve yetkili kontrol edip kaydetmeden hiçbir şey yazılmıyor."
 
 ## 6. Close (13:30 - 14:30)
 
@@ -169,8 +208,13 @@ read fields → user checks and approves.
 "clean seed restored".
 
 > "Tüm iş kuralları otomatik testlerle doğrulanıyor: Go birim ve entegrasyon testleri, veritabanı
-> testleri, Android birim testleri ve panel derlemesi. Demo verisi tek komutla temiz hale geliyor.
-> Teşekkürler."
+> testleri, Android birim testleri, panel testleri ve gerçek tarayıcıda 17 kullanıcı akışı. Demo
+> verisi tek komutla temiz hale geliyor. Teşekkürler."
+
+**If there is time (or for questions):** phone *Lots → Stock count* (scan packs, each scan counts
+one; a difference needs a reason; refused while sales are unsent); dashboard *Shipments* with a
+customer's onward delivery; the lot card behind every lot number; *Overview → Assessment report
+(PDF)*.
 
 ## Troubleshooting
 
@@ -183,3 +227,6 @@ read fields → user checks and approves.
 | Sale stays "waiting" on *Sync* | Network required; tap *Send now*. A sale rejected by the server (e.g. not enough stock) is shown with its reason and not retried. |
 | Data from a previous run is visible (extra sales, an active recall) | `./scripts/demo-reset.sh`, then clear the app's data on the phone (see above) or reinstall the APK. |
 | Docker not running | Start Docker Desktop, wait for "Engine running", then `docker compose up -d`. |
+| Scan button says the camera scanner is not available | The device has no Google Play services: type the lot number in the search and press Enter (a hand scanner does the same). |
+| Invoice screens say reading is not set up | No `NVIDIA_API_KEY` on the API: add it to `.env`, `docker compose up -d --build api-go`; or skip the shot. |
+| A recall drill from a previous run is listed | Drills are evidence and cannot be deleted; `./scripts/demo-reset.sh` starts from the clean seed. |

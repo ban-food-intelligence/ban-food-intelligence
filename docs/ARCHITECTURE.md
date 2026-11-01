@@ -74,7 +74,9 @@ A `BEFORE INSERT` trigger enforces the rules for every client:
 - a recalled or blocked lot cannot be sold, shipped or consumed (returns and quarantine moves are allowed);
 - a lot past its expiry date cannot be sold or shipped (`LOT_EXPIRED`); the date that counts is the
   movement's own time, so an offline sale made before the expiry is still accepted when it syncs later;
-- the balance may never go negative (the balance row is locked `FOR UPDATE`, so concurrent sales cannot both pass).
+- the balance may never go negative (the balance row is locked `FOR UPDATE`, so concurrent sales cannot both pass;
+  `TestIntegrationConcurrentSalesNeverOversell` sends 10 simultaneous sales for 3 packs: exactly 3 are booked).
+  A `CHECK (qty >= 0)` on `stock_balance` is the second guard.
 
 `stock_balance` is a cache maintained by the `AFTER INSERT` trigger; `v_stock_ledger_check`
 recomputes it from the ledger to prove they agree. Shipment lines and POS sale lines create their
@@ -143,8 +145,14 @@ sequenceDiagram
 
 ## Security notes
 
-- No secrets in the repository: the NVIDIA key and the offline PIN hash come from the gitignored
-  `mobile-kotlin/local.properties`; MySQL stores only a bcrypt hash of the supervisor PIN.
+- No secrets in the repository: the vision key is an API environment variable (`NVIDIA_API_KEY`,
+  from a gitignored `.env` for compose) and never reaches the dashboard or the phone; the offline
+  PIN hash comes from the gitignored `mobile-kotlin/local.properties`; MySQL stores only a bcrypt
+  hash of the supervisor PIN.
+- The phone's back-office actions (receipt from an invoice, stock count) use the same supervisor
+  session as the dashboard (`POST /auth/session`, token in memory only). The POS sync carries only
+  sales: a received or counted quantity is never sent through the outbox, because the sync record
+  (lot + quantity) would be booked as a till sale.
 - Supervisor PIN: 5 wrong attempts per device → 5-minute lockout (server and phone); every attempt
   is written to `audit_log`.
 - `audit_log` and `stock_movement` are append-only.
