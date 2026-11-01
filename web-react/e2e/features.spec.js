@@ -437,3 +437,50 @@ test('thresholds show their synthetic test and a missed problem is recorded for 
   await expect(page.getByRole('row').filter({ hasText: note })).toContainText('8,50 €');
   await page.screenshot({ path: 'test-results/alert-accuracy.png', fullPage: true });
 });
+
+test('a recall drill times the trace, blocks nothing and records the computed result', async ({ page, request }) => {
+  const lot = 'ET-2026-001';
+  const trace = await (await request.get(`${api}/trace/${lot}?direction=forward`)).json();
+  const statuses = async () => Object.fromEntries((await (await request.get(`${api}/trace/${lot}?direction=forward`)).json())
+    .lots.map((l) => [l.lot_no, l.status]));
+  const before = { statuses: await statuses(), recalls: (await (await request.get(`${api}/recall`)).json()).length };
+  const note = `E2E tatbikat ${Date.now()}`;
+
+  await page.goto(`/#trace?lot=${lot}`);
+  await page.getByRole('button', { name: `${lot} için tatbikat başlat` }).click();
+  const start = page.locator('form.confirm').filter({ hasText: 'Hedef süre (dakika)' });
+  await start.getByLabel('Hedef süre (dakika)').fill('0');
+  await expect(start.getByText('1 ile 10080 arasında tam dakika')).toBeVisible();
+  await start.getByLabel('Hedef süre (dakika)').fill('240');
+  await start.getByLabel('Not (ör. yıllık test, denetçi)').fill(note);
+  await start.getByLabel('Yetkili PIN').fill('246813');
+  await start.getByRole('button', { name: 'Tatbikatı başlat' }).click();
+
+  const card = page.locator('.drill').filter({ hasText: note });
+  await expect(card.getByText('Sürüyor')).toBeVisible();
+  for (const market of ['Market A', 'Market B', 'Market C']) await expect(card.getByRole('row').filter({ hasText: market })).toBeVisible();
+  const reach = card.getByRole('button', { name: 'Ulaşıldı', exact: true });
+  const toReach = await reach.count();
+  expect(toReach).toBeGreaterThanOrEqual(3);
+  for (let i = 0; i < toReach; i++) {
+    await reach.first().click();
+    await card.getByLabel('Not (kiminle görüşüldü)').fill('Şube müdürü');
+    await card.getByLabel('Yetkili PIN').fill('246813');
+    await card.getByRole('button', { name: 'Ulaşıldı olarak kaydet' }).click();
+    await expect(card.getByText(/^Ulaşıldı · \+\d/)).toHaveCount(i + 1);
+  }
+
+  await card.getByRole('button', { name: 'Tatbikatı bitir' }).click();
+  const pass = trace.mass_balance.balanced; // another test may have written off part of this chain
+  await expect(card.getByText(pass ? 'Şimdi bitirilirse sonuç: Geçti.' : /Şimdi bitirilirse sonuç: Kaldı \(belgesiz miktar\)/)).toBeVisible();
+  await card.getByLabel(pass ? 'Bulgular (isteğe bağlı)' : 'Düzeltici faaliyet').fill('Sevkiyat iletişim bilgileri güncel');
+  await card.getByLabel('Yetkili PIN').fill('246813');
+  await page.screenshot({ path: 'test-results/recall-drill.png', fullPage: true });
+  await card.getByRole('button', { name: 'Bitir ve sonucu kaydet' }).click();
+  await expect(card.locator('.pill').getByText(pass ? 'Geçti' : 'Kaldı', { exact: true })).toBeVisible();
+
+  const saved = (await (await request.get(`${api}/recall/drills`)).json()).find((d) => d.note === note);
+  expect(saved).toMatchObject({ status: 'CLOSED', result: pass ? 'PASS' : 'FAIL', customers_reached: toReach, balanced: pass });
+  expect(await statuses()).toEqual(before.statuses); // nothing blocked
+  expect((await (await request.get(`${api}/recall`)).json()).length).toBe(before.recalls);
+});

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { API_BASE, apiWrite, useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { Async, ErrorState, Group, Kpi, Mono, Page, Pill, Segmented, Table } from '../lib/ui';
+import RecallDrill from './RecallDrill';
 import RecallProgress from './RecallProgress';
 import { LotLink, LotLinks } from './LotPanel';
 import TraceFlow from './TraceFlow';
@@ -44,6 +45,8 @@ export default function TraceRecall() {
       <Async result={trace}>{(tr) => <TraceResult tr={tr} />}</Async>
 
       <RecallPanel lot={lot} recalls={recalls} />
+
+      <RecallDrill lot={lot} />
     </Page>
   );
 }
