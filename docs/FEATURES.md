@@ -1,4 +1,4 @@
-# FEFO, recovery, assessment PDF, alerts, mass balance, stock count, recall drill, invoice reading and lot scan
+# FEFO, recovery, assessment PDF, alerts, mass balance, stock count, sale void, recall drill, invoice reading and lot scan
 
 ## Use
 
@@ -109,6 +109,12 @@ Refused while sales are still unsent (they would look like a shortage and then r
 second time) or offline; if a balance changed after the list was opened, the API refuses the count
 and the list is reloaded.
 
+**Dashboard → Sales → Void sale:** corrects a wrong POS sale (wrong product scanned, test sale)
+by a reversal, never by deleting it. Type the reason and the supervisor PIN: each line gets a
+`RETURN` movement back into the store, the void is written to `sale_void` and the audit log, the
+line stays in the list marked *Voided* and the revenue/profit totals leave it out. A sale can be
+voided once. Customer returns of delivered goods still use *Record physical return*.
+
 **Dashboard → Purchases → New receipt → Read from invoice:** choose a photo of the supplier
 invoice or delivery note (on a phone the camera opens), type the supervisor PIN and press **Read
 invoice**. The browser shrinks the photo, the API sends it to the vision model with the key it
@@ -135,6 +141,7 @@ docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migr
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261031_frozen_butchery_forecast.sql
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261101_subcontractor_returns.sql
 docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261101_recall_drill.sql
+docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migrations/20261101_sale_void.sql
 docker compose up -d --build api-go web-react
 ```
 

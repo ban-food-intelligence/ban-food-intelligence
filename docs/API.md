@@ -42,7 +42,7 @@ curl -X POST localhost:8080/recall -H "Authorization: Bearer $TOKEN" -d '{"trigg
 (30 minutes); `401 INVALID_PIN` / `429 LOCKED_OUT` as for the supervisor unlock. Protected:
 `POST /recall`, `/recall/followup`, `/recall/drills`, `/recall/drills/contact`, `/recall/drills/close`,
 `/movements/transfer|return|waste`, `/rework`, `/production`, `/production/orders`, `/purchases/invoice`,
-`/purchases`, `/butchery/operations`, `/ai/forecast/butchery/freeze`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
+`/purchases`, `/butchery/operations`, `/ai/forecast/butchery/freeze`, `/sync/register-key`, `/sales/void`. Without a valid token: `401 AUTH_REQUIRED`.
 The recall initiator and the movements' `created_by` are the signed-in supervisor.
 
 Limits for every request: body ≤ 1 MiB (`413 PAYLOAD_TOO_LARGE`), 20 requests/s per client IP
@@ -385,7 +385,7 @@ The report never initiates a recall or books a stock movement. ML evidence is la
 |---|---|
 | `GET /purchases` | receipt, date, supplier, lot, supplier lot, qty, unit price, line total, expiry |
 | `GET /movements[?lot_no=]` | stock ledger with `balance_after` per lot and warehouse; 404 for a lot without movements |
-| `GET /sales` | POS sale lines with revenue, lot cost and gross profit |
+| `GET /sales` | POS sale lines with revenue, lot cost and gross profit; `voided` / `void_reason` after `POST /sales/void` |
 
 Example `GET /movements?lot_no=KZB-2026-001` row:
 ```json
@@ -404,6 +404,17 @@ The dashboard's *Lot movements → Record movement* form uses transfer, waste an
 | `POST /movements/return` | `{"lot_no","warehouse","customer_code","qty","note"}` (counted as returned in the recall report) |
 | `POST /movements/waste` | `{"lot_no","warehouse","qty","reason"}` |
 | `POST /rework` | `{"input_lot_no","warehouse","qty_consumed","output_lot_no","output_qty","note"}` (new REWORK lot linked in `lot_link`) |
+
+### Voiding a wrong POS sale
+
+`POST /sales/void` (session) `{"sale_uuid": "019a2b3c-...", "reason": "Wrong product scanned"}`.
+Nothing is deleted: the sale, its lines and their `SALE` movements stay in the append-only ledger.
+Each line gets a `RETURN` movement of the same quantity back into the warehouse it was sold from
+(`ref_type` `sale_void`), the void is kept in `sale_void` (one per sale, append-only by trigger) and
+in `audit_log` (`SALE_VOID`, operator and reason). `201` with each line's `balance_after`; `409
+CONFLICT` for a second void of the same sale, `404` for an unknown `sale_uuid`, `422` without a
+reason (min. 3 characters). `GET /sales` keeps the lines with `voided: true`; the dashboard's
+*Sales* totals leave them out and each sale has a *Void sale* action (reason + supervisor PIN).
 
 ### Stock count
 

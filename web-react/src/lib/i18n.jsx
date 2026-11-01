@@ -85,6 +85,7 @@ export const DICT = {
     filterLot: 'Lot filtresi', allLots: 'Tüm lotlar', type: 'Hareket', balanceAfter: 'Bakiye', reference: 'Referans',
 
     sa_title: 'Satışlar', sa_sub: 'Kotlin satış uygulamasından gelen satış satırları, lot maliyeti ve brüt kâr.',
+    sv_void: 'Satışı iptal et', sv_voided: 'İptal edildi', sv_reason: 'İptal gerekçesi', sv_hint: 'Satış silinmez: ürün RETURN hareketiyle aynı mağaza stoğuna geri döner, iptal adınızla ve gerekçeyle denetim kaydına yazılır.', sv_lines_voided: '{0} satır · {1} iptal',
     soldAt: 'Satış zamanı', store: 'Mağaza', device: 'Cihaz', lineTotal: 'Satır tutarı', cost: 'Maliyet', gp: 'Brüt kâr',
 
     tab_alerts: 'Uyarılar', al_title: 'Uyarılar',
@@ -309,6 +310,7 @@ export const DICT = {
     filterLot: 'Lot filter', allLots: 'All lots', type: 'Movement', balanceAfter: 'Balance', reference: 'Reference',
 
     sa_title: 'Sales', sa_sub: 'Sale lines from the Kotlin POS with lot cost and gross profit.',
+    sv_void: 'Void sale', sv_voided: 'Voided', sv_reason: 'Reason for the void', sv_hint: 'Nothing is deleted: the goods go back into the same store stock by a RETURN movement, and the void is written to the audit log with your name and reason.', sv_lines_voided: '{0} lines · {1} voided',
     soldAt: 'Sold at', store: 'Shop', device: 'Device', lineTotal: 'Line total', cost: 'Cost', gp: 'Gross profit',
 
     tab_alerts: 'Alerts', al_title: 'Alerts',
