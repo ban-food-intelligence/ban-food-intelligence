@@ -41,7 +41,7 @@ curl -X POST localhost:8080/recall -H "Authorization: Bearer $TOKEN" -d '{"trigg
 `POST /auth/session` `{"pin","device_id"?}` → `200 {"token","token_type":"Bearer","expires_at","username","display_name"}`
 (30 minutes); `401 INVALID_PIN` / `429 LOCKED_OUT` as for the supervisor unlock. Protected:
 `POST /recall`, `/recall/followup`, `/recall/drills`, `/recall/drills/contact`, `/recall/drills/close`,
-`/movements/transfer|return|waste`, `/rework`, `/production`, `/production/orders`,
+`/movements/transfer|return|waste`, `/rework`, `/production`, `/production/orders`, `/purchases/invoice`,
 `/purchases`, `/butchery/operations`, `/ai/forecast/butchery/freeze`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
 The recall initiator and the movements' `created_by` are the signed-in supervisor.
 
@@ -341,6 +341,34 @@ supplier batch, date, quantity, price and expiry date, plus a `PURCHASE_IN` move
 (e.g. `{"lines[0].expiry_date":"required: the product has a shelf life"}`); `404` unknown
 supplier / product; `409 CONFLICT` for a used receipt or lot number. The database refuses a
 purchased perishable lot without expiry as well (`EXPIRY_REQUIRED`).
+
+### Reading an invoice (suggestions only)
+
+`GET /purchases/invoice` - `{"configured":true,"model":"nvidia/nemotron-3.5-super-vl-120b-a12b"}`
+when the API has a vision key (`NVIDIA_API_KEY`; optional `NVIDIA_VISION_MODEL`,
+`NVIDIA_VISION_ENDPOINT`), `{"configured":false,"model":""}` otherwise. The key itself is never sent.
+
+`POST /purchases/invoice` (session) `{"image_base64":"<JPEG, PNG or WebP, at most 768 KB>"}`
+(a `data:` URI prefix is accepted). The server sends the image to the vision-language model and
+returns **suggestions** for the receipt form; it writes nothing. Supplier and products are matched
+to the master data by plain word rules, not AI: same words or the printed code = `EXACT`, close
+words (weighted by how distinctive they are) = `PARTIAL`, nothing close or two records equally
+close = `NONE`. Only suppliers that deliver raw material or livestock and only raw-material /
+carcass products are candidates.
+```json
+{"supplier_name":"ÖRNEK ET TEDARİK A.Ş.","supplier_code":"TED-ET-01","supplier_match":"EXACT",
+ "invoice_no":"FTR-2026-0912","invoice_date":"2026-10-30","model":"nvidia/nemotron-3.5-super-vl-120b-a12b","latency_ms":8400,
+ "lines":[{"product_name":"DANA ET SUCUKLUK","sku":"HM-ET-DANA","sku_name":"Dana et (sucukluk)","match":"EXACT",
+           "qty":120.5,"unit":"KG","unit_price":9.8,"currency":"EUR","supplier_lot_no":"TED-B-4411",
+           "expiry_date":"2026-11-08","warnings":[]}]}
+```
+`warnings` per line: `NO_PRODUCT_MATCH`, `UNIT_DIFFERS` (printed unit is not the product's),
+`QTY_MISSING`, `PRICE_MISSING`, `NOT_EUR`, `EXPIRY_MISSING` (the product has a shelf life). A
+printed lot number becomes `supplier_lot_no`; our own lot number is never suggested.
+Errors: `503 OCR_NOT_CONFIGURED` without a key, `422 INVALID_INPUT` for something that is not a
+JPEG/PNG/WebP image or is too large (checked before the model is called), `422 OCR_UNREADABLE`
+when no product line could be read, `502 OCR_FAILED` when the vision service fails or times out
+(90 s; its answer is not passed on), `429 RATE_LIMITED` while two reads are running.
 
 ## Reports and lot movements
 
