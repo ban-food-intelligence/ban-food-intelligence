@@ -417,6 +417,9 @@ in `audit_log` (`SALE_VOID`, operator and reason). `201` with each line's `balan
 CONFLICT` for a second void of the same sale, `404` for an unknown `sale_uuid`, `422` without a
 reason (min. 3 characters). `GET /sales` keeps the lines with `voided: true`; the dashboard's
 *Sales* totals leave them out and each sale has a *Void sale* action (reason + supervisor PIN).
+A database created before `migrations/20261101_sale_void.sql` (an existing docker volume) keeps
+`GET /sales` working with every line `voided: false`; a void there answers `503 MIGRATION_REQUIRED`
+naming the migration and writes nothing.
 
 ### Stock count
 

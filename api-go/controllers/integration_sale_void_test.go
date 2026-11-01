@@ -3,6 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -108,5 +109,59 @@ func TestIntegrationSaleVoidReversesWithoutDeleting(t *testing.T) {
 	// sale_void is append-only.
 	if _, err := db.Exec(`DELETE sv FROM sale_void sv JOIN sale s ON s.id = sv.sale_id WHERE s.sale_uuid = ?`, uuid); err == nil {
 		t.Fatal("DELETE on sale_void succeeded, want IMMUTABLE")
+	}
+}
+
+// A database created before migrations/20261101_sale_void.sql (an existing docker volume) has no
+// sale_void table: GET /sales must keep working for the Sales and Overview pages, and a void must
+// say which migration to apply instead of failing with a database error. Nothing is written.
+func TestIntegrationSalesWorkBeforeTheSaleVoidMigration(t *testing.T) {
+	db := testDB(t)
+	defer db.Close()
+	if _, err := db.Exec(`RENAME TABLE sale_void TO sale_void_hidden_by_test`); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if _, err := db.Exec(`RENAME TABLE sale_void_hidden_by_test TO sale_void`); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	code, body := call(t, NewReportsController(db).Sales, "GET", "/sales", nil)
+	if code != http.StatusOK {
+		t.Fatalf("GET /sales without sale_void: %d %s", code, body)
+	}
+	var lines []SaleReportLineDto
+	if err := json.Unmarshal(body, &lines); err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) == 0 {
+		t.Fatal("GET /sales without sale_void returned no lines; the seed has POS sales")
+	}
+	for _, l := range lines {
+		if l.Voided {
+			t.Fatalf("line %+v voided without a sale_void table", l)
+		}
+	}
+
+	var uuid string
+	var before int
+	if err := db.QueryRow(`SELECT sale_uuid FROM sale ORDER BY id LIMIT 1`).Scan(&uuid); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM stock_movement`).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	code, body = call(t, NewSaleVoidController(db).Void, "POST", "/sales/void", SaleVoidRequest{SaleUUID: uuid, Reason: "migration missing"})
+	if code != http.StatusServiceUnavailable || !strings.Contains(string(body), "MIGRATION_REQUIRED") ||
+		!strings.Contains(string(body), "20261101_sale_void.sql") {
+		t.Fatalf("void without sale_void: %d %s, want 503 MIGRATION_REQUIRED naming the migration", code, body)
+	}
+	var after int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM stock_movement`).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatalf("void without sale_void wrote %d movements", after-before)
 	}
 }
