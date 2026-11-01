@@ -69,7 +69,8 @@ export default function Overview({ onOpen }) {
 
         <Group title={t('ov_sales')} aside={<button className="btn-text" onClick={() => onOpen('sales')}>›</button>}>
           <Async result={sales} rows={2}>
-            {(rows) => {
+            {(all) => {
+              const rows = all.filter((r) => !r.voided);
               const revenue = rows.reduce((a, r) => a + r.line_total, 0);
               const gp = rows.reduce((a, r) => a + r.gross_profit, 0);
               return (
