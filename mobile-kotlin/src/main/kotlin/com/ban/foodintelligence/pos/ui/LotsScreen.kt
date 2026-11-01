@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import com.ban.foodintelligence.pos.BuildConfig
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.DocumentScanner
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Inventory2
@@ -74,6 +74,7 @@ fun LotsScreen(state: PosAppState, trailing: @Composable () -> Unit) {
     val scope = rememberCoroutineScope()
     var tracing by remember { mutableStateOf<PosInventoryLot?>(null) }
     var showForecasts by remember { mutableStateOf(false) }
+    var counting by remember { mutableStateOf(false) }
     val catalog = state.catalog
     val scanUnavailable = stringResource(R.string.scan_unavailable)
 
@@ -116,16 +117,22 @@ fun LotsScreen(state: PosAppState, trailing: @Composable () -> Unit) {
                     )
                 }
                 row(dividerInset = 56.dp) {
-                    // The demo release APK carries no API key, so invoice reading is switched off there.
-                    val ocrEnabled = BuildConfig.NVIDIA_API_KEY.isNotEmpty()
+                    ListRow(
+                        title = stringResource(R.string.count_title),
+                        subtitle = stringResource(R.string.count_open_sub),
+                        icon = Icons.Rounded.Checklist,
+                        chevron = true,
+                        onClick = { counting = true }
+                    )
+                }
+                row(dividerInset = 56.dp) {
+                    // The API reads the invoice (it holds the key) and saves the checked receipt.
                     ListRow(
                         title = stringResource(R.string.lots_receive_invoice),
-                        subtitle = if (ocrEnabled) null else stringResource(R.string.ocr_disabled_build),
+                        subtitle = stringResource(R.string.lots_receive_invoice_sub),
                         icon = Icons.Rounded.DocumentScanner,
-                        chevron = ocrEnabled,
-                        onClick = if (ocrEnabled) {
-                            { context.startActivity(Intent(context, InvoiceOcrActivity::class.java)) }
-                        } else null
+                        chevron = true,
+                        onClick = { context.startActivity(Intent(context, InvoiceOcrActivity::class.java)) }
                     )
                 }
                 row(dividerInset = 56.dp) {
@@ -143,6 +150,7 @@ fun LotsScreen(state: PosAppState, trailing: @Composable () -> Unit) {
 
     tracing?.let { lot -> TraceSheet(lot) { tracing = null } }
     if (showForecasts) ForecastSheet { showForecasts = false }
+    if (counting) StockCountSheet(state) { counting = false }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

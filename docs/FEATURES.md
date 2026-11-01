@@ -93,6 +93,22 @@ counts with their differences, reasons and value. If a lot's stock changed after
 opened (e.g. a till sale synced), the count is refused and the list refreshes. A shortage above
 10 € (or any shortage of a recalled lot) raises an alert.
 
+**Android → Lots → Receive goods from an invoice:** take a photo (or use the sample invoice),
+type the supervisor PIN and the API reads it, exactly as for the dashboard. The lines come back as
+an editable receipt: supplier code, receipt number, our lot number per line (never suggested),
+SKU, supplier batch, quantity, price and expiry, with the match and the warnings per line. **Save
+receipt** posts it with `POST /purchases`; the API's field errors show under the fields. Without
+`NVIDIA_API_KEY` on the API the screen says reading is not set up. (Earlier builds saved the read
+lines as local stock movements; the sync booked those as till sales or dropped them. That path is
+gone.)
+
+**Android → Lots → Stock count:** the shop's lots with the server's balance; type what is on the
+shelf or scan packs (each scan counts one; weighed lots ask for the weight), give a reason for
+every difference and save with the supervisor PIN (`POST /stock-counts`, warehouse `MAGAZA-01`).
+Refused while sales are still unsent (they would look like a shortage and then reduce the stock a
+second time) or offline; if a balance changed after the list was opened, the API refuses the count
+and the list is reloaded.
+
 **Dashboard → Purchases → New receipt → Read from invoice:** choose a photo of the supplier
 invoice or delivery note (on a phone the camera opens), type the supervisor PIN and press **Read
 invoice**. The browser shrinks the photo, the API sends it to the vision model with the key it
@@ -136,7 +152,9 @@ phone's installed app. No app installation or public release is performed by the
   service (server key, image data URI), upstream errors not passed on, refused images never reach
   the model, word matching against the seed suppliers/products with warnings, nothing written
   (`invoice_reader_test.go`, `integration_invoice_test.go`).
-- Android: five FEFO tests, five lot-scan tests (our label, GS1 with parentheses and with FNC1
+- Android: invoice receipt draft (4: suggestions to an editable receipt, required fields, the
+  `POST /purchases` body) and stock count rules (5: as the dashboard, scanned packs, the
+  `POST /stock-counts` body); five FEFO tests, five lot-scan tests (our label, GS1 with parentheses and with FNC1
   separators and a weight, no guess for a bare GTIN or an unknown AI, lookup by lot number, batch
   and recall list) plus the existing validation/security tests; lint and debug build. The camera
   scan itself needs a device and was not run here.
