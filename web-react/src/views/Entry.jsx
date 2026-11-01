@@ -808,19 +808,27 @@ const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0,
 
 /** Receives the finished goods of an order that is at the subcontractor (POST /production). */
 export function ReceiveProductionForm({ order, onDone, onCancel }) {
-  const { t } = useLang();
+  const { t, fmt } = useLang();
   const [form, setForm] = useState({ actual_qty: '', output_lot_no: '', lot_date: today(), expiry_date: inDays(90), invoice_no: '' });
+  // Leftover raw material the subcontractor sends back (only the consumed quantity is costed).
+  const [returns, setReturns] = useState([]);
   const [pin, setPin] = useState('');
   const { busy, error, fieldErrors: fe, run } = useSubmit();
+  const sent = order.inputs || [];
+  const setReturn = (i, key, value) => setReturns((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: value } : r)));
 
   const submit = async (e) => {
     e.preventDefault();
+    const returned = returns
+      .filter((r) => r.lot_no.trim() || String(r.qty).trim())
+      .map((r) => ({ lot_no: r.lot_no.trim().toUpperCase(), qty: toJsonNum(r.qty) }));
     const body = {
       ...form,
       order_no: order.order_no,
       actual_qty: toJsonNum(form.actual_qty),
       output_lot_no: form.output_lot_no.trim().toUpperCase(),
       invoice_no: form.invoice_no.trim(),
+      ...(returned.length ? { returned_inputs: returned } : {}),
     };
     const res = await run(() => apiWrite('/production', body, pin));
     if (res) onDone?.();
@@ -846,6 +854,28 @@ export function ReceiveProductionForm({ order, onDone, onCancel }) {
           <input value={form.invoice_no} onChange={(e) => setForm({ ...form, invoice_no: e.target.value })} spellCheck={false} />
         </Field>
       </div>
+      <fieldset className="entry-returns">
+        <legend>{t('pr_returned')}</legend>
+        <p className="muted">{t('pr_returnedNote')}</p>
+        {fe.returned_inputs && <div className="field-error">{fe.returned_inputs}</div>}
+        <datalist id={`pr-sent-${order.order_no}`}>
+          {sent.map((l) => <option key={l.lot_no} value={l.lot_no} label={fmt.num(l.qty, 3)} />)}
+        </datalist>
+        {returns.map((r, i) => (
+          <div className="toolbar" key={i}>
+            <Field label={t('lot')} error={fe[`returned_inputs[${i}].lot_no`]}>
+              <input list={`pr-sent-${order.order_no}`} value={r.lot_no} onChange={(e) => setReturn(i, 'lot_no', e.target.value)} spellCheck={false} />
+            </Field>
+            <Field label={t('qty')} error={fe[`returned_inputs[${i}].qty`]}>
+              <input inputMode="decimal" value={r.qty} onChange={(e) => setReturn(i, 'qty', e.target.value)} />
+            </Field>
+            <button type="button" className="btn-text muted" onClick={() => setReturns((rs) => rs.filter((_, j) => j !== i))} aria-label={t('en_removeLine')}>×</button>
+          </div>
+        ))}
+        <button type="button" className="btn-text" onClick={() => setReturns((rs) => [...rs, { lot_no: sent.length === 1 ? sent[0].lot_no : '', qty: '' }])}>
+          {t('pr_addReturn')}
+        </button>
+      </fieldset>
       {error && <ErrorState error={error} />}
       <SubmitBar
         pin={pin}

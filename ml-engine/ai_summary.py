@@ -40,9 +40,9 @@ DATA_NOTE = ("Models are trained on synthetic, anonymised history (ml-engine/gen
 
 # keys of the existing Go DTOs; tests assert these never disappear or change type
 METRIC_KEYS = ["task", "target", "unit", "model", "role", "eval_split", "n_rows", "mae", "mape_pct"]
-COMPARISON_KEYS = ["task", "ref_no", "target", "actual", "model_pred", "model_dev", "model_dev_pct",
+COMPARISON_KEYS = ["task", "ref_no", "target", "origin", "actual", "model_pred", "model_dev", "model_dev_pct",
                    "baseline_pred", "baseline_dev", "baseline_dev_pct", "model_closer_than_baseline"]
-SUMMARY_KEYS = ["model", "baseline", "data_note", "metrics", "comparisons"]
+SUMMARY_KEYS = ["model", "baseline", "data_note", "metrics", "comparisons", "records"]
 
 
 def _metric(task, target, unit, model, y, p, n_rows, evaluation, cv_key) -> dict:
@@ -111,7 +111,9 @@ def _dev(pred, actual):
 def _comparison(task, ref, target, actual, model_pred, baseline_pred, extra) -> dict:
     md, mdp = _dev(model_pred, actual)
     bd, bdp = _dev(baseline_pred, actual)
-    row = {"task": task, "ref_no": ref, "target": target, "actual": actual, "model_pred": model_pred,
+    # The offline summary is built from the seeded documents only (data/seed_cases_*.csv), so their
+    # origin is SEED, as ml_prediction.data_origin labels them in the Go /ai/summary.
+    row = {"task": task, "ref_no": ref, "target": target, "origin": "SEED", "actual": actual, "model_pred": model_pred,
            "model_dev": md, "model_dev_pct": mdp, "baseline_pred": baseline_pred, "baseline_dev": bd,
            "baseline_dev_pct": bdp,
            "model_closer_than_baseline": None if md is None or bd is None else bool(abs(md) <= abs(bd))}
@@ -157,8 +159,13 @@ def comparison_rows(prod_bundle=None, butch_bundle=None) -> list[dict]:
 
 
 def build(evaluation: dict | None = None, prod_bundle=None, butch_bundle=None) -> dict:
+    comparisons = comparison_rows(prod_bundle, butch_bundle)
+    # documents behind the comparisons by origin, as the Go /ai/summary reports them
+    records = {"SEED": 0, "DEMO": 0, "FIELD": 0}
+    for origin, _ in {(c["origin"], c["ref_no"]) for c in comparisons}:
+        records[origin] += 1
     return {"model": CHAMPION, "baseline": BASELINE, "data_note": DATA_NOTE,
-            "metrics": metric_rows(evaluation), "comparisons": comparison_rows(prod_bundle, butch_bundle)}
+            "metrics": metric_rows(evaluation), "comparisons": comparisons, "records": records}
 
 
 def main():

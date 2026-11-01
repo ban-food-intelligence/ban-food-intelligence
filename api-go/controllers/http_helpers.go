@@ -95,6 +95,8 @@ func classifyDBError(err error) (int, string) {
 		return http.StatusConflict, "LOT_BLOCKED"
 	case strings.Contains(msg, "LOT_EXPIRED"):
 		return http.StatusConflict, "LOT_EXPIRED"
+	case strings.Contains(msg, "ORDER_NOT_FOUND"):
+		return http.StatusNotFound, "NOT_FOUND"
 	case strings.Contains(msg, "ORDER_STATE"):
 		return http.StatusConflict, "ORDER_STATE"
 	case strings.Contains(msg, "FORECAST_TOO_LATE"):
