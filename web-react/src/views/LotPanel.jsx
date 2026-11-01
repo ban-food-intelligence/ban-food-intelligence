@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useApi } from '../lib/api';
 import { useLang } from '../lib/i18n';
+import { printLotLabel } from '../lib/lotLabel';
 import { Async, Group, Kpi, Mono, Pill, Table } from '../lib/ui';
 
 // Every lot number on the dashboard opens this panel: the lot's facts, stock per warehouse,
@@ -79,7 +80,7 @@ export function LotPanelProvider({ children, onOpenTrace }) {
 }
 
 function LotPanel({ lot, onClose, onOpenTrace }) {
-  const { t } = useLang();
+  const { t, fmt } = useLang();
   const enc = encodeURIComponent(lot);
   const back = useApi(`/trace/${enc}?direction=backward`);
   const closeRef = useRef(null);
@@ -90,6 +91,12 @@ function LotPanel({ lot, onClose, onOpenTrace }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   const root = back.data?.lots?.find((l) => l.depth === 0);
+  const [labelBlocked, setLabelBlocked] = useState(false);
+  // a QR label with the lot number, for the POS camera or a hand scanner
+  const printLabel = () => setLabelBlocked(!printLotLabel({
+    lot, product: root?.product_name, title: t('lp_printLabel'), expiryLabel: t('expiry'),
+    expiryText: root?.expiry_date ? fmt.date(root.expiry_date.slice(0, 10)) : '',
+  }));
 
   return (
     <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -104,7 +111,9 @@ function LotPanel({ lot, onClose, onOpenTrace }) {
         <Async result={back} rows={4}>
           {(tr) => <LotDetails lot={lot} root={tr.lots.find((l) => l.depth === 0)} back={tr} />}
         </Async>
+        {labelBlocked && <p className="notice notice-bad drawer-notice">{t('lp_labelBlocked')}</p>}
         <div className="drawer-actions">
+          <button type="button" className="btn-text" disabled={!root} onClick={printLabel}>{t('lp_printLabel')}</button>
           <button type="button" className="btn-primary" onClick={() => onOpenTrace(lot)}>{t('lp_openTrace')}</button>
         </div>
       </aside>

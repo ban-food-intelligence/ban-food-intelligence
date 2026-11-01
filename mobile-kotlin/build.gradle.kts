@@ -111,6 +111,9 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
+    // Lot barcode scan: Google code scanner (own camera screen, no camera permission in this app)
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+
     // Unit tests (pure Kotlin logic: validation, formatting, config)
     testImplementation("junit:junit:4.13.2")
 }

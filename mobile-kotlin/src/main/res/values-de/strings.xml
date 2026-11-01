@@ -120,7 +120,7 @@
     <string name="action_cancel">Abbrechen</string>
     <string name="action_close">Schließen</string>
     <string name="sell_title">Verkauf</string>
-    <string name="sell_search_hint">Produkt oder Charge suchen</string>
+    <string name="sell_search_hint">Produkt oder Charge suchen oder scannen</string>
     <string name="sell_section_available">In diesem Geschäft verfügbar</string>
     <string name="sell_section_blocked">Zurückgerufen, Verkauf gesperrt</string>
     <string name="sell_empty">In diesem Geschäft sind keine Chargen auf Lager.</string>
@@ -209,5 +209,10 @@
         <item quantity="one">%1$d aktiver Rückruf</item>
         <item quantity="other">%1$d aktive Rückrufe</item>
     </plurals>
-    <string name="ocr_disabled_build">In diesem Demo-Build nicht verfügbar: Das Lesen von Rechnungen braucht einen API-Schlüssel, der nie in der App ausgeliefert wird. Zum Ausprobieren mit eigenem Schlüssel aus dem Quellcode bauen.</string>
+    <string name="ocr_disabled_build">Nicht in diesem Demo-Build: Die App enthält nie einen API-Schlüssel. Rechnungen im Dashboard lesen (Einkäufe, Neuer Eingang, Aus Rechnung lesen); der Schlüssel bleibt auf dem Server.</string>
+    <string name="scan_lot">Charge scannen</string>
+    <string name="scan_lot_sub">Kamera oder Handscanner: QR oder Barcode auf dem Chargenetikett</string>
+    <string name="scan_unavailable">Der Kamerascanner ist auf diesem Gerät nicht verfügbar. Chargennummer eingeben oder Handscanner verwenden.</string>
+    <string name="scan_not_found">Keine Charge „%1$s“ in dieser Filiale.</string>
+    <string name="scan_recalled_elsewhere">%1$s ist zurückgerufen. Diese Packung nicht verkaufen.</string>
 </resources>

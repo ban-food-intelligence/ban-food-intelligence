@@ -1,6 +1,19 @@
-# FEFO, recovery, assessment PDF, alerts, mass balance, stock count, recall drill and invoice reading
+# FEFO, recovery, assessment PDF, alerts, mass balance, stock count, recall drill, invoice reading and lot scan
 
 ## Use
+
+**Android → Sell / Lots → Scan a lot:** the scan button in the Sell search field opens Google's
+code scanner (its own camera screen, so the app asks for no camera permission). A sellable lot opens
+its sale sheet at once; a recalled or expired one opens the red sheet that says why it must not be
+sold; a lot that is only on a recall list stays in the search as a blocked row; an unknown code shows
+"no lot matches". A keyboard-wedge hand scanner types into the same field and its Enter does the
+same. *Lots → Scan a lot* opens the scanned lot's trace. Codes read: the lot number itself (our QR
+labels, Code 128) and GS1 pack labels, whose batch (AI 10) is our lot number on packs we produce
+(AI 17 expiry, GTIN, weight and serial are parsed; an unknown AI stops parsing, nothing is guessed).
+Devices without Google Play services get a message and keep the search field.
+
+**Dashboard → lot card → Print lot label (QR):** a 60 × 40 mm label with a QR code of the lot
+number, the product and the expiry date, printed from its own window.
 
 **Android → Sell:** available lots are ordered by product and expiry. The earliest-expiring
 sellable lot for each SKU has a **Sell first · FEFO** badge. Expired/recalled/blocked/exhausted
@@ -109,7 +122,7 @@ docker compose exec -T mysql mysql -uroot -pban --comments < database-mysql/migr
 docker compose up -d --build api-go web-react
 ```
 
-Rebuild/install the Android APK to get the FEFO badge. Updating the web/API does not update a
+Rebuild/install the Android APK to get the FEFO badge and the lot scan. Updating the web/API does not update a
 phone's installed app. No app installation or public release is performed by the test suite.
 
 ## Validation
@@ -123,7 +136,12 @@ phone's installed app. No app installation or public release is performed by the
   service (server key, image data URI), upstream errors not passed on, refused images never reach
   the model, word matching against the seed suppliers/products with warnings, nothing written
   (`invoice_reader_test.go`, `integration_invoice_test.go`).
-- Android: five FEFO tests plus the existing validation/security tests; lint and debug build.
+- Android: five FEFO tests, five lot-scan tests (our label, GS1 with parentheses and with FNC1
+  separators and a weight, no guess for a bare GTIN or an unknown AI, lookup by lot number, batch
+  and recall list) plus the existing validation/security tests; lint and debug build. The camera
+  scan itself needs a device and was not run here.
+- Lot label: the printed QR is rasterised and read back by an independent decoder (`jsqr`)
+  as the lot number (`lotLabel.test.js`); the browser test opens the label window.
 - Browser: real PDF download, report failure without download, contact acknowledgement and
   physical return through the actual forms; a recall drill started, every customer reached and
   closed through the forms with the lot statuses unchanged; invoice reading switched off on the
