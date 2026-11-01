@@ -66,7 +66,7 @@ flowchart LR
 ```
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (data model, many-to-many lot design,
-SQLite ↔ MySQL sync). API reference: [docs/API.md](docs/API.md). Terms: [docs/GLOSSARY.md](docs/GLOSSARY.md).
+SQLite ↔ MySQL sync). API reference: [docs/API.md](docs/API.md), machine-readable contract [docs/openapi.yaml](docs/openapi.yaml) (OpenAPI 3.0, every route; import into Swagger UI or Postman). Terms: [docs/GLOSSARY.md](docs/GLOSSARY.md).
 
 ## Quick start
 
@@ -151,8 +151,8 @@ compose container. Only the database tests: `./scripts/test-db.sh` (or `make tes
 | Go integration tests (`MYSQL_TEST_DSN`) | EKP 18.16, butchery findings, allocation sums, recording a receipt and a butchery operation with by-product, forward/backward/butchery trace, mass balance, every lot movement, shipments, stock counts, subcontractor returns, alerts and thresholds, live and frozen AI forecasts, recall CSV and follow-up, recall drill (nothing blocked, immutable), invoice suggestions that write nothing, sync idempotency and replay mismatch, sale of a recalled lot rejected, 10 tills selling the last 3 packs at once (exactly 3 sold, 7 refused, balance 0), a voided POS sale (stock back by a RETURN reversal, nothing deleted, audited, voided once) |
 | `scripts/test-db.sh` (pytest, `database-mysql/tests`) | schema, triggers (no negative stock, append-only ledger, recalled and expired lots blocked, frozen forecasts and recall drills immutable), EKP, trace, recall, stock count, alert rules |
 | `./gradlew testDebugUnitTest` | sale quantity validation, server address handling, recalled lots not sellable, FEFO, lot scan (our labels, GS1), invoice receipt draft (suggestions in, `POST /purchases` body out), stock count rules |
-| `npm test` + `npm run build` (web-react) | TR/EN texts complete, supervisor-session flow, stock count, alerts, recall drill rules, invoice form, QR label read back by a decoder; dashboard compiles |
-| `npm run test:e2e` (web-react, Playwright) | 18 browser flows against a seeded test API (`E2E_API_BASE`): PDF export, recall follow-up, shipments, butchery forecast, stock count, alerts, recall drill, invoice reading (mocked vision answer), lot label, sale void |
+| `npm test` + `npm run build` (web-react) | TR/EN texts complete, supervisor-session flow, stock count, alerts, recall drill rules, invoice form, QR label read back by a decoder, sale void (totals leave voided lines out, one void per sale); dashboard compiles |
+| `npm run test:e2e` (web-react, Playwright) | 17 browser flows against a seeded test API (`E2E_API_BASE`): PDF export, recall follow-up, shipments, butchery forecast, stock count, alerts, recall drill, invoice reading (mocked vision answer), lot label |
 
 The same suites run on every push in GitHub Actions ([ci.yml](.github/workflows/ci.yml)); the slow
 ML tests run there on manual dispatch.
@@ -189,7 +189,7 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 | Optional: invoice reading with human approval | `POST /purchases/invoice` (NVIDIA Nemotron VL called by the API, suggestions only); dashboard *Purchases → New receipt → Read from invoice*; Android *Lots → Receive goods from an invoice* (same endpoint, receipt saved with `POST /purchases`) |
 | SQLite ↔ MySQL sync approach explained | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#sqlite--mysql-sync) |
 | Reports: purchase, production, butchery, lot movements, sales, recall | dashboard tabs + `docs/API.md` |
-| Data model, API description, sample records, basic automated tests | ARCHITECTURE.md, API.md, [docs/samples/](docs/samples/), the test suites above |
+| Data model, API description, sample records, basic automated tests | ARCHITECTURE.md, API.md, [docs/openapi.yaml](docs/openapi.yaml) (kept in step with the registered routes by `TestOpenAPIMatchesRegisteredRoutes`), [docs/samples/](docs/samples/), the test suites above |
 
 ## Repository layout
 

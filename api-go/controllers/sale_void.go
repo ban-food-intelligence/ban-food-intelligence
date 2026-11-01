@@ -9,10 +9,12 @@ import (
 	"time"
 )
 
-// SaleVoidController corrects a wrong POS sale without deleting anything: the sale and its
-// SALE movements stay in the append-only ledger, each line gets a RETURN (+) movement back
-// into the warehouse it was sold from (ref_type 'sale_void'), and the void is recorded in
-// sale_void (once per sale, immutable) and audit_log with who did it and why.
+// SaleVoidController corrects a wrong POS sale without deleting anything and without a table of
+// its own: the sale and its SALE movements stay in the append-only ledger, each line gets a
+// RETURN (+) movement back into the warehouse it was sold from (ref_type 'sale_void', ref_id =
+// sale id), and the void is written to the append-only audit_log (SALE_VOID) with who did it and
+// why. Both are written in one transaction; the RETURN movements mark the sale as voided, so a
+// sale is voided once.
 type SaleVoidController struct {
 	db *sql.DB
 }
@@ -42,12 +44,16 @@ type SaleVoidDto struct {
 	Lines    []SaleVoidLineDto `json:"lines"`
 }
 
+// maxVoidReason keeps the movement note "void of POS sale <uuid>: <reason>" within
+// stock_movement.note (255 characters); the audit_log row keeps the reason as typed.
+const maxVoidReason = 200
+
 // Void handles POST /sales/void {sale_uuid, reason}.
 //
 //	201 voided; stock is back in the store
 //	404 NOT_FOUND   unknown sale_uuid
-//	409 CONFLICT    the sale was already voided
-//	422 INVALID_INPUT  sale_uuid or a reason (min. 3 characters) missing
+//	409 CONFLICT    the sale was already voided (or has no lines)
+//	422 INVALID_INPUT  sale_uuid or a reason (3-200 characters) missing
 func (c *SaleVoidController) Void(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -59,9 +65,9 @@ func (c *SaleVoidController) Void(w http.ResponseWriter, r *http.Request) {
 	}
 	req.SaleUUID = strings.TrimSpace(req.SaleUUID)
 	req.Reason = strings.TrimSpace(req.Reason)
-	if req.SaleUUID == "" || len([]rune(req.Reason)) < 3 || len(req.Reason) > 255 {
+	if n := len([]rune(req.Reason)); req.SaleUUID == "" || n < 3 || n > maxVoidReason {
 		writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT",
-			map[string]string{"sale_uuid": "required", "reason": "required, 3-255 characters"})
+			map[string]string{"sale_uuid": "required", "reason": "required, 3-200 characters"})
 		return
 	}
 	ctx := r.Context()
@@ -84,8 +90,10 @@ func (c *SaleVoidController) Void(w http.ResponseWriter, r *http.Request) {
 		writeDBError(w, r, err)
 		return
 	}
+	// An earlier void left its RETURN movements in the ledger (a locking read sees the latest commit).
 	var voided int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sale_void WHERE sale_id = ?`, saleID).Scan(&voided); err != nil {
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM stock_movement WHERE ref_type = 'sale_void' AND ref_id = ? FOR UPDATE`, saleID).Scan(&voided); err != nil {
 		writeDBError(w, r, err)
 		return
 	}
@@ -126,6 +134,10 @@ func (c *SaleVoidController) Void(w http.ResponseWriter, r *http.Request) {
 		writeDBError(w, r, err)
 		return
 	}
+	if len(lines) == 0 {
+		writeAPIError(w, r, http.StatusConflict, "CONFLICT", map[string]string{"sale_uuid": "no lines to void"})
+		return
+	}
 
 	out := SaleVoidDto{SaleUUID: req.SaleUUID, Reason: req.Reason, VoidedBy: actor, Lines: []SaleVoidLineDto{}}
 	for _, l := range lines {
@@ -137,19 +149,19 @@ func (c *SaleVoidController) Void(w http.ResponseWriter, r *http.Request) {
 		bal := balances(ctx, tx, l.lot, l.code)[l.code]
 		out.Lines = append(out.Lines, SaleVoidLineDto{LineNo: l.no, LotNo: l.lotNo, Warehouse: l.code, Qty: l.qty, Balance: bal})
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO sale_void (sale_id, reason, voided_by) VALUES (?, ?, ?)`,
-		saleID, req.Reason, actor); err != nil {
-		writeDBError(w, r, err)
-		return
-	}
 	newValue, _ := json.Marshal(map[string]interface{}{"sale_uuid": req.SaleUUID, "reason": req.Reason, "lines": out.Lines})
-	if _, err := tx.ExecContext(ctx,
+	res, err := tx.ExecContext(ctx,
 		`INSERT INTO audit_log (table_name, row_id, action, old_value, new_value, changed_by) VALUES ('sale', ?, 'SALE_VOID', NULL, ?, ?)`,
-		saleID, string(newValue), actor); err != nil {
+		saleID, string(newValue), actor)
+	if err != nil {
 		writeDBError(w, r, err)
 		return
 	}
-	if err := tx.QueryRowContext(ctx, `SELECT voided_at FROM sale_void WHERE sale_id = ?`, saleID).Scan(&out.VoidedAt); err != nil {
+	auditID, err := res.LastInsertId()
+	if err == nil {
+		err = tx.QueryRowContext(ctx, `SELECT changed_at FROM audit_log WHERE id = ?`, auditID).Scan(&out.VoidedAt)
+	}
+	if err != nil {
 		writeDBError(w, r, err)
 		return
 	}

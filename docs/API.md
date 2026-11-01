@@ -2,6 +2,8 @@
 
 Base URL: `http://localhost:8080` (docker compose). All responses are JSON unless stated.
 Money values are EUR, quantities are in the lot's unit (`KG`, `PAKET`).
+The same routes as an OpenAPI 3.0 contract: [openapi.yaml](openapi.yaml) (a Go test fails if a
+route or its session requirement is missing there).
 
 ## Conventions
 
@@ -410,11 +412,13 @@ The dashboard's *Lot movements → Record movement* form uses transfer, waste an
 `POST /sales/void` (session) `{"sale_uuid": "019a2b3c-...", "reason": "Wrong product scanned"}`.
 Nothing is deleted: the sale, its lines and their `SALE` movements stay in the append-only ledger.
 Each line gets a `RETURN` movement of the same quantity back into the warehouse it was sold from
-(`ref_type` `sale_void`), the void is kept in `sale_void` (one per sale, append-only by trigger) and
-in `audit_log` (`SALE_VOID`, operator and reason). `201` with each line's `balance_after`; `409
-CONFLICT` for a second void of the same sale, `404` for an unknown `sale_uuid`, `422` without a
-reason (min. 3 characters). `GET /sales` keeps the lines with `voided: true`; the dashboard's
-*Sales* totals leave them out and each sale has a *Void sale* action (reason + supervisor PIN).
+(`ref_type` `sale_void`, `ref_id` = the sale) and the void is written to the append-only `audit_log`
+(`SALE_VOID`, operator, reason, lines) in the same transaction. No table of its own and no
+migration: the `RETURN` movements mark the sale as voided, so it is voided once. `201` with each
+line's `balance_after`; `409 CONFLICT` for a second void of the same sale, `404` for an unknown
+`sale_uuid`, `422` without a reason of 3-200 characters. `GET /sales` keeps the lines with
+`voided: true` and `void_reason`; the dashboard's *Sales* totals leave them out and each sale has
+a *Void sale* action (reason + supervisor PIN).
 
 ### Stock count
 
