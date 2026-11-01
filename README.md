@@ -66,7 +66,7 @@ flowchart LR
 ```
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (data model, many-to-many lot design,
-SQLite ↔ MySQL sync). API reference: [docs/API.md](docs/API.md). Terms: [docs/GLOSSARY.md](docs/GLOSSARY.md).
+SQLite ↔ MySQL sync). API reference: [docs/API.md](docs/API.md), machine-readable contract [docs/openapi.yaml](docs/openapi.yaml) (OpenAPI 3.0, every route; import into Swagger UI or Postman). Terms: [docs/GLOSSARY.md](docs/GLOSSARY.md).
 
 ## Quick start
 
@@ -189,7 +189,7 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 | Optional: invoice reading with human approval | `POST /purchases/invoice` (NVIDIA Nemotron VL called by the API, suggestions only); dashboard *Purchases → New receipt → Read from invoice*; Android *Lots → Receive goods from an invoice* (same endpoint, receipt saved with `POST /purchases`) |
 | SQLite ↔ MySQL sync approach explained | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#sqlite--mysql-sync) |
 | Reports: purchase, production, butchery, lot movements, sales, recall | dashboard tabs + `docs/API.md` |
-| Data model, API description, sample records, basic automated tests | ARCHITECTURE.md, API.md, [docs/samples/](docs/samples/), the test suites above |
+| Data model, API description, sample records, basic automated tests | ARCHITECTURE.md, API.md, [docs/openapi.yaml](docs/openapi.yaml) (kept in step with the registered routes by `TestOpenAPIMatchesRegisteredRoutes`), [docs/samples/](docs/samples/), the test suites above |
 
 ## Repository layout
 

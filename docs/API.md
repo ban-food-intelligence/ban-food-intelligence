@@ -2,6 +2,8 @@
 
 Base URL: `http://localhost:8080` (docker compose). All responses are JSON unless stated.
 Money values are EUR, quantities are in the lot's unit (`KG`, `PAKET`).
+The same routes as an OpenAPI 3.0 contract: [openapi.yaml](openapi.yaml) (a Go test fails if a
+route or its session requirement is missing there).
 
 ## Conventions
 
