@@ -90,10 +90,11 @@ its records: apply the migrations listed in [docs/FEATURES.md](docs/FEATURES.md#
 
 ### Android app
 
-**Without Android Studio:** download `ban-shop-pos-v1.0.0-demo.apk` from
+**Without Android Studio:** download `ban-shop-pos-v1.1.0-demo.apk` from
 [Releases](https://github.com/ban-food-intelligence/ban-food-intelligence/releases) and install it
-(`adb install -r ban-shop-pos-v1.0.0-demo.apk`, or open the file on the phone and allow the
-install). Then connect it to the API as described below (USB: `adb reverse tcp:8080 tcp:8080`).
+(`adb install -r ban-shop-pos-v1.1.0-demo.apk`, or open the file on the phone and allow the
+install). v1.1.0 is signed with a new demo key: uninstall an older demo app first
+(`adb uninstall com.ban.foodintelligence.pos`). Then connect it to the API as described below (USB: `adb reverse tcp:8080 tcp:8080`).
 The demo APK talks to `127.0.0.1` / the emulator host only. It carries no API key: invoice reading
 (*Lots → Receive goods from an invoice*) goes through the API, which holds the key, and the receipt
 is saved with the supervisor PIN. Build it yourself with `./scripts/build-release-apk.sh`.

@@ -23,8 +23,8 @@ android {
         applicationId = "com.ban.foodintelligence.pos"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0-avatar"
+        versionCode = 2
+        versionName = "1.1.0-avatar"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("en", "tr", "de")
