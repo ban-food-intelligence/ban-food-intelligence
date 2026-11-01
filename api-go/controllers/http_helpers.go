@@ -38,6 +38,9 @@ var errorMessages = map[string]map[string]string{
 	"DEVICE_NOT_ENROLLED": {"en": "This device is not registered for sync.", "tr": "Bu cihaz senkronizasyon için kayıtlı değil.", "de": "Dieses Gerät ist nicht für die Synchronisierung registriert."},
 	"KEY_MISMATCH":        {"en": "This device is registered with a different key.", "tr": "Bu cihaz farklı bir anahtarla kayıtlı.", "de": "Dieses Gerät ist mit einem anderen Schlüssel registriert."},
 	"REPLAY_MISMATCH":     {"en": "This record ID was already used for different data.", "tr": "Bu kayıt kimliği farklı verilerle zaten kullanıldı.", "de": "Diese Datensatz-ID wurde bereits für andere Daten verwendet."},
+	"OCR_NOT_CONFIGURED":  {"en": "Invoice reading is not set up on this server.", "tr": "Fatura okuma bu sunucuda kurulu değil.", "de": "Das Lesen von Rechnungen ist auf diesem Server nicht eingerichtet."},
+	"OCR_FAILED":          {"en": "The invoice could not be read: the reading service did not answer.", "tr": "Fatura okunamadı: okuma servisi yanıt vermedi.", "de": "Die Rechnung konnte nicht gelesen werden: Der Lesedienst hat nicht geantwortet."},
+	"OCR_UNREADABLE":      {"en": "No product line could be read from this photo. Try a sharper, straight photo.", "tr": "Bu fotoğraftan ürün satırı okunamadı. Daha net ve düz bir fotoğraf deneyin.", "de": "Aus diesem Foto konnte keine Produktzeile gelesen werden. Bitte ein schärferes, gerades Foto versuchen."},
 	"DB_ERROR":            {"en": "The database could not complete the request.", "tr": "Veritabanı isteği tamamlayamadı.", "de": "Die Datenbank konnte die Anfrage nicht ausführen."},
 }
 
