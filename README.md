@@ -13,16 +13,24 @@ with exact lot traceability and recall. Built for the AVATAR Yapay Zeka Yarışm
   sold from the Android app.
 - **Task 3** Lot traceability and recall: ET-2026-001 → URT-2026-045 → SUC-2026-045 →
   Market A / B / C (30 / 25 / 30 packs), with contacts, recorded second-tier delivery, and recalled
-  lots blocked for sale on the phone (also offline).
-- **AI** A: production yield + EKP forecast; B: butchery part weights per species. Both beat a
-  simple baseline on a time-split test (see [docs/AI.md](docs/AI.md)). Optional: invoice reading
-  with NVIDIA Nemotron VL and human approval.
+  lots blocked for sale on the phone (also offline). A mass balance shows where every traced
+  quantity is; a **recall drill** times the trace and the customer call-down without blocking
+  anything; at the till a pack is **scanned** (camera or hand scanner) and a recalled one is refused.
+- **AI** A: production yield + EKP forecast; B: butchery part weights per species, frozen before
+  the parts are weighed. Both beat a simple baseline on a time-split test (see
+  [docs/AI.md](docs/AI.md)). Optional: invoice reading with NVIDIA Nemotron VL **through the API**
+  (the key never reaches a browser or phone); the result is a suggestion a supervisor checks.
+- **Alerts** Written when a record is saved: yield outside the forecast band, unexpected butchery
+  waste, a purchase price jump, a refused sale of a recalled or expired lot, a stock-count
+  shortage. Thresholds come from a synthetic stress test; reviews give precision and recall.
 - **Security** Supervisor sessions for every back-office write, ECDSA-signed POS sync with pinned
   device keys and replay detection, rate limits and PIN lockout ([docs/SECURITY.md](docs/SECURITY.md)).
 - **Operations** Android recommends the earliest-expiring sellable lot per product (FEFO).
-  Recall follow-up records customer contact and physical returns separately; the dashboard's
-  *Assessment report (PDF)* exports the three tasks and AI evidence with Turkish text.
-  See [docs/FEATURES.md](docs/FEATURES.md) for usage and the existing-database migration.
+  Recall follow-up records customer contact and physical returns separately. Shipments (also a
+  customer's onward delivery), stock counts with a reason for every difference, subcontractor
+  material returns, a lot card behind every lot number and printable QR lot labels. The
+  dashboard's *Assessment report (PDF)* exports the three tasks and AI evidence with Turkish text.
+  See [docs/FEATURES.md](docs/FEATURES.md) for usage and the existing-database migrations.
 
 The brief: [docs/ASSESSMENT.md](docs/ASSESSMENT.md). Every bullet of it with its proof:
 [docs/SPEC_COMPLIANCE.md](docs/SPEC_COMPLIANCE.md).
@@ -54,6 +62,7 @@ flowchart LR
   SQ -- "POST /sync (ECDSA-signed,\nidempotent by UUIDv7)" --> API
   UI -- "GET /lots, /recall, /trace\n(cached for offline)" --> API
   ML["ml-engine (Python)\ntraining + evaluation"] -. "predictions & metrics\n(seed)" .-> DB
+  API -. "invoice photo, only when a\nsupervisor asks (key on the server)" .-> NV["NVIDIA vision API"]
 ```
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (data model, many-to-many lot design,
@@ -73,6 +82,11 @@ docker compose up -d --build        # or: make up   (Podman: make up COMPOSE="po
 | React dashboard | http://localhost:5173 (also :3000) |
 | Go API | http://localhost:8080/health |
 | MySQL | localhost:3306, database `food_intel` |
+
+Invoice reading (optional) needs a vision key on the API: put `NVIDIA_API_KEY=nvapi-...` into a
+`.env` file next to `docker-compose.yml` (gitignored) and rebuild `api-go`. Without it the receipt
+form says reading is not set up and lines are typed by hand. Upgrading an existing database keeps
+its records: apply the migrations listed in [docs/FEATURES.md](docs/FEATURES.md#existing-installation).
 
 ### Android app
 
@@ -131,11 +145,12 @@ compose container. Only the database tests: `./scripts/test-db.sh` (or `make tes
 
 | Suite | What it covers |
 |---|---|
-| `go test ./...` (api-go) | cost allocation rounding (both keys, with by-product), PIN lockout (also per IP), operator sessions, error codes, CORS, rate limit, body cap, ECDSA sync (pinned keys, mandatory signatures) |
-| Go integration tests (`MYSQL_TEST_DSN`) | EKP 18.16, butchery findings, allocation sums, recording a receipt and a butchery operation with by-product, forward/backward/butchery trace, every lot movement, oversell 409, recall CSV, sync idempotency and replay mismatch, sale of a recalled lot rejected |
-| `scripts/test-db.sh` (pytest, `database-mysql/tests`) | schema, triggers (no negative stock, append-only ledger, recalled lots blocked), EKP, trace, recall |
-| `./gradlew testDebugUnitTest` | sale quantity validation, server address handling, recalled lots not sellable |
-| `npm test` + `npm run build` (web-react) | TR/EN texts complete, supervisor-session flow; dashboard compiles |
+| `go test ./...` (api-go) | cost allocation rounding (both keys, with by-product), PIN lockout (also per IP), operator sessions, error codes, CORS, rate limit, body cap, ECDSA sync (pinned keys, mandatory signatures), alert grading, recall drill verdict, invoice reading against a fake vision service (server key, refused images never sent, word matching) |
+| Go integration tests (`MYSQL_TEST_DSN`) | EKP 18.16, butchery findings, allocation sums, recording a receipt and a butchery operation with by-product, forward/backward/butchery trace, mass balance, every lot movement, shipments, stock counts, subcontractor returns, alerts and thresholds, live and frozen AI forecasts, recall CSV and follow-up, recall drill (nothing blocked, immutable), invoice suggestions that write nothing, sync idempotency and replay mismatch, sale of a recalled lot rejected |
+| `scripts/test-db.sh` (pytest, `database-mysql/tests`) | schema, triggers (no negative stock, append-only ledger, recalled and expired lots blocked, frozen forecasts and recall drills immutable), EKP, trace, recall, stock count, alert rules |
+| `./gradlew testDebugUnitTest` | sale quantity validation, server address handling, recalled lots not sellable, FEFO, lot scan (our labels, GS1) |
+| `npm test` + `npm run build` (web-react) | TR/EN texts complete, supervisor-session flow, stock count, alerts, recall drill rules, invoice form, QR label read back by a decoder; dashboard compiles |
+| `npm run test:e2e` (web-react, Playwright) | 17 browser flows against a seeded test API (`E2E_API_BASE`): PDF export, recall follow-up, shipments, butchery forecast, stock count, alerts, recall drill, invoice reading (mocked vision answer), lot label |
 
 The same suites run on every push in GitHub Actions ([ci.yml](.github/workflows/ci.yml)); the slow
 ML tests run there on manual dispatch.
@@ -165,11 +180,11 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 | Transfer, sale, return, rework, waste per lot | `POST /movements/transfer|return|waste`, `POST /rework`, POS sales, `POST /shipments` (dashboard *Shipments*) |
 | Forward trace: lots, stock, shipments, buyers | `sp_trace_forward`, `GET /trace/{lot}?direction=forward` |
 | Backward trace: raw lots, suppliers, production orders | `sp_trace_backward`, `GET /trace/{lot}?direction=backward` |
-| Recall screen blocks products; per-customer quantity, shipment, contact list; tier 2 only if recorded | `sp_recall_initiate`, `sp_recall_report`, `GET/POST /recall`, `GET /recall/contacts.csv`, dashboard *Trace & recall*; `second_tier` RECORDED / NOT_RECORDED; a customer's onward delivery is recorded with `POST /shipments` (`from_customer_code`), capped at what it received |
-| Kotlin: each sale line's lot, quantity and stock movement stored; recalled lots blocked | SQLite outbox + `sale_line.stock_movement_id`; Android blocks recalled lots online and from the offline cache; recall stop with supervisor unlock |
+| Recall screen blocks products; per-customer quantity, shipment, contact list; tier 2 only if recorded | `sp_recall_initiate`, `sp_recall_report`, `GET/POST /recall`, `GET /recall/contacts.csv`, dashboard *Trace & recall*; `second_tier` RECORDED / NOT_RECORDED; a customer's onward delivery is recorded with `POST /shipments` (`from_customer_code`), capped at what it received; recall drills (`/recall/drills`) test it without blocking |
+| Kotlin: each sale line's lot, quantity and stock movement stored; recalled lots blocked | SQLite outbox + `sale_line.stock_movement_id`; Android blocks recalled lots online and from the offline cache; a scanned recalled pack opens the red sheet; recall stop with supervisor unlock |
 | AI A and B with baseline and error measurement | [docs/AI.md](docs/AI.md), `GET /ai/summary`, dashboard *AI*, Android *Lots → Yield forecasts*; A is forecast live in the API for every new order |
 | Traceability never from AI | trace/recall use only `lot_link`/`shipment_line`/`sale_line` |
-| Optional: invoice reading with human approval | Android *Lots → Receive goods from an invoice* (NVIDIA Nemotron VL) |
+| Optional: invoice reading with human approval | `POST /purchases/invoice` (NVIDIA Nemotron VL called by the API, suggestions only); dashboard *Purchases → New receipt → Read from invoice* |
 | SQLite ↔ MySQL sync approach explained | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#sqlite--mysql-sync) |
 | Reports: purchase, production, butchery, lot movements, sales, recall | dashboard tabs + `docs/API.md` |
 | Data model, API description, sample records, basic automated tests | ARCHITECTURE.md, API.md, [docs/samples/](docs/samples/), the test suites above |
