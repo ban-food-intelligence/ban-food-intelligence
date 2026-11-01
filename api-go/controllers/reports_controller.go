@@ -63,6 +63,8 @@ type SaleReportLineDto struct {
 	LineTotal   float64   `json:"line_total"`
 	Cost        float64   `json:"cost"`
 	GrossProfit float64   `json:"gross_profit"`
+	Voided      bool      `json:"voided"`                // POST /sales/void: stock went back, keep the line for the history
+	VoidReason  string    `json:"void_reason,omitempty"` // why it was voided
 }
 
 // Purchases handles GET /purchases: every purchase receipt line with supplier, lot and value.
@@ -159,9 +161,11 @@ func (c *ReportsController) Sales(w http.ResponseWriter, r *http.Request) {
 		`SELECT s.sale_uuid, s.sold_at, s.device_id, w.code, sl.line_no, l.lot_no, p.name,
 		        sl.qty, l.uom_code, sl.unit_price, sl.line_total,
 		        ROUND(sl.qty * l.unit_cost, 2),
-		        ROUND(sl.line_total - sl.qty * l.unit_cost, 2)
+		        ROUND(sl.line_total - sl.qty * l.unit_cost, 2),
+		        sv.sale_id IS NOT NULL, COALESCE(sv.reason, '')
 		 FROM sale s
 		 JOIN sale_line sl ON sl.sale_id = s.id
+		 LEFT JOIN sale_void sv ON sv.sale_id = s.id
 		 JOIN lot l        ON l.id = sl.lot_id
 		 JOIN product p    ON p.id = l.product_id
 		 JOIN warehouse w  ON w.id = s.warehouse_id
@@ -176,7 +180,7 @@ func (c *ReportsController) Sales(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var d SaleReportLineDto
 		if err := rows.Scan(&d.SaleUUID, &d.SoldAt, &d.DeviceID, &d.Store, &d.LineNo, &d.LotNo, &d.ProductName,
-			&d.Qty, &d.UomCode, &d.UnitPrice, &d.LineTotal, &d.Cost, &d.GrossProfit); err != nil {
+			&d.Qty, &d.UomCode, &d.UnitPrice, &d.LineTotal, &d.Cost, &d.GrossProfit, &d.Voided, &d.VoidReason); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "sales report scan failed: "+err.Error())
 			return
 		}
