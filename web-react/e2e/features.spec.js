@@ -465,7 +465,7 @@ test('a recall drill times the trace, blocks nothing and records the computed re
   for (let i = 0; i < toReach; i++) {
     await reach.first().click();
     await card.getByLabel('Not (kiminle görüşüldü)').fill('Şube müdürü');
-    await card.getByLabel('Yetkili PIN').fill('246813');
+    await expect(card.getByLabel('Yetkili PIN')).toHaveCount(0); // the session from the start is still open
     await card.getByRole('button', { name: 'Ulaşıldı olarak kaydet' }).click();
     await expect(card.getByText(/^Ulaşıldı · \+\d/)).toHaveCount(i + 1);
   }
@@ -474,7 +474,6 @@ test('a recall drill times the trace, blocks nothing and records the computed re
   const pass = trace.mass_balance.balanced; // another test may have written off part of this chain
   await expect(card.getByText(pass ? 'Şimdi bitirilirse sonuç: Geçti.' : /Şimdi bitirilirse sonuç: Kaldı \(belgesiz miktar\)/)).toBeVisible();
   await card.getByLabel(pass ? 'Bulgular (isteğe bağlı)' : 'Düzeltici faaliyet').fill('Sevkiyat iletişim bilgileri güncel');
-  await card.getByLabel('Yetkili PIN').fill('246813');
   await page.screenshot({ path: 'test-results/recall-drill.png', fullPage: true });
   await card.getByRole('button', { name: 'Bitir ve sonucu kaydet' }).click();
   await expect(card.locator('.pill').getByText(pass ? 'Geçti' : 'Kaldı', { exact: true })).toBeVisible();
