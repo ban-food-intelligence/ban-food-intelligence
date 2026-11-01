@@ -59,7 +59,8 @@ with a burst of 120 (`429 RATE_LIMITED`, `Retry-After`). See [SECURITY.md](SECUR
 `GET /production[?order_no=URT-2026-045]` - orders with EKP, VKP, gross profit, margin, quantity
 variance and the cost breakdown (from `v_production_cost`, `v_production_cost_breakdown`); orders
 whose material is still at the subcontractor (`MATERIAL_SENT`) follow with `planned_qty`,
-`input_kg` and `material_cost`. Every order with a forecast carries `forecast` (see below).
+`input_kg`, `material_cost` and `inputs` (the lots at the subcontractor, `qty` = sent − returned).
+Every order with a forecast carries `forecast` (see below).
 ```json
 {"order_no":"URT-2026-045","status":"RECEIVED","planned_qty":85,"actual_qty":85,"qty_variance":0,
  "material_cost":1076,"service_cost":467.5,"total_cost":1543.5,"ekp":18.1588,"ekp_display":18.16,
@@ -96,18 +97,27 @@ finished good, the partner a subcontractor); `404 LOT_NOT_FOUND`, `409 INSUFFICI
 `LOT_BLOCKED` / `CONFLICT` (order number exists). On any error nothing is written. `forecast` is
 `null` when no meat was sent or the model extrapolates to nonphysical quantities or bounds.
 
-`POST /production` - receive the finished goods of an order whose material was sent (`sp_production_complete`):
+`POST /production` - receive the finished goods of an order whose material was sent
+(`sp_production_receive`, the transaction-free body of `sp_production_complete`):
 ```json
 {"order_no":"URT-2026-047","actual_qty":82,"output_lot_no":"SUC-2026-047","invoice_no":"FAS-FTR-2026-047",
- "sub_warehouse":"FASON-01","target_wh":"ANA-DEPO"}
+ "sub_warehouse":"FASON-01","target_wh":"ANA-DEPO",
+ "returned_inputs":[{"lot_no":"ET-2026-003","qty":3}],"return_warehouse":"ANA-DEPO"}
 ```
+`returned_inputs` (optional) is leftover raw material the subcontractor sends back with the goods
+(the quantity variance on the input side). Each line moves the lot from `sub_warehouse` back to
+`return_warehouse` (default `ANA-DEPO`) as a `TRANSFER_OUT`/`TRANSFER_IN` pair and raises
+`production_input.qty_returned` (`sp_production_return_input`), so the EKP, the `lot_link` and the
+`PRODUCTION_CONSUME` movement only cover the consumed quantity. Returns, receipt and the forecast
+actuals are one transaction: a lot that was not sent on the order or more than was sent gives
+`422 INVALID_INPUT` and nothing is written.
 Returns the computed order (as above); its `forecast` now has `actual_packages`, `actual_ekp` and
 `anomaly` (actual outside the 98 % band). `409 ORDER_STATE` if already received,
 `409 INSUFFICIENT_STOCK` if the material is not at the subcontractor, `409 CONFLICT` if the
 finished lot number exists.
 Incomplete receipt fields, nonpositive quantities, invalid dates or an expiry before the lot
-date return `422 INVALID_INPUT`. An explicit `order_no` is required. An order-only request
-still calculates its existing cost.
+date return `422 INVALID_INPUT`. An explicit `order_no` is required; an unknown one is
+`404 NOT_FOUND`. An order-only request still calculates its existing cost.
 
 ## Task 2: butchery
 

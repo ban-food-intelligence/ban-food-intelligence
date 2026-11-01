@@ -300,6 +300,8 @@ button { font: inherit; cursor: pointer; }
 .field-error { color: var(--bad); font-size: 12px; }
 .entry-fieldset { border: 0; min-width: 0; }
 .entry-pad { padding: 0 16px 10px; }
+.entry-returns { border: 1px solid var(--separator); border-radius: 8px; margin: 8px 0; padding: 4px 12px 8px; min-width: 0; }
+.entry-returns legend { padding: 0 4px; font-weight: 600; }
 .entry-tight { padding-top: 0; }
 .entry-lines td { vertical-align: top; padding: 6px 8px; }
 .entry-lines td:first-child, .entry-lines th:first-child { padding-left: 16px; }
