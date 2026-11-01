@@ -8,3 +8,5 @@ pymysql>=1.1
 pytest>=8.0
 # Nuri (train_model_nuri.py / stacking_meta_learner.py) and evaluate_ali.py
 lightgbm>=4.0.0
+# compare_models_ali.py (challenger round)
+xgboost>=2.0

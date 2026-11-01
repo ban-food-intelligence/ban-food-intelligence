@@ -63,6 +63,31 @@ ElasticNet and Huber are 0.01 packages better than Ridge. On the selection folds
 difference has a 95 % CI that contains zero, so Ridge stays champion. The tree models are worse:
 the yield process is close to additive, and the trees have less data per split.
 
+### Challenger round: more model families against Ridge
+
+Because the data is synthetic, a flexible model could learn the generator instead of the process.
+So a second round put six more challengers through **exactly the same** folds, nested tuning,
+metrics and parsimony rule ([`compare_models_ali.py`](../ml-engine/compare_models_ali.py),
+full table in [`model_comparison.md`](../ml-engine/artifacts/ali/model_comparison.md)).
+"Holdout diff" is the paired block-bootstrap 95 % CI of (model - Ridge) on folds 4-5, the latest 20 %.
+
+| Production challenger | Packages MAE | Holdout diff vs Ridge | | Butchery challenger | Part kg MAE | Holdout diff vs Ridge |
+|---|---|---|---|---|---|---|
+| **Ridge (champion)** | **1.307** | - | | **Ridge per share (champion)** | **0.1185** | - |
+| random forest | 1.560 | +0.29 [+0.17, +0.40] | | random forest per share | 0.1284 | +0.009 [+0.007, +0.011] |
+| XGBoost (nested tuning) | 1.353 | +0.01 [-0.05, +0.08] | | XGBoost per share | 0.1208 | +0.002 [+0.001, +0.004] |
+| Ridge + LightGBM on Ridge residuals | 1.300 | -0.02 [-0.05, +0.02] | | Ridge + LightGBM residuals | 0.1189 | +0.000 [-0.000, +0.001] |
+| average of Ridge and CatBoost | 1.299 | -0.02 [-0.05, +0.02] | | average of Ridge and CatBoost | 0.1186 | +0.000 [-0.000, +0.001] |
+| average of Ridge and LightGBM | 1.322 | +0.01 [-0.03, +0.04] | | | | |
+| stacking (NNLS weights over Ridge, CatBoost, LightGBM) | 1.298 | -0.03 [-0.05, -0.00] | | | | |
+
+Result: **Ridge stays champion in both studies.** No tree model beats it; random forest is clearly
+worse. The best ensembles gain at most 0.03 packages per order (about 0.2 % of an order, 0.001 EUR
+of EKP) and on the selection folds their gain is not significant, so the parsimony rule keeps
+Ridge. A Ridge model is also a handful of coefficients that the Go API evaluates exactly
+(`export_live_model.py`); an ensemble with trees would need a second runtime for no measurable
+business gain.
+
 ## Validation
 
 - **Rolling origin (expanding window), 5 folds.** Rows are sorted by date; each fold trains on
@@ -429,6 +454,7 @@ python ml-engine/generator_ali.py      # synthetic history (seeded)
 python ml-engine/train_model_ali.py    # time-split training, intervals, metrics.json
 python ml-engine/anomaly_ali.py        # calibrated alert detector
 python ml-engine/evaluate_ali.py       # rolling-origin evaluation, CIs, tests, charts (~10 min)
+python ml-engine/compare_models_ali.py # challengers (RF, XGBoost, ensembles, stacking) vs Ridge (~5 min)
 python ml-engine/ai_summary.py         # /ai/summary preview with the optional fields
 python ml-engine/export_ai_report.py   # writes the AI block of database-mysql/seed.sql
 python ml-engine/export_live_model.py  # the champion as numbers for the Go API's live forecasts
