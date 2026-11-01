@@ -554,3 +554,29 @@ test('the lot card prints a QR label carrying the lot number for the POS scanner
   await expect(label.locator('svg path')).toHaveCount(1);
   await label.screenshot({ path: 'test-results/lot-label.png' });
 });
+
+test('a wrong POS sale is voided by a reversal: the line stays, stock comes back, totals drop it', async ({ page, request }) => {
+  const uuid = '019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a70'; // seed sale: Kuzu but + Kuzu sırt
+  const shop = async (lot) => {
+    const rows = await (await request.get(`${api}/lots`)).json();
+    return rows.filter((r) => r.lot_no === lot && r.warehouse_code === 'MAGAZA-01').reduce((a, r) => a + r.qty, 0);
+  };
+  const before = await shop('KZB-2026-001');
+  await page.goto('/#sales');
+  const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Satışı iptal et' }) }).filter({ hasText: 'KZB-2026-001' });
+  await row.getByRole('button', { name: 'Satışı iptal et' }).click();
+  const form = page.locator('form.confirm');
+  await form.getByLabel('İptal gerekçesi').fill('Kasada yanlış ürün okutuldu');
+  await form.getByLabel('Yetkili PIN').fill('246813');
+  await form.getByRole('button', { name: 'Satışı iptal et' }).click();
+  await expect(form).toHaveCount(0);
+  await expect(page.getByText('İptal edildi')).toHaveCount(2); // both lines of the sale stay, flagged
+  await expect(page.getByText('1 satır · 2 iptal')).toBeVisible();
+  expect(await shop('KZB-2026-001')).toBeCloseTo(before + 1.25, 3);
+  const sales = await (await request.get(`${api}/sales`)).json();
+  expect(sales.filter((s) => s.sale_uuid === uuid).every((s) => s.voided)).toBeTruthy();
+  const again = await request.post(`${api}/sales/void`, {
+    headers: { Authorization: `Bearer ${(await (await request.post(`${api}/auth/session`, { data: { pin: '246813' } })).json()).token}` },
+    data: { sale_uuid: uuid, reason: 'tekrar' } });
+  expect(again.status()).toBe(409);
+});
