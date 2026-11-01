@@ -42,7 +42,7 @@ curl -X POST localhost:8080/recall -H "Authorization: Bearer $TOKEN" -d '{"trigg
 (30 minutes); `401 INVALID_PIN` / `429 LOCKED_OUT` as for the supervisor unlock. Protected:
 `POST /recall`, `/recall/followup`, `/recall/drills`, `/recall/drills/contact`, `/recall/drills/close`,
 `/movements/transfer|return|waste`, `/rework`, `/production`, `/production/orders`, `/purchases/invoice`,
-`/purchases`, `/butchery/operations`, `/ai/forecast/butchery/freeze`, `/sync/register-key`. Without a valid token: `401 AUTH_REQUIRED`.
+`/purchases`, `/butchery/operations`, `/ai/forecast/butchery/freeze`, `/sync/register-key`, `/sales/void`. Without a valid token: `401 AUTH_REQUIRED`.
 The recall initiator and the movements' `created_by` are the signed-in supervisor.
 
 Limits for every request: body ≤ 1 MiB (`413 PAYLOAD_TOO_LARGE`), 20 requests/s per client IP
