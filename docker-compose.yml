@@ -44,6 +44,8 @@ services:
       MYSQL_DSN: "root:ban@tcp(mysql:3306)/food_intel?parseTime=true&multiStatements=true&charset=utf8mb4"
       # origin of the AI forecasts this API writes: DEMO here; FIELD only in a real operation
       DATA_ORIGIN: "DEMO"
+      # invoice reading (POST /purchases/invoice) is off without a key; put NVIDIA_API_KEY in a gitignored .env
+      NVIDIA_API_KEY: "${NVIDIA_API_KEY:-}"
     ports:
       - "8080:8080"
     depends_on:

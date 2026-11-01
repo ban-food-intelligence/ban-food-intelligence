@@ -23,13 +23,12 @@ android {
         applicationId = "com.ban.foodintelligence.pos"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0-avatar"
+        versionCode = 2
+        versionName = "1.1.0-avatar"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("en", "tr", "de")
 
-        buildConfigField("String", "NVIDIA_API_KEY", "\"${localProp("NVIDIA_API_KEY")}\"")
         // Offline supervisor unlock: "iterations:saltHex:pbkdf2HashHex" (never the PIN itself).
         // Empty -> offline unlock disabled; the server check (bcrypt in MySQL) still works.
         buildConfigField("String", "SUPERVISOR_PIN_PBKDF2", "\"${localProp("SUPERVISOR_PIN_PBKDF2")}\"")
@@ -59,9 +58,8 @@ android {
 
     buildTypes {
         release {
-            // Never ship a secret in a distributed APK: the release build has no NVIDIA key
-            // and no offline PIN hash, whatever local.properties contains.
-            buildConfigField("String", "NVIDIA_API_KEY", "\"\"")
+            // Never ship a secret in a distributed APK: the release build has no offline PIN hash,
+            // whatever local.properties contains. (Invoice reading runs on the API: no key in the app.)
             buildConfigField("String", "SUPERVISOR_PIN_PBKDF2", "\"\"")
             signingConfigs.findByName("demoRelease")?.let { signingConfig = it }
             // No R8 for the demo APK: it cannot be tested on a device in CI, and shrinking can break
@@ -110,6 +108,9 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // Lot barcode scan: Google code scanner (own camera screen, no camera permission in this app)
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 
     // Unit tests (pure Kotlin logic: validation, formatting, config)
     testImplementation("junit:junit:4.13.2")

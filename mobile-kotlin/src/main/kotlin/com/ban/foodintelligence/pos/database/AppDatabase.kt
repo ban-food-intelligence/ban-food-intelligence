@@ -113,21 +113,8 @@ abstract class AppDatabase {
         )
     }
 
-    /**
-     * Task 5: records an inbound `RECEIPT` stock movement (positive quantity), e.g. a line
-     * confirmed by the operator from an OCR-scanned supplier invoice. Requires the SQLite engine.
-     */
-    open suspend fun recordStockReceipt(
-        lotNo: String,
-        productName: String,
-        qty: Double,
-        uom: String,
-        unitCostEur: Double,
-        tenantId: String = "MARKET-TIER-A-IST-01",
-        deviceId: String
-    ): StockMovementRecord =
-        throw UnsupportedOperationException("Stock receipts require the SQLite WAL engine")
-
+    // No local goods receipt: the sync contract carries only lot + quantity, so the server would
+    // book it as a till sale. Received goods are saved as a purchase with POST /purchases.
     open suspend fun getRecentStockMovements(limit: Int = 25): List<StockMovementRecord> =
         emptyList()
 
@@ -263,26 +250,6 @@ internal class SqliteBackedAppDatabase(
         qty = qty,
         uom = uom,
         unitPriceEur = unitPriceEur,
-        tenantId = tenantId,
-        deviceId = deviceId
-    )
-
-    override suspend fun recordStockReceipt(
-        lotNo: String,
-        productName: String,
-        qty: Double,
-        uom: String,
-        unitCostEur: Double,
-        tenantId: String,
-        deviceId: String
-    ): StockMovementRecord = insertSignedMovement(
-        movementType = "RECEIPT",
-        qtyDelta = qty,
-        lotNo = lotNo,
-        productName = productName,
-        qty = qty,
-        uom = uom,
-        unitPriceEur = unitCostEur,
         tenantId = tenantId,
         deviceId = deviceId
     )
