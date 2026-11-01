@@ -157,12 +157,7 @@ func (c *ReportsController) Sales(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	rows, err := c.db.QueryContext(r.Context(), salesReportQuery(true))
-	if err != nil && missingTable(err, "sale_void") {
-		// A database created before migrations/20261101_sale_void.sql has no voids yet: keep the
-		// report working (every line not voided) instead of failing the Sales and Overview pages.
-		rows, err = c.db.QueryContext(r.Context(), salesReportQuery(false))
-	}
+	rows, err := c.db.QueryContext(r.Context(), salesReportQuery)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "sales report query failed: "+err.Error())
 		return
@@ -182,22 +177,20 @@ func (c *ReportsController) Sales(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, list)
 }
 
-// salesReportQuery is the GET /sales query; withVoids=false leaves out sale_void (older databases).
-func salesReportQuery(withVoids bool) string {
-	void, join := "FALSE, ''", ""
-	if withVoids {
-		void, join = "sv.sale_id IS NOT NULL, COALESCE(sv.reason, '')", "LEFT JOIN sale_void sv ON sv.sale_id = s.id"
-	}
-	return `SELECT s.sale_uuid, s.sold_at, s.device_id, w.code, sl.line_no, l.lot_no, p.name,
+// salesReportQuery is the GET /sales query. A voided sale (POST /sales/void) keeps its lines; its
+// void is the SALE_VOID row in the append-only audit_log, which also holds the reason. No table of
+// its own, so the query runs on every database built from schema.sql, old or new.
+const salesReportQuery = `SELECT s.sale_uuid, s.sold_at, s.device_id, w.code, sl.line_no, l.lot_no, p.name,
 	        sl.qty, l.uom_code, sl.unit_price, sl.line_total,
 	        ROUND(sl.qty * l.unit_cost, 2),
 	        ROUND(sl.line_total - sl.qty * l.unit_cost, 2),
-	        ` + void + `
+	        v.audit_id IS NOT NULL, COALESCE(va.new_value->>'$.reason', '')
 	 FROM sale s
 	 JOIN sale_line sl ON sl.sale_id = s.id
-	 ` + join + `
+	 LEFT JOIN (SELECT row_id, MIN(id) AS audit_id FROM audit_log
+	             WHERE table_name = 'sale' AND action = 'SALE_VOID' GROUP BY row_id) v ON v.row_id = s.id
+	 LEFT JOIN audit_log va ON va.id = v.audit_id
 	 JOIN lot l        ON l.id = sl.lot_id
 	 JOIN product p    ON p.id = l.product_id
 	 JOIN warehouse w  ON w.id = s.warehouse_id
 	 ORDER BY s.sold_at, s.id, sl.line_no`
-}

@@ -143,6 +143,23 @@ export function Shipments() {
   );
 }
 
+// Sales totals leave voided lines out; a voided line stays listed for the history.
+export function salesTotals(all) {
+  const rows = all.filter((r) => !r.voided);
+  const revenue = rows.reduce((a, r) => a + r.line_total, 0);
+  const cost = rows.reduce((a, r) => a + r.cost, 0);
+  return { rows, voided: all.length - rows.length, revenue, cost, gp: revenue - cost };
+}
+
+// One void action per sale, on its first line, and none once the sale is voided.
+export const canVoid = (r) => !r.voided && r.line_no === 1;
+
+// POST /sales/void wants a reason of 3-200 characters and the supervisor PIN.
+export function voidReady(reason, pin) {
+  const n = [...reason.trim()].length;
+  return n >= 3 && n <= 200 && pin.length >= 4;
+}
+
 export function Sales() {
   const { t, fmt } = useLang();
   const result = useApi('/sales');
@@ -170,11 +187,7 @@ export function Sales() {
     <Page title={t('sa_title')} subtitle={t('sa_sub')}>
       <Async result={result}>
         {(all) => {
-          const rows = all.filter((r) => !r.voided);
-          const voided = all.length - rows.length;
-          const revenue = rows.reduce((a, r) => a + r.line_total, 0);
-          const cost = rows.reduce((a, r) => a + r.cost, 0);
-          const gp = revenue - cost;
+          const { rows, voided, revenue, cost, gp } = salesTotals(all);
           return (
             <>
               <Group>
@@ -199,7 +212,7 @@ export function Sales() {
                       ? <><Pill tone="warn">{t('sv_voided')}</Pill><div className="cell-sub">{r.void_reason}</div></>
                       : <strong>{fmt.money(r.gross_profit)}</strong>) },
                     { key: 'device_id', label: t('device'), render: (r) => <span className="cell-sub">{r.store_code} · {r.device_id}</span> },
-                    { key: 'void', label: '', render: (r) => (r.voided || r.line_no !== 1 ? null
+                    { key: 'void', label: '', render: (r) => (!canVoid(r) ? null
                       : <button className="btn-text no-print" disabled={busy} onClick={() => { setEntry({ ...r, reason: '' }); setError(null); }}>{t('sv_void')}</button>) },
                   ]}
                 />
@@ -209,7 +222,7 @@ export function Sales() {
                     <p className="muted">{t('sv_hint')}</p>
                     <div className="toolbar">
                       <label className="field field-wide"><span>{t('sv_reason')}</span>
-                        <input value={entry.reason} maxLength={255} minLength={3} required onChange={(e) => setEntry({ ...entry, reason: e.target.value })} /></label>
+                        <input value={entry.reason} maxLength={200} minLength={3} required onChange={(e) => setEntry({ ...entry, reason: e.target.value })} /></label>
                       <label className="field"><span>{t('supervisorPin')}</span>
                         <input type="password" inputMode="numeric" autoComplete="off" maxLength={12} value={pin}
                           onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} /></label>
@@ -217,7 +230,7 @@ export function Sales() {
                     {error && <ErrorState error={error} />}
                     <div className="confirm-actions">
                       <button type="button" className="btn-text" disabled={busy} onClick={() => { setEntry(null); setPin(''); }}>{t('cancel')}</button>
-                      <button type="submit" className="btn-primary" disabled={busy || pin.length < 4 || entry.reason.trim().length < 3}>{t('sv_void')}</button>
+                      <button type="submit" className="btn-primary" disabled={busy || !voidReady(entry.reason, pin)}>{t('sv_void')}</button>
                     </div>
                   </form>
                 )}

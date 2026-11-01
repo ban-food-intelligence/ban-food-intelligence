@@ -417,18 +417,6 @@ CREATE TABLE sale_line (
   UNIQUE KEY uq_sl (sale_id, line_no)
 ) ENGINE=InnoDB;
 
--- Satış iptali (POST /sales/void): hatalı POS satışı silinmez. Her satır için aynı depoya
--- RETURN (+) ters hareketi yazılır (ref_type='sale_void'), iptal burada ve audit_log'da kalır.
--- sale_id PK olduğu için bir satış yalnızca bir kez iptal edilir; kayıt değiştirilemez.
-CREATE TABLE sale_void (
-  sale_id     INT UNSIGNED NOT NULL PRIMARY KEY,
-  reason      VARCHAR(255) NOT NULL,
-  voided_by   VARCHAR(64)  NOT NULL,
-  voided_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  CONSTRAINT fk_sv_sale FOREIGN KEY (sale_id) REFERENCES sale(id),
-  CONSTRAINT ck_sv_reason CHECK (CHAR_LENGTH(TRIM(reason)) >= 3)
-) ENGINE=InnoDB;
-
 -- ---------------------------------------------------------------------
 -- 8. Geri çağırma
 -- ---------------------------------------------------------------------
@@ -1051,20 +1039,6 @@ BEFORE DELETE ON stock_movement
 FOR EACH ROW
 BEGIN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'IMMUTABLE: stock_movement is append-only; post a correcting movement';
-END$$
-
-CREATE TRIGGER trg_sv_no_update
-BEFORE UPDATE ON sale_void
-FOR EACH ROW
-BEGIN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'IMMUTABLE: sale_void is append-only';
-END$$
-
-CREATE TRIGGER trg_sv_no_delete
-BEFORE DELETE ON sale_void
-FOR EACH ROW
-BEGIN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'IMMUTABLE: sale_void is append-only';
 END$$
 
 CREATE TRIGGER trg_audit_no_update

@@ -140,7 +140,7 @@ func main() {
 	// Reports: purchases, lot movement ledger, POS sales
 	mux.HandleFunc("/movements", reportsCtrl.Movements)
 	mux.HandleFunc("/sales", reportsCtrl.Sales)
-	// Wrong POS sale: RETURN movements back into the store + sale_void + audit_log, nothing deleted
+	// Wrong POS sale: RETURN movements back into the store + audit_log, nothing deleted
 	mux.HandleFunc("/sales/void", op(saleVoidCtrl.Void))
 	mux.HandleFunc("/reports/assessment", reportsCtrl.Assessment)
 
