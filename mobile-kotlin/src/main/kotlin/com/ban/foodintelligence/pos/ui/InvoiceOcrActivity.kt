@@ -4,13 +4,12 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
 import android.graphics.Canvas
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.media.ExifInterface
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -30,7 +29,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -42,6 +40,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -50,22 +49,19 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.DocumentScanner
 import androidx.compose.material.icons.rounded.Inventory
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,44 +77,48 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.core.content.FileProvider
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.ban.foodintelligence.pos.R
-import com.ban.foodintelligence.pos.database.AppDatabase
-import com.ban.foodintelligence.pos.ocr.InvoiceExtraction
-import com.ban.foodintelligence.pos.ocr.NvidiaVisionOcrClient
-import com.ban.foodintelligence.pos.security.DeviceIdentity
+import com.ban.foodintelligence.pos.net.ApiError
+import com.ban.foodintelligence.pos.ocr.DraftLine
+import com.ban.foodintelligence.pos.ocr.DraftProblem
+import com.ban.foodintelligence.pos.ocr.InvoiceSuggestion
+import com.ban.foodintelligence.pos.ocr.ReceiptDraft
+import com.ban.foodintelligence.pos.ocr.ServerInvoiceClient
 import com.ban.foodintelligence.pos.security.TerminalLockStore
-import com.ban.foodintelligence.pos.worker.SyncWorker
+import com.ban.foodintelligence.pos.ui.design.Fmt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.io.File
-import java.util.Locale
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
-/** UI state for the invoice OCR flow. */
+/** UI state for the invoice flow. */
 private sealed interface OcrUiState {
     data object Idle : OcrUiState
     data object Loading : OcrUiState
-    data class Suggestions(val extraction: InvoiceExtraction) : OcrUiState
+    data class Review(val draft: ReceiptDraft, val suggestion: InvoiceSuggestion) : OcrUiState
     data class Error(val message: String) : OcrUiState
-    data class Saved(val count: Int) : OcrUiState
+    data class Saved(val receipt: ServerInvoiceClient.SavedReceipt) : OcrUiState
 }
 
 /**
  * ============================================================================
- * BAN Food Intelligence - Task 5: Invoice OCR Screen (`InvoiceOcrActivity`)
+ * BAN Food Intelligence - Receive goods from an invoice (`InvoiceOcrActivity`)
  * ============================================================================
  *
- * Flow: capture (simulated) -> NVIDIA Nemotron VL extraction (with Shimmer
- * loading skeleton and graceful Snackbar error handling) -> operator review
- * -> "Confirm & Save to Stock" writes signed RECEIPT movements to SQLite WAL and
- * queues them for sync. Lines without a lot number are never saved, because a
- * lot-less receipt would break traceability.
+ * Photo -> POST /purchases/invoice (the API holds the vision key; the answer is a suggestion
+ * matched to our suppliers and products, nothing is written) -> the supervisor checks every line
+ * and gives our own lot numbers -> POST /purchases with the supervisor PIN, exactly as the
+ * dashboard's receipt form. The receipt is a purchase on the server (lots, supplier, expiry,
+ * PURCHASE_IN movements); the phone never books stock on its own.
  */
 class InvoiceOcrActivity : ComponentActivity() {
 
@@ -128,13 +128,9 @@ class InvoiceOcrActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        println("[INFO] Initializing NVIDIA Nemotron-3.5-VL Invoice OCR screen...")
-
-        val appDb = AppDatabase.getInstance(this)
         setContent {
             AppTheme {
                 InvoiceOcrScreen(
-                    appDb = appDb,
                     onBack = {
                         finish()
                         @Suppress("DEPRECATION")
@@ -162,40 +158,66 @@ class InvoiceOcrActivity : ComponentActivity() {
     }
 }
 
+private fun newReceiptNo(): String = "ALS-POS-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+
 @Composable
-private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
+private fun InvoiceOcrScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var capturedInvoice by remember { mutableStateOf<Bitmap?>(null) }
     var state by remember { mutableStateOf<OcrUiState>(OcrUiState.Idle) }
+    var pin by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
+    var saveAttempted by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<ApiError?>(null) }
+    var status by remember { mutableStateOf<ServerInvoiceClient.Status?>(null) }
+    var statusError by remember { mutableStateOf<String?>(null) }
 
-    val noKeyMessage = stringResource(R.string.ocr_error_no_key)
+    LaunchedEffect(Unit) {
+        try {
+            status = ServerInvoiceClient.status(context)
+        } catch (e: ApiError) {
+            statusError = e.message
+        } catch (e: RuntimeException) {
+            statusError = e.message
+        }
+    }
+    val canRead = status?.configured == true
     val unavailableMsg = stringResource(R.string.ocr_unavailable)
 
     fun runExtraction(bitmap: Bitmap) {
+        if (!canRead || pin.length < 4) return
         state = OcrUiState.Loading
+        saveAttempted = false
+        saveError = null
+        scope.launch {
+            state = try {
+                val s = ServerInvoiceClient.read(context, pin, bitmap)
+                OcrUiState.Review(ReceiptDraft.from(s, LocalDate.now(), newReceiptNo()), s)
+            } catch (e: ApiError) {
+                OcrUiState.Error(e.message)
+            } catch (e: RuntimeException) {
+                OcrUiState.Error(e.message ?: unavailableMsg)
+            }
+        }
+    }
+
+    fun save(draft: ReceiptDraft) {
+        saveAttempted = true
+        saveError = null
+        if (draft.problems().isNotEmpty()) return
+        isSaving = true
         scope.launch {
             try {
-                val jpeg = withContext(Dispatchers.Default) { bitmap.toJpeg(quality = 85) }
-                val extraction = NvidiaVisionOcrClient.extractInvoice(jpeg)
-                state = OcrUiState.Suggestions(extraction)
-            } catch (e: Throwable) {
-                println("[WARN] NVIDIA NIM OCR call failed: ${e.message}")
-                val keyMissing = !NvidiaVisionOcrClient.isApiKeyConfigured
-                state = OcrUiState.Error(
-                    message = if (keyMissing) {
-                        noKeyMessage
-                    } else {
-                        unavailableMsg
-                    }
-                )
-                snackbarHostState.showSnackbar(
-                    message = unavailableMsg,
-                    duration = SnackbarDuration.Short
-                )
+                state = OcrUiState.Saved(ServerInvoiceClient.save(context, pin, draft))
+            } catch (e: ApiError) {
+                saveError = e
+            } catch (e: RuntimeException) {
+                saveError = ApiError(0, "UNEXPECTED", e.message ?: unavailableMsg)
+            } finally {
+                isSaving = false
             }
         }
     }
@@ -274,6 +296,17 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                 }
             }
 
+            // The server decides whether invoices can be read (it holds the key).
+            when {
+                statusError != null -> SoftCard(containerColor = SoftPosColors.PastelRedContainer) {
+                    Text(stringResource(R.string.error_server_unreachable), style = MaterialTheme.typography.titleMedium)
+                    Text(statusError.orEmpty(), style = MaterialTheme.typography.bodyMedium)
+                }
+                status?.configured == false -> SoftCard(containerColor = SoftPosColors.PastelRedContainer) {
+                    Text(stringResource(R.string.ocr_not_configured_server), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+
             // Capture card
             SoftCard {
                 val bitmap = capturedInvoice
@@ -304,18 +337,28 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                     )
                 }
 
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { pin = it.filter(Char::isDigit).take(12) },
+                    label = { Text(stringResource(R.string.ocr_pin_label)) },
+                    supportingText = { Text(stringResource(R.string.ocr_pin_hint)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    modifier = Modifier.fillMaxWidth()
+                )
                 PosPrimaryButton(
                     text = stringResource(
                         if (capturedInvoice == null) R.string.ocr_btn_take_photo else R.string.ocr_btn_recapture
                     ),
                     icon = Icons.Rounded.CameraAlt,
-                    enabled = state !is OcrUiState.Loading,
+                    enabled = canRead && state !is OcrUiState.Loading,
                     onClick = { openCamera() }
                 )
                 PosSecondaryButton(
                     text = stringResource(R.string.ocr_btn_sample),
                     icon = Icons.Rounded.Description,
-                    enabled = state !is OcrUiState.Loading,
+                    enabled = canRead && state !is OcrUiState.Loading,
                     onClick = { useSampleInvoice() },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -323,7 +366,7 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                     PosSecondaryButton(
                         text = stringResource(R.string.ocr_btn_extract),
                         icon = Icons.Rounded.DocumentScanner,
-                        enabled = state !is OcrUiState.Loading,
+                        enabled = canRead && pin.length >= 4 && state !is OcrUiState.Loading,
                         onClick = { capturedInvoice?.let(::runExtraction) },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -339,9 +382,7 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                 when (s) {
                     OcrUiState.Idle -> Unit
 
-                    OcrUiState.Loading -> OcrShimmerLoadingCard(
-                        modelId = NvidiaVisionOcrClient.MODEL_ID
-                    )
+                    OcrUiState.Loading -> OcrShimmerLoadingCard(modelId = status?.model.orEmpty())
 
                     is OcrUiState.Error -> SoftCard(containerColor = SoftPosColors.PastelRedContainer) {
                         Text(
@@ -351,40 +392,21 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
                         Text(text = s.message, style = MaterialTheme.typography.bodyMedium)
                     }
 
-                    is OcrUiState.Suggestions -> SuggestionsCard(
-                        extraction = s.extraction,
+                    is OcrUiState.Review -> ReviewCard(
+                        draft = s.draft,
+                        suggestion = s.suggestion,
+                        localProblems = if (saveAttempted) s.draft.problems() else emptyMap(),
+                        serverError = saveError,
                         isSaving = isSaving,
-                        onDiscard = { state = OcrUiState.Idle },
-                        onConfirm = {
-                            isSaving = true
-                            scope.launch {
-                                val saved = s.extraction.items
-                                    .filter { it.lotNumber.isNotBlank() && it.quantity > 0 }
-                                    .map { item ->
-                                        appDb.recordStockReceipt(
-                                            lotNo = item.lotNumber,
-                                            productName = item.productName,
-                                            qty = item.quantity,
-                                            uom = item.unit,
-                                            unitCostEur = item.unitCost,
-                                            deviceId = DeviceIdentity.id(context)
-                                        )
-                                    }
-                                runCatching { SyncWorker.enqueueWhenNetworkConnected(context) }
-                                isSaving = false
-                                state = OcrUiState.Saved(saved.size)
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.ocr_saved_success, saved.size),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
+                        canSave = pin.length >= 4,
+                        onChange = { state = OcrUiState.Review(it, s.suggestion) },
+                        onSave = { save(s.draft) },
+                        onDiscard = { state = OcrUiState.Idle }
                     )
 
                     is OcrUiState.Saved -> SoftCard(containerColor = SoftPosColors.EmeraldVerifiedBg) {
                         Text(
-                            text = stringResource(R.string.ocr_saved_success, s.count),
+                            text = stringResource(R.string.ocr_saved_receipt, s.receipt.receiptNo, s.receipt.lines, Fmt.money(s.receipt.total)),
                             style = MaterialTheme.typography.titleMedium.copy(color = SoftPosColors.EmeraldVerifiedText)
                         )
                         PosPrimaryButton(
@@ -398,13 +420,13 @@ private fun InvoiceOcrScreen(appDb: AppDatabase, onBack: () -> Unit) {
         }
 
         if (state is OcrUiState.Loading) {
-            OcrProcessingOverlay(modelId = NvidiaVisionOcrClient.MODEL_ID)
+            OcrProcessingOverlay(modelId = status?.model.orEmpty())
         }
       }
     }
 }
 
-/** Full-screen scrim with a spinner while the NVIDIA NIM request is in flight; blocks touches. */
+/** Full-screen scrim with a spinner while the API reads the invoice; blocks touches. */
 @Composable
 private fun OcrProcessingOverlay(modelId: String) {
     Box(
@@ -466,7 +488,7 @@ private fun decodeInvoicePhoto(file: File): Bitmap? {
 
 /**
  * Standard Material 3 Shimmer skeleton loading effect displayed while waiting
- * for the NVIDIA NIM Vision-Language API response.
+ * for the invoice reading answer.
  */
 @Composable
 private fun OcrShimmerLoadingCard(modelId: String) {
@@ -534,35 +556,85 @@ private fun OcrShimmerLoadingCard(modelId: String) {
 }
 
 @Composable
-private fun SuggestionsCard(
-    extraction: InvoiceExtraction,
-    isSaving: Boolean,
-    onDiscard: () -> Unit,
-    onConfirm: () -> Unit
+private fun matchLabel(match: String): String = when (match) {
+    "EXACT" -> stringResource(R.string.ocr_match_exact)
+    "PARTIAL" -> stringResource(R.string.ocr_match_partial)
+    else -> stringResource(R.string.ocr_match_none)
+}
+
+@Composable
+private fun warningLabel(code: String): String = when (code) {
+    "NO_PRODUCT_MATCH" -> stringResource(R.string.ocr_warn_no_product)
+    "UNIT_DIFFERS" -> stringResource(R.string.ocr_warn_unit)
+    "QTY_MISSING" -> stringResource(R.string.ocr_warn_qty)
+    "PRICE_MISSING" -> stringResource(R.string.ocr_warn_price)
+    "NOT_EUR" -> stringResource(R.string.ocr_warn_currency)
+    "EXPIRY_MISSING" -> stringResource(R.string.ocr_warn_expiry)
+    else -> code
+}
+
+@Composable
+private fun problemLabel(p: DraftProblem): String = when (p) {
+    DraftProblem.REQUIRED -> stringResource(R.string.ocr_field_required)
+    DraftProblem.NOT_A_NUMBER -> stringResource(R.string.ocr_field_number)
+    DraftProblem.NOT_A_DATE -> stringResource(R.string.ocr_field_date_format)
+}
+
+@Composable
+private fun DraftField(
+    label: String,
+    value: String,
+    error: String?,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    keyboard: KeyboardType = KeyboardType.Text
 ) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        singleLine = true,
+        isError = error != null,
+        supportingText = error?.let { { Text(it) } },
+        keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+        modifier = modifier.fillMaxWidth()
+    )
+}
+
+/**
+ * The read invoice as an editable receipt. Nothing is saved yet: the supervisor compares every
+ * field with the paper, gives our own lot numbers and saves with the PIN. Problems come from the
+ * same rules as the API (shown after the first save attempt) and from the API's 422 field details.
+ */
+@Composable
+private fun ReviewCard(
+    draft: ReceiptDraft,
+    suggestion: InvoiceSuggestion,
+    localProblems: Map<String, DraftProblem>,
+    serverError: ApiError?,
+    isSaving: Boolean,
+    canSave: Boolean,
+    onChange: (ReceiptDraft) -> Unit,
+    onSave: () -> Unit,
+    onDiscard: () -> Unit
+) {
+    val serverFields = serverError?.fieldErrors.orEmpty()
+    @Composable
+    fun err(key: String): String? = serverFields[key] ?: localProblems[key]?.let { problemLabel(it) }
+    fun line(i: Int, change: (DraftLine) -> DraftLine) =
+        onChange(draft.copy(lines = draft.lines.mapIndexed { j, l -> if (j == i) change(l) else l }))
+
     SoftCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = stringResource(R.string.ocr_suggestions_title),
-                style = MaterialTheme.typography.titleLarge
-            )
-            Chip(
-                text = "${extraction.latencyMs} ms",
-                container = SoftPosColors.SurfaceSubtleGray
-            )
+            Text(text = stringResource(R.string.ocr_suggestions_title), style = MaterialTheme.typography.titleLarge)
+            Chip(text = "${suggestion.latencyMs ?: 0} ms", container = SoftPosColors.SurfaceSubtleGray)
         }
-
-
         Text(
-            text = stringResource(
-                R.string.ocr_meta,
-                extraction.supplier ?: "—",
-                extraction.invoiceNumber ?: "—"
-            ),
+            text = stringResource(R.string.ocr_meta, suggestion.supplierName ?: "—", suggestion.invoiceNo ?: "—"),
             style = MaterialTheme.typography.bodyMedium
         )
         Text(
@@ -570,70 +642,74 @@ private fun SuggestionsCard(
             style = MaterialTheme.typography.bodyMedium.copy(color = SoftPosColors.TextTertiarySubtle)
         )
 
-        extraction.items.forEach { item ->
-            val missingLot = item.lotNumber.isBlank()
+        DraftField(stringResource(R.string.ocr_field_receipt_no), draft.receiptNo, err("receipt_no"), { onChange(draft.copy(receiptNo = it)) })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DraftField(
+                stringResource(R.string.ocr_field_supplier), draft.supplierCode, err("supplier_code"),
+                { onChange(draft.copy(supplierCode = it)) }, Modifier.weight(1f)
+            )
+            Chip(text = matchLabel(draft.supplierMatch), container = SoftPosColors.SurfaceSubtleGray)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DraftField(stringResource(R.string.ocr_field_invoice_no), draft.invoiceNo, err("invoice_no"), { onChange(draft.copy(invoiceNo = it)) }, Modifier.weight(1f))
+            DraftField(stringResource(R.string.ocr_field_date), draft.receiptDate, err("receipt_date"), { onChange(draft.copy(receiptDate = it)) }, Modifier.weight(1f))
+        }
+
+        draft.lines.forEachIndexed { i, l ->
+            val k = "lines[$i]."
+            val doubtful = l.match != "EXACT" || l.warnings.isNotEmpty()
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = if (missingLot) SoftPosColors.PastelRedContainer else SoftPosColors.BackgroundOffWhite,
-                border = BorderStroke(1.dp, if (missingLot) SoftPosColors.PastelRedBorder else SoftPosColors.OutlineSubtle),
+                color = if (doubtful) SoftPosColors.PastelRedContainer else SoftPosColors.BackgroundOffWhite,
+                border = BorderStroke(1.dp, if (doubtful) SoftPosColors.PastelRedBorder else SoftPosColors.OutlineSubtle),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = item.productName,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Chip(
-                            text = item.lotNumber.ifBlank { "NO LOT" },
-                            container = SoftPosColors.SurfacePureWhite
-                        )
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = String.format(
-                                Locale.US, "%.2f %s × %.2f %s = %.2f %s",
-                                item.quantity, item.unit, item.unitCost, item.currency,
-                                item.lineTotal, item.currency
-                            ),
-                            style = MaterialTheme.typography.bodyMedium
+                            text = l.printedName,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Chip(text = matchLabel(l.match), container = SoftPosColors.SurfacePureWhite)
+                    }
+                    l.warnings.forEach { w ->
+                        Text(warningLabel(w), style = MaterialTheme.typography.bodyMedium.copy(color = SoftPosColors.RecallCrimsonAccent))
+                    }
+                    DraftField(stringResource(R.string.ocr_field_sku), l.sku, err(k + "sku"), { v -> line(i) { it.copy(sku = v) } })
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DraftField(stringResource(R.string.ocr_field_lot), l.lotNo, err(k + "lot_no"), { v -> line(i) { it.copy(lotNo = v) } }, Modifier.weight(1f))
+                        DraftField(stringResource(R.string.ocr_field_supplier_lot), l.supplierLotNo, err(k + "supplier_lot_no"), { v -> line(i) { it.copy(supplierLotNo = v) } }, Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DraftField(
+                            stringResource(R.string.ocr_field_qty, l.unit.ifBlank { "—" }), l.qty, err(k + "qty"),
+                            { v -> line(i) { it.copy(qty = v) } }, Modifier.weight(1f), KeyboardType.Decimal
+                        )
+                        DraftField(
+                            stringResource(R.string.ocr_field_price), l.unitPrice, err(k + "unit_price"),
+                            { v -> line(i) { it.copy(unitPrice = v) } }, Modifier.weight(1f), KeyboardType.Decimal
                         )
                     }
-                    if (missingLot) {
-                        Text(
-                            text = stringResource(R.string.ocr_missing_lot),
-                            style = MaterialTheme.typography.bodyMedium.copy(color = SoftPosColors.RecallCrimsonAccent)
-                        )
+                    DraftField(stringResource(R.string.ocr_field_expiry), l.expiryDate, err(k + "expiry_date"), { v -> line(i) { it.copy(expiryDate = v) } })
+                    TextButton(onClick = { onChange(draft.copy(lines = draft.lines.filterIndexed { j, _ -> j != i })) }) {
+                        Text(stringResource(R.string.ocr_remove_line), color = SoftPosColors.RecallCrimsonAccent)
                     }
                 }
             }
         }
 
-        Text(
-            text = stringResource(R.string.ocr_raw_json),
-            style = MaterialTheme.typography.titleMedium
-        )
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = SoftPosColors.SurfaceSubtleGray,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = extraction.rawJson,
-                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                modifier = Modifier.padding(12.dp)
-            )
+        (serverFields["lines"] ?: localProblems["lines"]?.let { problemLabel(it) })?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium.copy(color = SoftPosColors.RecallCrimsonAccent))
         }
-
+        if (serverError != null && serverError.fieldErrors.isEmpty()) {
+            Text(serverError.message, style = MaterialTheme.typography.bodyMedium.copy(color = SoftPosColors.RecallCrimsonAccent))
+        }
         PosPrimaryButton(
             text = stringResource(R.string.ocr_btn_confirm_save),
             icon = Icons.Rounded.Inventory,
-            enabled = !isSaving && extraction.items.any { it.lotNumber.isNotBlank() },
-            onClick = onConfirm
+            enabled = !isSaving && canSave && draft.lines.isNotEmpty(),
+            onClick = onSave
         )
         PosSecondaryButton(
             text = stringResource(R.string.ocr_btn_discard),
@@ -677,12 +753,6 @@ private fun Chip(text: String, container: Color) {
         )
     }
 }
-
-private fun Bitmap.toJpeg(quality: Int): ByteArray =
-    ByteArrayOutputStream().use { out ->
-        compress(Bitmap.CompressFormat.JPEG, quality, out)
-        out.toByteArray()
-    }
 
 /**
  * Simulated camera capture: renders a realistic supplier invoice so the full OCR

@@ -143,8 +143,14 @@ sequenceDiagram
 
 ## Security notes
 
-- No secrets in the repository: the NVIDIA key and the offline PIN hash come from the gitignored
-  `mobile-kotlin/local.properties`; MySQL stores only a bcrypt hash of the supervisor PIN.
+- No secrets in the repository: the vision key is an API environment variable (`NVIDIA_API_KEY`,
+  from a gitignored `.env` for compose) and never reaches the dashboard or the phone; the offline
+  PIN hash comes from the gitignored `mobile-kotlin/local.properties`; MySQL stores only a bcrypt
+  hash of the supervisor PIN.
+- The phone's back-office actions (receipt from an invoice, stock count) use the same supervisor
+  session as the dashboard (`POST /auth/session`, token in memory only). The POS sync carries only
+  sales: a received or counted quantity is never sent through the outbox, because the sync record
+  (lot + quantity) would be booked as a till sale.
 - Supervisor PIN: 5 wrong attempts per device → 5-minute lockout (server and phone); every attempt
   is written to `audit_log`.
 - `audit_log` and `stock_movement` are append-only.

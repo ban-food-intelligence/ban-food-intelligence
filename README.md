@@ -94,8 +94,9 @@ its records: apply the migrations listed in [docs/FEATURES.md](docs/FEATURES.md#
 [Releases](https://github.com/ban-food-intelligence/ban-food-intelligence/releases) and install it
 (`adb install -r ban-shop-pos-v1.0.0-demo.apk`, or open the file on the phone and allow the
 install). Then connect it to the API as described below (USB: `adb reverse tcp:8080 tcp:8080`).
-The demo APK talks to `127.0.0.1` / the emulator host only and has invoice reading switched off
-(no API key is shipped inside an app). Build it yourself with `./scripts/build-release-apk.sh`.
+The demo APK talks to `127.0.0.1` / the emulator host only. It carries no API key: invoice reading
+(*Lots → Receive goods from an invoice*) goes through the API, which holds the key, and the receipt
+is saved with the supervisor PIN. Build it yourself with `./scripts/build-release-apk.sh`.
 
 **From source:**
 
@@ -116,9 +117,9 @@ The app talks to `http://127.0.0.1:8080` by default:
 - **Phone on Wi-Fi:** Settings → Server → *Wi-Fi network* → the computer's IP (e.g. `192.168.1.20`).
   *Test connection* shows the latency and whether the database is reachable.
 
-Optional, in the gitignored `mobile-kotlin/local.properties`:
-`NVIDIA_API_KEY=nvapi-...` (invoice reading) and `SUPERVISOR_PIN_PBKDF2=iterations:salt:hash`
-(offline supervisor unlock; without it the unlock is checked online only).
+Optional, in the gitignored `mobile-kotlin/local.properties`: `SUPERVISOR_PIN_PBKDF2=iterations:salt:hash`
+(offline supervisor unlock; without it the unlock is checked online only). The app needs no other
+secret.
 
 ## Demo credentials (demo only)
 
@@ -148,7 +149,7 @@ compose container. Only the database tests: `./scripts/test-db.sh` (or `make tes
 | `go test ./...` (api-go) | cost allocation rounding (both keys, with by-product), PIN lockout (also per IP), operator sessions, error codes, CORS, rate limit, body cap, ECDSA sync (pinned keys, mandatory signatures), alert grading, recall drill verdict, invoice reading against a fake vision service (server key, refused images never sent, word matching) |
 | Go integration tests (`MYSQL_TEST_DSN`) | EKP 18.16, butchery findings, allocation sums, recording a receipt and a butchery operation with by-product, forward/backward/butchery trace, mass balance, every lot movement, shipments, stock counts, subcontractor returns, alerts and thresholds, live and frozen AI forecasts, recall CSV and follow-up, recall drill (nothing blocked, immutable), invoice suggestions that write nothing, sync idempotency and replay mismatch, sale of a recalled lot rejected |
 | `scripts/test-db.sh` (pytest, `database-mysql/tests`) | schema, triggers (no negative stock, append-only ledger, recalled and expired lots blocked, frozen forecasts and recall drills immutable), EKP, trace, recall, stock count, alert rules |
-| `./gradlew testDebugUnitTest` | sale quantity validation, server address handling, recalled lots not sellable, FEFO, lot scan (our labels, GS1) |
+| `./gradlew testDebugUnitTest` | sale quantity validation, server address handling, recalled lots not sellable, FEFO, lot scan (our labels, GS1), invoice receipt draft (suggestions in, `POST /purchases` body out), stock count rules |
 | `npm test` + `npm run build` (web-react) | TR/EN texts complete, supervisor-session flow, stock count, alerts, recall drill rules, invoice form, QR label read back by a decoder; dashboard compiles |
 | `npm run test:e2e` (web-react, Playwright) | 17 browser flows against a seeded test API (`E2E_API_BASE`): PDF export, recall follow-up, shipments, butchery forecast, stock count, alerts, recall drill, invoice reading (mocked vision answer), lot label |
 
@@ -184,7 +185,7 @@ python -m venv .venv-ml && .venv-ml/bin/pip install -r ml-engine/requirements.tx
 | Kotlin: each sale line's lot, quantity and stock movement stored; recalled lots blocked | SQLite outbox + `sale_line.stock_movement_id`; Android blocks recalled lots online and from the offline cache; a scanned recalled pack opens the red sheet; recall stop with supervisor unlock |
 | AI A and B with baseline and error measurement | [docs/AI.md](docs/AI.md), `GET /ai/summary`, dashboard *AI*, Android *Lots → Yield forecasts*; A is forecast live in the API for every new order |
 | Traceability never from AI | trace/recall use only `lot_link`/`shipment_line`/`sale_line` |
-| Optional: invoice reading with human approval | `POST /purchases/invoice` (NVIDIA Nemotron VL called by the API, suggestions only); dashboard *Purchases → New receipt → Read from invoice* |
+| Optional: invoice reading with human approval | `POST /purchases/invoice` (NVIDIA Nemotron VL called by the API, suggestions only); dashboard *Purchases → New receipt → Read from invoice*; Android *Lots → Receive goods from an invoice* (same endpoint, receipt saved with `POST /purchases`) |
 | SQLite ↔ MySQL sync approach explained | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#sqlite--mysql-sync) |
 | Reports: purchase, production, butchery, lot movements, sales, recall | dashboard tabs + `docs/API.md` |
 | Data model, API description, sample records, basic automated tests | ARCHITECTURE.md, API.md, [docs/samples/](docs/samples/), the test suites above |
