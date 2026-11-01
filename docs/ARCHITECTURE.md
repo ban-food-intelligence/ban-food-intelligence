@@ -74,7 +74,9 @@ A `BEFORE INSERT` trigger enforces the rules for every client:
 - a recalled or blocked lot cannot be sold, shipped or consumed (returns and quarantine moves are allowed);
 - a lot past its expiry date cannot be sold or shipped (`LOT_EXPIRED`); the date that counts is the
   movement's own time, so an offline sale made before the expiry is still accepted when it syncs later;
-- the balance may never go negative (the balance row is locked `FOR UPDATE`, so concurrent sales cannot both pass).
+- the balance may never go negative (the balance row is locked `FOR UPDATE`, so concurrent sales cannot both pass;
+  `TestIntegrationConcurrentSalesNeverOversell` sends 10 simultaneous sales for 3 packs: exactly 3 are booked).
+  A `CHECK (qty >= 0)` on `stock_balance` is the second guard.
 
 `stock_balance` is a cache maintained by the `AFTER INSERT` trigger; `v_stock_ledger_check`
 recomputes it from the ledger to prove they agree. Shipment lines and POS sale lines create their
