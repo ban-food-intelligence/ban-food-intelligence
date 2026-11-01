@@ -425,6 +425,7 @@ paths:
         '404': {$ref: '#/components/responses/Error'}
         '409': {$ref: '#/components/responses/Error'}
         '422': {$ref: '#/components/responses/Error'}
+        '503': {description: 'MIGRATION_REQUIRED - database created before migrations/20261101_sale_void.sql'}
 
   /reports/assessment:
     get:

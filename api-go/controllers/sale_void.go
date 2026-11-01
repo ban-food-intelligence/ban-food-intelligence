@@ -86,6 +86,11 @@ func (c *SaleVoidController) Void(w http.ResponseWriter, r *http.Request) {
 	}
 	var voided int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sale_void WHERE sale_id = ?`, saleID).Scan(&voided); err != nil {
+		if missingTable(err, "sale_void") {
+			writeAPIError(w, r, http.StatusServiceUnavailable, "MIGRATION_REQUIRED",
+				map[string]string{"apply": "database-mysql/migrations/20261101_sale_void.sql"})
+			return
+		}
 		writeDBError(w, r, err)
 		return
 	}

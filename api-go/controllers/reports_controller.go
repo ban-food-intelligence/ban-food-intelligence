@@ -157,19 +157,12 @@ func (c *ReportsController) Sales(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	rows, err := c.db.QueryContext(r.Context(),
-		`SELECT s.sale_uuid, s.sold_at, s.device_id, w.code, sl.line_no, l.lot_no, p.name,
-		        sl.qty, l.uom_code, sl.unit_price, sl.line_total,
-		        ROUND(sl.qty * l.unit_cost, 2),
-		        ROUND(sl.line_total - sl.qty * l.unit_cost, 2),
-		        sv.sale_id IS NOT NULL, COALESCE(sv.reason, '')
-		 FROM sale s
-		 JOIN sale_line sl ON sl.sale_id = s.id
-		 LEFT JOIN sale_void sv ON sv.sale_id = s.id
-		 JOIN lot l        ON l.id = sl.lot_id
-		 JOIN product p    ON p.id = l.product_id
-		 JOIN warehouse w  ON w.id = s.warehouse_id
-		 ORDER BY s.sold_at, s.id, sl.line_no`)
+	rows, err := c.db.QueryContext(r.Context(), salesReportQuery(true))
+	if err != nil && missingTable(err, "sale_void") {
+		// A database created before migrations/20261101_sale_void.sql has no voids yet: keep the
+		// report working (every line not voided) instead of failing the Sales and Overview pages.
+		rows, err = c.db.QueryContext(r.Context(), salesReportQuery(false))
+	}
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "sales report query failed: "+err.Error())
 		return
@@ -187,4 +180,24 @@ func (c *ReportsController) Sales(w http.ResponseWriter, r *http.Request) {
 		list = append(list, d)
 	}
 	writeJSON(w, list)
+}
+
+// salesReportQuery is the GET /sales query; withVoids=false leaves out sale_void (older databases).
+func salesReportQuery(withVoids bool) string {
+	void, join := "FALSE, ''", ""
+	if withVoids {
+		void, join = "sv.sale_id IS NOT NULL, COALESCE(sv.reason, '')", "LEFT JOIN sale_void sv ON sv.sale_id = s.id"
+	}
+	return `SELECT s.sale_uuid, s.sold_at, s.device_id, w.code, sl.line_no, l.lot_no, p.name,
+	        sl.qty, l.uom_code, sl.unit_price, sl.line_total,
+	        ROUND(sl.qty * l.unit_cost, 2),
+	        ROUND(sl.line_total - sl.qty * l.unit_cost, 2),
+	        ` + void + `
+	 FROM sale s
+	 JOIN sale_line sl ON sl.sale_id = s.id
+	 ` + join + `
+	 JOIN lot l        ON l.id = sl.lot_id
+	 JOIN product p    ON p.id = l.product_id
+	 JOIN warehouse w  ON w.id = s.warehouse_id
+	 ORDER BY s.sold_at, s.id, sl.line_no`
 }

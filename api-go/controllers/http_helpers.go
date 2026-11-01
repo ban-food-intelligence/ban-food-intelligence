@@ -42,6 +42,7 @@ var errorMessages = map[string]map[string]string{
 	"OCR_FAILED":          {"en": "The invoice could not be read: the reading service did not answer.", "tr": "Fatura okunamadı: okuma servisi yanıt vermedi.", "de": "Die Rechnung konnte nicht gelesen werden: Der Lesedienst hat nicht geantwortet."},
 	"OCR_UNREADABLE":      {"en": "No product line could be read from this photo. Try a sharper, straight photo.", "tr": "Bu fotoğraftan ürün satırı okunamadı. Daha net ve düz bir fotoğraf deneyin.", "de": "Aus diesem Foto konnte keine Produktzeile gelesen werden. Bitte ein schärferes, gerades Foto versuchen."},
 	"DB_ERROR":            {"en": "The database could not complete the request.", "tr": "Veritabanı isteği tamamlayamadı.", "de": "Die Datenbank konnte die Anfrage nicht ausführen."},
+	"MIGRATION_REQUIRED":  {"en": "The database needs a migration for this feature (see details).", "tr": "Bu özellik için veritabanına bir migration uygulanmalı (ayrıntılara bakın).", "de": "Die Datenbank braucht für diese Funktion eine Migration (siehe Details)."},
 }
 
 // lang picks tr / de / en from the Accept-Language header (default en).
@@ -133,4 +134,11 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 		code = "CONFLICT"
 	}
 	writeAPIError(w, nil, status, code, message)
+}
+
+// missingTable reports MySQL error 1146 (table doesn't exist) for the named table: the database
+// was created before the migration that adds it.
+func missingTable(err error, table string) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "Error 1146") && strings.Contains(msg, "."+table+"'")
 }
