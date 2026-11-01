@@ -1,0 +1,671 @@
+openapi: 3.0.3
+info:
+  title: BAN Food Intelligence API
+  version: 1.3.0
+  description: |
+    REST API of the Go service (`api-go`): production and real cost (EKP), lamb butchery and cost
+    allocation, lot traceability and recall, stock movements, POS sync, AI forecasts and alerts.
+    This file lists every route the service registers (a Go test keeps it in step with `main.go`);
+    field-level details, examples and error codes are in [API.md](API.md).
+
+    Reads are open. Back-office writes need a supervisor session: `POST /auth/session` with the
+    PIN returns a bearer token (30 minutes). Errors share one body: `{"code","message","details"}`.
+servers:
+  - url: http://localhost:8080
+    description: docker compose
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Token from POST /auth/session (supervisor PIN).
+    posSignature:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: ECDSA P-256 signature of the POS outbox batch (tenant:device:role:uuid:body).
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string, example: INSUFFICIENT_STOCK}
+        message: {type: string, example: Yetersiz stok.}
+        details: {}
+  responses:
+    Error:
+      description: Error with a stable code (see API.md, Conventions)
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    AuthRequired:
+      description: AUTH_REQUIRED - no valid supervisor session
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+tags:
+  - name: Production (Task 1)
+  - name: Butchery (Task 2)
+  - name: Traceability and recall (Task 3)
+  - name: Stock and sales
+  - name: AI and alerts
+  - name: POS and auth
+paths:
+  /health:
+    get:
+      tags: [POS and auth]
+      summary: Service and MySQL status
+      responses:
+        '200': {description: '{"status":"UP","mysql_status":"CONNECTED",...}'}
+
+  /production:
+    get:
+      tags: [Production (Task 1)]
+      summary: Orders with EKP, VKP, gross profit, margin, quantity variance, cost breakdown and forecast
+      parameters:
+        - {name: order_no, in: query, schema: {type: string}, example: URT-2026-045}
+      responses:
+        '200': {description: 'List of orders (URT-2026-045 gives 1,543.50 € / 85 = 18.16 € EKP)'}
+    post:
+      tags: [Production (Task 1)]
+      summary: Receive the finished goods of an order (actual quantity, output lot, leftover raw material)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {order_no: URT-2026-047, actual_qty: 82, output_lot_no: SUC-2026-047, invoice_no: FAS-FTR-2026-047,
+                      sub_warehouse: FASON-01, target_wh: ANA-DEPO, returned_inputs: [{lot_no: ET-2026-003, qty: 3}],
+                      return_warehouse: ANA-DEPO}
+      responses:
+        '200': {description: 'The computed order with EKP and forecast actuals'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /production/orders:
+    post:
+      tags: [Production (Task 1)]
+      summary: Record an external production order and send its raw material to the subcontractor (dry_run previews)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {order_no: URT-2026-047, product_sku: MM-SUCUK-1KG, subcontractor_code: FAS-01, planned_qty: 85,
+                      service_unit_price: 5.5, drying_days: 5, order_date: '2026-10-29',
+                      inputs: [{lot_no: ET-2026-003, qty: 100}, {lot_no: BAH-2026-002, qty: 2}, {lot_no: BAG-2026-002, qty: 5}]}
+      responses:
+        '200': {description: 'dry_run: status DRY_RUN, nothing written'}
+        '201': {description: 'Order MATERIAL_SENT with material cost and AI forecast'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /purchases:
+    get:
+      tags: [Stock and sales]
+      summary: Purchase receipt lines with supplier, lot, supplier lot, quantity, price and expiry
+      responses:
+        '200': {description: 'Receipt lines'}
+    post:
+      tags: [Stock and sales]
+      summary: Record a supplier delivery; every line becomes a PURCHASE lot with a PURCHASE_IN movement
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {receipt_no: ALS-2026-200, supplier_code: TED-HAY-01, receipt_date: '2026-10-27', invoice_no: FTR-HAY-0050,
+                      lines: [{sku: KZ-KARKAS, lot_no: KUZU-2026-002, supplier_lot_no: KUPE-TR-10-445900, qty: 24,
+                               unit_price: 11.8, expiry_date: '2026-11-03'}]}
+      responses:
+        '201': {description: 'The receipt and its total'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /purchases/invoice:
+    get:
+      tags: [AI and alerts]
+      summary: Whether invoice reading is configured (the key is never returned)
+      responses:
+        '200': {description: '{"configured":true,"model":"..."}'}
+    post:
+      tags: [AI and alerts]
+      summary: Read an invoice photo into receipt suggestions; writes nothing (human confirms with POST /purchases)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {image_base64: '<JPEG, PNG or WebP, at most 768 KB>'}
+      responses:
+        '200': {description: 'Supplier and line suggestions with match level and warnings'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '422': {$ref: '#/components/responses/Error'}
+        '502': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+
+  /butchery:
+    get:
+      tags: [Butchery (Task 2)]
+      summary: Every butchery operation with weight balance, findings (287.50 vs 351.00 €, 22 of 25 kg) and allocation
+      responses:
+        '200': {description: 'Operations with findings'}
+
+  /butchery/allocation:
+    get:
+      tags: [Butchery (Task 2)]
+      summary: Cost split by quantity or value key; the cents always sum to the total cost
+      parameters:
+        - {name: op_no, in: query, required: true, schema: {type: string}, example: PRC-2026-001}
+        - {name: method, in: query, schema: {type: string, enum: [QUANTITY, VALUE]}}
+      responses:
+        '200': {description: '{"total_cost":287.5,"allocated_total":287.5,"sums_exactly":true,"lines":[...]}'}
+
+  /butchery/operations:
+    post:
+      tags: [Butchery (Task 2)]
+      summary: Record a carcass breakdown with actual weights (weight balance enforced; dry_run only calculates)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {op_no: PRC-2026-002, input_lot_no: KUZU-2026-002, input_weight_kg: 24, allocation_method: QUANTITY,
+                      op_date: '2026-10-28', outputs: [{sku: KZ-BUT, output_kind: CUT, weight_kg: 6.2, lot_no: KZB-2026-002},
+                      {sku: KZ-SAKATAT, output_kind: BY_PRODUCT, weight_kg: 0.8, lot_no: KZC-2026-002},
+                      {sku: KZ-FIRE, output_kind: WASTE, weight_kg: 2.1}]}
+      responses:
+        '201': {description: 'Posted with allocation by both keys and the AI forecast comparison'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /recall:
+    get:
+      tags: [Traceability and recall (Task 3)]
+      summary: Recalls with affected lots and the per-customer call-down list
+      responses:
+        '200': {description: 'Recalls'}
+    post:
+      tags: [Traceability and recall (Task 3)]
+      summary: Start a recall; blocks the root lot and every lot made from it in one transaction
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {recall_code: RCL-2026-001, trigger_lot: ET-2026-001, reason: Quality problem}
+      responses:
+        '201': {description: 'Recall summary'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+
+  /recall/contacts.csv:
+    get:
+      tags: [Traceability and recall (Task 3)]
+      summary: Recall contact list as CSV (UTF-8 with BOM)
+      parameters:
+        - {name: recall_code, in: query, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: CSV
+          content:
+            text/csv: {}
+
+  /recall/progress:
+    get:
+      tags: [Traceability and recall (Task 3)]
+      summary: Recovery per customer and lot (received, forwarded, returned, pending) and totals per unit
+      parameters:
+        - {name: recall_code, in: query, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 'Recovery lines and totals'}
+
+  /recall/followup:
+    post:
+      tags: [Traceability and recall (Task 3)]
+      summary: Record customer contact for a recall (audited; never changes quantities)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {recall_code: RCL-2026-001, customer_code: MKT-A, contact_status: CONTACTED, note: Called branch manager}
+      responses:
+        '200': {description: 'Updated line'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+
+  /recall/drills:
+    get:
+      tags: [Traceability and recall (Task 3)]
+      summary: Latest recall drills, or one drill with its trace snapshot
+      parameters:
+        - {name: drill_no, in: query, schema: {type: string}}
+      responses:
+        '200': {description: 'Drills'}
+    post:
+      tags: [Traceability and recall (Task 3)]
+      summary: Start a timed recall drill (traces the lot, blocks nothing, moves no stock)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {lot_no: ET-2026-001, target_minutes: 240, note: Annual test}
+      responses:
+        '201': {description: 'The open drill with the customers to reach'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /recall/drills/contact:
+    post:
+      tags: [Traceability and recall (Task 3)]
+      summary: Mark a drill customer reached (server time, once)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {drill_no: TAT-20261101-101500, customer_code: MKT-A}
+      responses:
+        '200': {description: 'The drill'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+
+  /recall/drills/close:
+    post:
+      tags: [Traceability and recall (Task 3)]
+      summary: Close a drill and compute PASS or FAIL (findings required when it fails)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {drill_no: TAT-20261101-101500, findings: ''}
+      responses:
+        '200': {description: 'The closed drill with result and fail_reasons'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /shipments:
+    get:
+      tags: [Traceability and recall (Task 3)]
+      summary: Shipments (tier 1 from our stock, tier 2 recorded onward deliveries) with lines
+      parameters:
+        - {name: shipment_no, in: query, schema: {type: string}}
+      responses:
+        '200': {description: 'Shipments'}
+    post:
+      tags: [Traceability and recall (Task 3)]
+      summary: Record a delivery note (tier 1 posts SHIPMENT movements; tier 2 is capped at what the customer received)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {shipment_no: SVK-2026-216, customer_code: MKT-A, from_warehouse: ANA-DEPO, ship_date: '2026-10-30',
+                      delivery_note_no: IRS-SVK-216, lines: [{lot_no: SUC-2026-046, qty: 5}]}
+      responses:
+        '201': {description: 'The stored shipment'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /customers:
+    get:
+      tags: [Traceability and recall (Task 3)]
+      summary: Customers with the contact data used by the recall list
+      responses:
+        '200': {description: 'Customers'}
+
+  /trace/{lot_no}:
+    get:
+      tags: [Traceability and recall (Task 3)]
+      summary: Recursive forward or backward trace over recorded lot links (no AI), with mass balance
+      parameters:
+        - {name: lot_no, in: path, required: true, schema: {type: string}, example: ET-2026-001}
+        - {name: direction, in: query, required: true, schema: {type: string, enum: [forward, backward]}}
+      responses:
+        '200': {description: 'Lots, links with quantities, shipments by tier, POS sales and mass balance'}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+
+  /lots:
+    get:
+      tags: [Stock and sales]
+      summary: Stock per lot and warehouse with status, unit cost, stock value, VKP and expiry
+      responses:
+        '200': {description: 'Stock lines'}
+
+  /warehouses:
+    get:
+      tags: [Stock and sales]
+      summary: Warehouses (MAIN, COLD, STORE, QUARANTINE, SUBCONTRACTOR)
+      responses:
+        '200': {description: 'Warehouses'}
+
+  /auth/supervisor/verify:
+    post:
+      tags: [POS and auth]
+      summary: Supervisor PIN check that releases a POS recall lock (bcrypt, lockout, audited)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {pin: '246813', device_id: POS-ANDROID-01, lot_no: SUC-2026-045, recall_code: RCL-2026-001}
+      responses:
+        '200': {description: 'Unlocked'}
+        '401': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+
+  /auth/supervisor/audit:
+    get:
+      tags: [POS and auth]
+      summary: Latest unlock attempts (who, when, device, lot, recall)
+      responses:
+        '200': {description: 'Audit lines'}
+
+  /auth/session:
+    post:
+      tags: [POS and auth]
+      summary: Open a supervisor session for back-office writes (30 minutes)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {pin: '246813'}
+      responses:
+        '200': {description: '{"token","token_type":"Bearer","expires_at","username","display_name"}'}
+        '401': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+
+  /movements:
+    get:
+      tags: [Stock and sales]
+      summary: Append-only stock ledger with balance after each movement
+      parameters:
+        - {name: lot_no, in: query, schema: {type: string}, example: KZB-2026-001}
+      responses:
+        '200': {description: 'Movements'}
+        '404': {$ref: '#/components/responses/Error'}
+
+  /sales:
+    get:
+      tags: [Stock and sales]
+      summary: POS sale lines with revenue, lot cost, gross profit and void flag
+      responses:
+        '200': {description: 'Sale lines (voided, void_reason after POST /sales/void)'}
+
+  /sales/void:
+    post:
+      tags: [Stock and sales]
+      summary: Void a wrong POS sale by a RETURN reversal per line (nothing deleted, once per sale, audited)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {sale_uuid: 019a2b3c-9e10-7a20-9b3c-4d5e6f708192, reason: Wrong product scanned}
+      responses:
+        '201': {description: 'Voided lines with the store balance after each'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /reports/assessment:
+    get:
+      tags: [Stock and sales]
+      summary: Complete assessment evidence as one JSON snapshot (the dashboard renders it as a PDF)
+      parameters:
+        - {name: order_no, in: query, schema: {type: string}, example: URT-2026-045}
+        - {name: root_lot, in: query, schema: {type: string}, example: ET-2026-001}
+        - {name: rejected_op, in: query, schema: {type: string}, example: PRC-2026-000}
+        - {name: posted_op, in: query, schema: {type: string}, example: PRC-2026-001}
+      responses:
+        '200': {description: 'Snapshot'}
+        '404': {$ref: '#/components/responses/Error'}
+
+  /movements/transfer:
+    post:
+      tags: [Stock and sales]
+      summary: Transfer a lot between warehouses (TRANSFER_OUT/IN)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {lot_no: SUC-2026-046, from_warehouse: ANA-DEPO, to_warehouse: MAGAZA-01, qty: 3, note: ''}
+      responses:
+        '201': {description: 'Balances after the movement'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /movements/return:
+    post:
+      tags: [Stock and sales]
+      summary: Customer return (RETURN), capped at the customer's recorded deliveries
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {lot_no: SUC-2026-045, warehouse: KARANTINA, customer_code: MKT-A, qty: 2, note: Recall recovery}
+      responses:
+        '201': {description: 'Balances after the movement'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /movements/waste:
+    post:
+      tags: [Stock and sales]
+      summary: Waste or disposal (WASTE, reason required)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {lot_no: SUC-2026-046, warehouse: ANA-DEPO, qty: 1, reason: Torn pack}
+      responses:
+        '201': {description: 'Balances after the movement'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /rework:
+    post:
+      tags: [Stock and sales]
+      summary: Rework part of a lot into a new REWORK lot linked to its input
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {input_lot_no: KZB-2026-001, warehouse: ANA-DEPO, qty_consumed: 1, output_lot_no: KZK-RW-2026-001, output_qty: 1, note: ''}
+      responses:
+        '201': {description: 'Balances and the output lot'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /stock-counts:
+    get:
+      tags: [Stock and sales]
+      summary: Latest 20 stock counts with their lines
+      responses:
+        '200': {description: 'Counts'}
+    post:
+      tags: [Stock and sales]
+      summary: Record a stock count; each difference becomes an ADJUSTMENT movement with its reason
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {count_no: SAY-2026-001, warehouse: ANA-DEPO, note: Month end,
+                      lines: [{lot_no: SUC-2026-046, counted_qty: 5, expected_qty: 6, reason: Torn pack found}]}
+      responses:
+        '201': {description: 'Count lines with system, counted and difference values'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /yield:
+    get:
+      tags: [AI and alerts]
+      summary: Raw prediction deviation rows (kept for compatibility)
+      responses:
+        '200': {description: 'Rows'}
+
+  /ai/summary:
+    get:
+      tags: [AI and alerts]
+      summary: Model and baseline metrics on the time-split test, and prediction vs actual per recorded document
+      responses:
+        '200': {description: 'Metrics and comparisons with intervals'}
+
+  /ai/forecast/butchery:
+    get:
+      tags: [AI and alerts]
+      summary: Preview the part-weight forecast of a carcass (nothing saved)
+      parameters:
+        - {name: input_lot_no, in: query, required: true, schema: {type: string}, example: KUZU-2026-001}
+        - {name: input_weight_kg, in: query, required: true, schema: {type: number}, example: 25}
+        - {name: op_date, in: query, schema: {type: string, format: date}}
+        - {name: operator_name, in: query, schema: {type: string}}
+      responses:
+        '200': {description: 'Six expected part weights with 80 % intervals and the species baseline'}
+        '404': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /ai/forecast/butchery/freeze:
+    post:
+      tags: [AI and alerts]
+      summary: Freeze the forecast of a carcass before its parts are weighed (once, immutable)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {input_lot_no: KUZU-2026-003, input_weight_kg: 23.5}
+      responses:
+        '201': {description: 'The frozen forecast'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /alerts:
+    get:
+      tags: [AI and alerts]
+      summary: Alerts (yield, waste, purchase cost, refused sales, count shortage) with review outcome per check
+      parameters:
+        - {name: status, in: query, schema: {type: string, enum: [open, closed, all]}}
+      responses:
+        '200': {description: 'Alerts, counts, feedback and missed findings'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /alerts/review:
+    post:
+      tags: [AI and alerts]
+      summary: Acknowledge or close an alert (note required to close, audited)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {id: 7, status: RESOLVED, note: Supplier confirmed the price increase}
+      responses:
+        '200': {description: 'The reviewed alert'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /alerts/rules:
+    get:
+      tags: [AI and alerts]
+      summary: Alert thresholds in force, their defaults and the synthetic stress test behind them
+      responses:
+        '200': {description: 'Rules and calibration'}
+    post:
+      tags: [AI and alerts]
+      summary: Change an alert threshold (audited)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {rule: PURCHASE_COST, warn: 15, crit: 30}
+      responses:
+        '200': {description: 'The rule in force'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /alerts/missed:
+    post:
+      tags: [AI and alerts]
+      summary: Record a problem found by hand that no alert flagged (counts against the check's recall)
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {task: BUTCHERY_YIELD, ref_no: PRC-2026-003, lot_no: KUZU-2026-003, note: Extra trim found, est_loss_eur: 8.5}
+      responses:
+        '201': {description: 'The recorded finding with its id'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
+        '404': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+
+  /sync:
+    post:
+      tags: [POS and auth]
+      summary: Signed outbox batch from the Kotlin POS (SQLite to MySQL); each UUIDv7 is applied once
+      security: [{posSignature: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {sync_envelope_uuid_v7: 019a3000-0000-7000-8000-000000000001, tenant_id: MARKET-TIER-A-IST-01, device_id: POS-ANDROID-01,
+                      actor_role: ROLE_POS_DEVICE, record_count: 1,
+                      outbox_items: [{batch_id: SUC-2026-046, predicted_yield: 2, timestamp: 019a3000-0000-7000-8000-000000000002,
+                                      signature: '<base64 DER>', signature_alg: SHA256withECDSA, tenant_id: MARKET-TIER-A-IST-01,
+                                      device_id: POS-ANDROID-01, actor_role: ROLE_POS_DEVICE, retry_count: 0}]}
+      responses:
+        '200': {description: '{"processed_count","acknowledged_ids":[...],"rejected":[{"id","code","message"}],"status"}'}
+        '403': {$ref: '#/components/responses/Error'}
+
+  /sync/register-key:
+    post:
+      tags: [POS and auth]
+      summary: Provision or rotate a POS device's public key
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example: {device_id: POS-ANDROID-01, public_key_b64: '<X.509 SubjectPublicKeyInfo, base64>'}
+      responses:
+        '200': {description: 'Key pinned'}
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/AuthRequired'}
