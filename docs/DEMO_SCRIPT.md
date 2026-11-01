@@ -182,8 +182,11 @@ connection.)
 > kayda değil test kümesinin tamamına dayandırıyoruz. Yapay zekâ sadece tahmin ve öneri veriyor;
 > izlenebilirlik ve geri çağırma kararları her zaman kayıtlı verilerden geliyor."
 
-**Shot (30 s):** sidebar bell → *Alerts*: the open alerts with severity; open one and show
-*Review* (note required), then *Alerts → accuracy and thresholds*.
+**Shot (40 s):** the clean seed has no open alert, so make one: *Purchases* → *New receipt*,
+supplier `TED-BAH-01`, product `HM-BAHARAT`, lot `BAH-DEMO-1`, 5 kg at **40,00 €** (the last
+purchases were 24,00 €/kg), expiry a year ahead, PIN → saved. The sidebar bell now counts it:
+*Alerts* shows a critical *purchase price increase*; open *Review* (a note is required to close
+it), then *Alerts → accuracy and thresholds*.
 
 > "Kayıt girildiği anda uyarı üretiliyor: tahmin bandının dışında kalan verim, beklenmedik fire,
 > son alışlardan yüzde 10 pahalı bir fiyat, geri çağrılmış ya da tarihi geçmiş lotun reddedilen
