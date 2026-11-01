@@ -8,8 +8,9 @@ import (
 )
 
 // A wrong POS sale is corrected by a reversal, never by deleting it: the SALE movement stays,
-// a RETURN movement puts the packs back into the store, the void is kept in sale_void and
-// audit_log, the sales report flags the line, and a second void of the same sale is refused.
+// a RETURN movement puts the packs back into the store, the void is kept in the append-only
+// ledger and audit_log (no table of its own), the sales report flags the line, and a second
+// void of the same sale is refused.
 func TestIntegrationSaleVoidReversesWithoutDeleting(t *testing.T) {
 	db := testDB(t)
 	defer db.Close()
@@ -41,6 +42,10 @@ func TestIntegrationSaleVoidReversesWithoutDeleting(t *testing.T) {
 	ctrl := NewSaleVoidController(db)
 	if code, body := call(t, ctrl.Void, "POST", "/sales/void", SaleVoidRequest{SaleUUID: uuid, Reason: ""}); code != http.StatusUnprocessableEntity {
 		t.Fatalf("void without a reason: %d %s, want 422", code, body)
+	}
+	// The reason is part of the movement note (255 characters): more than 200 is refused up front.
+	if code, body := call(t, ctrl.Void, "POST", "/sales/void", SaleVoidRequest{SaleUUID: uuid, Reason: strings.Repeat("ş", 201)}); code != http.StatusUnprocessableEntity {
+		t.Fatalf("void with a 201-character reason: %d %s, want 422", code, body)
 	}
 	if code, body := call(t, ctrl.Void, "POST", "/sales/void", SaleVoidRequest{SaleUUID: testUUIDv7(), Reason: "yanlış ürün"}); code != http.StatusNotFound {
 		t.Fatalf("void of an unknown sale: %d %s, want 404", code, body)
@@ -106,62 +111,13 @@ func TestIntegrationSaleVoidReversesWithoutDeleting(t *testing.T) {
 	if got := shop(); got != 3 {
 		t.Fatalf("shop after refused second void = %v, want 3", got)
 	}
-	// sale_void is append-only.
-	if _, err := db.Exec(`DELETE sv FROM sale_void sv JOIN sale s ON s.id = sv.sale_id WHERE s.sale_uuid = ?`, uuid); err == nil {
-		t.Fatal("DELETE on sale_void succeeded, want IMMUTABLE")
+	// The void lives in append-only records: neither its RETURN movement nor its audit row can go.
+	if _, err := db.Exec(`DELETE FROM stock_movement WHERE ref_type = 'sale_void' AND ref_id = (SELECT id FROM sale WHERE sale_uuid = ?)`, uuid); err == nil ||
+		!strings.Contains(err.Error(), "IMMUTABLE") {
+		t.Fatalf("DELETE of the void's RETURN movement: %v, want IMMUTABLE", err)
 	}
-}
-
-// A database created before migrations/20261101_sale_void.sql (an existing docker volume) has no
-// sale_void table: GET /sales must keep working for the Sales and Overview pages, and a void must
-// say which migration to apply instead of failing with a database error. Nothing is written.
-func TestIntegrationSalesWorkBeforeTheSaleVoidMigration(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
-	if _, err := db.Exec(`RENAME TABLE sale_void TO sale_void_hidden_by_test`); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if _, err := db.Exec(`RENAME TABLE sale_void_hidden_by_test TO sale_void`); err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	code, body := call(t, NewReportsController(db).Sales, "GET", "/sales", nil)
-	if code != http.StatusOK {
-		t.Fatalf("GET /sales without sale_void: %d %s", code, body)
-	}
-	var lines []SaleReportLineDto
-	if err := json.Unmarshal(body, &lines); err != nil {
-		t.Fatal(err)
-	}
-	if len(lines) == 0 {
-		t.Fatal("GET /sales without sale_void returned no lines; the seed has POS sales")
-	}
-	for _, l := range lines {
-		if l.Voided {
-			t.Fatalf("line %+v voided without a sale_void table", l)
-		}
-	}
-
-	var uuid string
-	var before int
-	if err := db.QueryRow(`SELECT sale_uuid FROM sale ORDER BY id LIMIT 1`).Scan(&uuid); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.QueryRow(`SELECT COUNT(*) FROM stock_movement`).Scan(&before); err != nil {
-		t.Fatal(err)
-	}
-	code, body = call(t, NewSaleVoidController(db).Void, "POST", "/sales/void", SaleVoidRequest{SaleUUID: uuid, Reason: "migration missing"})
-	if code != http.StatusServiceUnavailable || !strings.Contains(string(body), "MIGRATION_REQUIRED") ||
-		!strings.Contains(string(body), "20261101_sale_void.sql") {
-		t.Fatalf("void without sale_void: %d %s, want 503 MIGRATION_REQUIRED naming the migration", code, body)
-	}
-	var after int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM stock_movement`).Scan(&after); err != nil {
-		t.Fatal(err)
-	}
-	if after != before {
-		t.Fatalf("void without sale_void wrote %d movements", after-before)
+	if _, err := db.Exec(`DELETE a FROM audit_log a JOIN sale s ON s.id = a.row_id
+		WHERE a.table_name = 'sale' AND a.action = 'SALE_VOID' AND s.sale_uuid = ?`, uuid); err == nil {
+		t.Fatal("DELETE of the SALE_VOID audit row succeeded, want it refused")
 	}
 }
