@@ -320,6 +320,9 @@ button { font: inherit; cursor: pointer; }
 .recall-progress > .muted { margin: 10px 0; max-width: 80ch; }
 .recall-progress-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .drill-actions { padding: 4px 16px 14px; }
+.invoice-reader { border-bottom: 1px solid var(--separator); }
+.invoice-reader input[type='file'] { padding: 6px 8px; }
+.invoice-review { border-bottom: 1px solid var(--separator); padding-bottom: 6px; }
 .drill-outcome { padding: 8px 16px 14px; display: grid; gap: 4px; max-width: 90ch; }
 .report-action { margin-bottom: 18px; }
 

@@ -1,4 +1,4 @@
-# FEFO, recovery, assessment PDF, alerts, mass balance, stock count and recall drill
+# FEFO, recovery, assessment PDF, alerts, mass balance, stock count, recall drill and invoice reading
 
 ## Use
 
@@ -80,6 +80,17 @@ counts with their differences, reasons and value. If a lot's stock changed after
 opened (e.g. a till sale synced), the count is refused and the list refreshes. A shortage above
 10 € (or any shortage of a recalled lot) raises an alert.
 
+**Dashboard → Purchases → New receipt → Read from invoice:** choose a photo of the supplier
+invoice or delivery note (on a phone the camera opens), type the supervisor PIN and press **Read
+invoice**. The browser shrinks the photo, the API sends it to the vision model with the key it
+holds, and the form fills with the supplier, invoice number and lines (SKU, supplier batch,
+quantity, price, expiry). A review table shows what was printed next to the matched record
+(*Exact*, *Similar, check it*, *No match*) and what to check: a different unit, another currency,
+a missing expiry. Nothing is saved until the supervisor has checked the lines, given our own lot
+numbers and pressed **Save receipt**. Without `NVIDIA_API_KEY` the form says that reading is not
+set up and lines are typed by hand. To switch it on for compose, put the key in a `.env` file next
+to `docker-compose.yml` (`NVIDIA_API_KEY=nvapi-...`, gitignored) and rebuild `api-go`.
+
 ## Existing installation
 
 New installations use schema.sql normally. Existing databases need the additive/procedure
@@ -108,11 +119,16 @@ phone's installed app. No app installation or public release is performed by the
   missing records, no stock side effects and a concurrent-change snapshot test. Recall drill:
   nothing blocked or moved, customers reached once, computed PASS/FAIL, findings required on a
   FAIL, immutable record and a refused forced PASS (`integration_recall_drill_test.go`,
-  `database-mysql/tests/test_recall_drill.py`).
+  `database-mysql/tests/test_recall_drill.py`). Invoice reading: request to a fake vision
+  service (server key, image data URI), upstream errors not passed on, refused images never reach
+  the model, word matching against the seed suppliers/products with warnings, nothing written
+  (`invoice_reader_test.go`, `integration_invoice_test.go`).
 - Android: five FEFO tests plus the existing validation/security tests; lint and debug build.
 - Browser: real PDF download, report failure without download, contact acknowledgement and
   physical return through the actual forms; a recall drill started, every customer reached and
-  closed through the forms with the lot statuses unchanged.
+  closed through the forms with the lot statuses unchanged; invoice reading switched off on the
+  test API, then (vision answer mocked in the browser) a photo sent as a downscaled JPEG, the form
+  filled, the unmatched line left without a guess and the receipt saved by the real API.
 - `python scripts/verify-assessment-pdf.py`: extracts the exported PDF with pypdf and checks
   Turkish text, the required amounts, lots and market names. Optional `--preview` also needs
   PyMuPDF and renders two preview PNGs next to the PDF.

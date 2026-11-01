@@ -484,3 +484,59 @@ test('a recall drill times the trace, blocks nothing and records the computed re
   expect(await statuses()).toEqual(before.statuses); // nothing blocked
   expect((await (await request.get(`${api}/recall`)).json()).length).toBe(before.recalls);
 });
+
+test('an invoice photo fills the receipt form as a suggestion that is saved only after review', async ({ page }) => {
+  // the test API has no vision key: the form says so and offers no reading
+  await page.goto('/#purchases');
+  await page.getByRole('button', { name: 'Yeni giriş' }).click();
+  await expect(page.getByText(/Faturadan okuma bu sunucuda kurulu değil/)).toBeVisible();
+
+  const run = Date.now();
+  const expiry = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  let sent = null;
+  const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
+  await page.route('**/purchases/invoice', async (route) => {
+    const method = route.request().method();
+    if (method === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    if (method === 'GET') return route.fulfill({ headers: cors, json: { configured: true, model: 'test-vl' } });
+    sent = route.request().postDataJSON();
+    return route.fulfill({ headers: cors, json: {
+      supplier_name: 'ÖRNEK ET TEDARİK A.Ş.', supplier_code: 'TED-ET-01', supplier_match: 'EXACT',
+      invoice_no: `FTR-E2E-${run}`, invoice_date: new Date().toISOString().slice(0, 10), model: 'test-vl', latency_ms: 2400,
+      lines: [
+        { product_name: 'DANA ET SUCUKLUK', sku: 'HM-ET-DANA', sku_name: 'Dana et (sucukluk)', match: 'EXACT', qty: 42.5, unit: 'KG',
+          unit_price: 9.8, currency: 'EUR', supplier_lot_no: 'TED-B-4411', expiry_date: expiry, warnings: [] },
+        { product_name: 'Zeytinyağı 5 litre', sku: '', match: 'NONE', qty: 2, unit: 'ADET', unit_price: 11, currency: 'EUR',
+          supplier_lot_no: '', expiry_date: '', warnings: ['NO_PRODUCT_MATCH'] },
+      ] } });
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'Yeni giriş' }).click();
+  const form = page.locator('.group-wrap').filter({ hasText: 'Hammadde girişi' });
+  await expect(form.getByRole('button', { name: 'Faturayı oku' })).toBeDisabled();
+  await form.getByLabel(/fatura veya irsaliye fotoğrafı/).setInputFiles({ name: 'invoice.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') });
+  await expect(form.getByText('Okumak için aşağıdaki Yetkili PIN alanını doldurun.')).toBeVisible();
+  await form.getByLabel('Yetkili PIN').fill('246813');
+  await form.getByRole('button', { name: 'Faturayı oku' }).click();
+
+  await expect(form.getByText('Faturadan 2 satır okundu ve forma eklendi. Kaydetmeden önce kontrol edin.')).toBeVisible();
+  expect(sent.image_base64.startsWith('/9j/')).toBeTruthy(); // the browser sent a downscaled JPEG
+  await expect(form.getByRole('row').filter({ hasText: 'Zeytinyağı 5 litre' })).toContainText('Ürün eşleşmedi; SKU seçin');
+  await expect(form.locator('input[list="en-suppliers"]')).toHaveValue('TED-ET-01');
+  const skus = form.getByLabel('Ürün', { exact: true });
+  await expect(skus).toHaveCount(2);
+  await expect(skus.nth(0)).toHaveValue('HM-ET-DANA');
+  await expect(skus.nth(1)).toHaveValue(''); // no guess for the unmatched line
+  await page.screenshot({ path: 'test-results/invoice-read.png', fullPage: true });
+
+  // the supervisor drops the line that is not ours, gives the lot number and saves
+  await form.getByRole('button', { name: 'Satırı sil' }).nth(1).click();
+  await form.getByLabel('Giriş fişi').fill(`ALS-E2E-IV-${run}`);
+  await form.getByLabel('Lot', { exact: true }).first().fill(`ET-E2E-IV-${run}`);
+  await form.getByRole('button', { name: 'Girişi kaydet' }).click();
+  await expect(page.getByText(new RegExp(`ALS-E2E-IV-${run} kaydedildi`))).toBeVisible();
+  const row = page.getByRole('row').filter({ hasText: `ET-E2E-IV-${run}` }).filter({ hasText: 'TED-B-4411' }); // the purchases list
+  await expect(row).toContainText('42,50 kg');
+  await expect(row).toContainText('9,80 €');
+});
