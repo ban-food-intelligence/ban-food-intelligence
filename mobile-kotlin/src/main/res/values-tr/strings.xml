@@ -120,7 +120,7 @@
     <string name="action_cancel">Vazgeç</string>
     <string name="action_close">Kapat</string>
     <string name="sell_title">Satış</string>
-    <string name="sell_search_hint">Ürün veya lot ara</string>
+    <string name="sell_search_hint">Ürün veya lot ara ya da okut</string>
     <string name="sell_section_available">Bu mağazada satışta</string>
     <string name="sell_section_blocked">Geri çağrıldı, satış engellendi</string>
     <string name="sell_empty">Bu mağazada stokta lot yok.</string>
@@ -209,5 +209,10 @@
         <item quantity="one">%1$d aktif geri çağırma</item>
         <item quantity="other">%1$d aktif geri çağırma</item>
     </plurals>
-    <string name="ocr_disabled_build">Bu demo sürümünde kapalı: fatura okuma bir API anahtarı gerektirir ve anahtar uygulamanın içine konmaz. Denemek için kendi anahtarınızla kaynaktan derleyin.</string>
+    <string name="ocr_disabled_build">Bu demo sürümünde yok: uygulamaya API anahtarı konmaz. Faturayı panelden okuyun (Alışlar, Yeni giriş, Faturadan oku); anahtar sunucuda kalır.</string>
+    <string name="scan_lot">Lot okut</string>
+    <string name="scan_lot_sub">Kamera veya el okuyucu: lot etiketindeki QR ya da barkod</string>
+    <string name="scan_unavailable">Bu cihazda kamera okuyucu kullanılamıyor. Lot numarasını yazın veya el okuyucusu kullanın.</string>
+    <string name="scan_not_found">Bu mağazada “%1$s” lotu yok.</string>
+    <string name="scan_recalled_elsewhere">%1$s geri çağrıldı. Bu paketi satmayın.</string>
 </resources>

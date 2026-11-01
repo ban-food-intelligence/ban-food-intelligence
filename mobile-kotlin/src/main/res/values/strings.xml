@@ -120,7 +120,7 @@
     <string name="action_cancel">Cancel</string>
     <string name="action_close">Close</string>
     <string name="sell_title">Sell</string>
-    <string name="sell_search_hint">Search product or lot</string>
+    <string name="sell_search_hint">Search or scan a product or lot</string>
     <string name="sell_section_available">Available in this shop</string>
     <string name="sell_section_blocked">Recalled, sale blocked</string>
     <string name="sell_empty">No lots in stock in this shop.</string>
@@ -209,5 +209,10 @@
         <item quantity="one">%1$d active recall</item>
         <item quantity="other">%1$d active recalls</item>
     </plurals>
-    <string name="ocr_disabled_build">Not available in this demo build: invoice reading needs an API key, which is never shipped inside the app. Build from source with your own key to try it.</string>
+    <string name="ocr_disabled_build">Not in this demo build: the app never carries an API key. Read invoices on the dashboard instead (Purchases, New receipt, Read from invoice), where the key stays on the server.</string>
+    <string name="scan_lot">Scan a lot</string>
+    <string name="scan_lot_sub">Camera or hand scanner: QR or barcode on the lot label</string>
+    <string name="scan_unavailable">The camera scanner is not available on this device. Type the lot number or use a hand scanner.</string>
+    <string name="scan_not_found">No lot “%1$s” in this shop.</string>
+    <string name="scan_recalled_elsewhere">%1$s is recalled. Do not sell this pack.</string>
 </resources>

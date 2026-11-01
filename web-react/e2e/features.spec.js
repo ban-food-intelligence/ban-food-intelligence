@@ -540,3 +540,18 @@ test('an invoice photo fills the receipt form as a suggestion that is saved only
   await expect(row).toContainText('42,50 kg');
   await expect(row).toContainText('9,80 €');
 });
+
+test('the lot card prints a QR label carrying the lot number for the POS scanner', async ({ page }) => {
+  await page.goto('/#lots');
+  await page.getByRole('button', { name: 'SUC-2026-046', exact: true }).first().click();
+  const card = page.getByRole('dialog');
+  await expect(card.getByRole('heading', { name: 'SUC-2026-046' })).toBeVisible();
+  const popup = page.waitForEvent('popup');
+  await card.getByRole('button', { name: 'Lot etiketi yazdır (QR)' }).click();
+  const label = await popup;
+  await expect(label.locator('.lot')).toHaveText('SUC-2026-046');
+  await expect(label.locator('.product')).toHaveText('Narin Sucuk 1 kg');
+  await expect(label.locator('.expiry')).toContainText('SKT: ');
+  await expect(label.locator('svg path')).toHaveCount(1);
+  await label.screenshot({ path: 'test-results/lot-label.png' });
+});
