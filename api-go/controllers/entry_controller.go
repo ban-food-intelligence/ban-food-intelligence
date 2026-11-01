@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"math"
@@ -168,9 +169,14 @@ func (c *EntryController) Purchase(w http.ResponseWriter, r *http.Request) {
 		var productID int64
 		var productType, uom string
 		var shelf sql.NullInt64
-		if err := tx.QueryRowContext(ctx, `SELECT id, product_type, uom_code, shelf_life_days FROM product WHERE sku = ?`, l.SKU).
-			Scan(&productID, &productType, &uom, &shelf); err != nil {
+		var active bool
+		if err := tx.QueryRowContext(ctx, `SELECT id, product_type, uom_code, shelf_life_days, is_active FROM product WHERE sku = ?`, l.SKU).
+			Scan(&productID, &productType, &uom, &shelf, &active); err != nil {
 			writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "product "+l.SKU)
+			return
+		}
+		if !active {
+			writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fieldErrors{fmt.Sprintf("lines[%d].sku", i): l.SKU + " is inactive"})
 			return
 		}
 		if productType != "RAW_MATERIAL" && productType != "CARCASS" {
@@ -368,6 +374,9 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 	}
 	req.AllocationMethod = strings.ToUpper(req.AllocationMethod)
 	req.RecipeCode = nonEmpty(req.RecipeCode, "REC-KUZU-STD")
+	if req.AllocationMethod == "" { // the key defined in advance on the recipe
+		_ = c.db.QueryRowContext(r.Context(), `SELECT default_allocation FROM butchery_recipe WHERE code = ?`, req.RecipeCode).Scan(&req.AllocationMethod)
+	}
 	req.Warehouse = nonEmpty(req.Warehouse, "ANA-DEPO")
 	if fe := validateButchery(&req); len(fe) > 0 {
 		writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fe)
@@ -416,6 +425,13 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 		writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "recipe "+req.RecipeCode)
 		return
 	}
+	// The value key's price per kg comes from the recipe (defined in advance, never edited); an
+	// output the recipe does not list (e.g. offal) falls back to the product's sale price.
+	recipePrices, err := recipeValuePrices(ctx, tx, recipeID)
+	if err != nil {
+		writeDBError(w, r, err)
+		return
+	}
 	wh, err := warehouseID(ctx, tx, req.Warehouse)
 	if err != nil {
 		writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", err.Error())
@@ -438,6 +454,9 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 			writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "product "+o.SKU)
 			return
 		}
+		if rp, ok := recipePrices[products[i]]; ok {
+			price = sql.NullFloat64{Float64: rp, Valid: true}
+		}
 		want := map[string]string{"CUT": "CUT", "BY_PRODUCT": "BY_PRODUCT", "WASTE": "WASTE"}[o.Kind]
 		if ptype != want {
 			writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fieldErrors{fmt.Sprintf("outputs[%d].sku", i): o.SKU + " is " + ptype + ", not " + o.Kind})
@@ -446,7 +465,7 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 		if o.Kind != "WASTE" {
 			lots[i] = o.LotNo
 			if !price.Valid && req.AllocationMethod == "VALUE" {
-				writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fieldErrors{fmt.Sprintf("outputs[%d].sku", i): o.SKU + " has no sale price for the VALUE key"})
+				writeAPIError(w, r, http.StatusUnprocessableEntity, "INVALID_INPUT", fieldErrors{fmt.Sprintf("outputs[%d].sku", i): o.SKU + " has no value price (recipe or sale price) for the VALUE key"})
 				return
 			}
 		}
@@ -584,4 +603,23 @@ func (c *EntryController) ButcheryOperation(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	writeJSON(w, result)
+}
+
+// recipeValuePrices: product id -> the recipe's value price per kg, for the lines that have one.
+func recipeValuePrices(ctx context.Context, q sqlRunner, recipeID int64) (map[int64]float64, error) {
+	rows, err := q.QueryContext(ctx, `SELECT product_id, value_price_per_kg FROM butchery_recipe_line WHERE recipe_id = ? AND value_price_per_kg IS NOT NULL`, recipeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]float64{}
+	for rows.Next() {
+		var id int64
+		var price float64
+		if err := rows.Scan(&id, &price); err != nil {
+			return nil, err
+		}
+		out[id] = price
+	}
+	return out, rows.Err()
 }

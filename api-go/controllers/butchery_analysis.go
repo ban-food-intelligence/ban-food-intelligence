@@ -192,7 +192,8 @@ func (c *ButcheryController) Allocation(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var total float64
-	if err := c.db.QueryRowContext(r.Context(), `SELECT total_cost FROM butchery_operation WHERE op_no = ?`, opNo).Scan(&total); err != nil {
+	var posted string
+	if err := c.db.QueryRowContext(r.Context(), `SELECT total_cost, allocation_method FROM butchery_operation WHERE op_no = ?`, opNo).Scan(&total, &posted); err != nil {
 		writeAPIError(w, r, http.StatusNotFound, "NOT_FOUND", "butchery operation "+opNo)
 		return
 	}
@@ -203,10 +204,16 @@ func (c *ButcheryController) Allocation(w http.ResponseWriter, r *http.Request) 
 		if cut.OutputKind == "WASTE" {
 			continue
 		}
-		if method == "QUANTITY" {
+		switch {
+		case method == "QUANTITY":
 			bases[i] = cut.YieldWeightKg
-		} else {
-			bases[i] = cut.YieldWeightKg * cut.MarketPricePerKg
+		case posted == "VALUE" && cut.AllocationBasis > 0:
+			bases[i] = cut.AllocationBasis // the basis stored when it was posted: a later price change does not rewrite it
+			if cut.YieldWeightKg > 0 {
+				cuts[i].ValuePricePerKg = round(cut.AllocationBasis/cut.YieldWeightKg, 4)
+			}
+		default:
+			bases[i] = cut.YieldWeightKg * cut.ValuePricePerKg // recipe value price, else sale price
 		}
 		basisSum += bases[i]
 	}
@@ -216,7 +223,7 @@ func (c *ButcheryController) Allocation(w http.ResponseWriter, r *http.Request) 
 	for i, cut := range cuts {
 		line := AllocationLineDto{
 			CutSKU: cut.CutSKU, Name: cut.Name, LotNo: cut.LotNumber, OutputKind: cut.OutputKind,
-			WeightKg: cut.YieldWeightKg, SalePrice: cut.MarketPricePerKg, Basis: round2(bases[i]), AllocatedCost: alloc[i],
+			WeightKg: cut.YieldWeightKg, SalePrice: cuts[i].ValuePricePerKg, Basis: round2(bases[i]), AllocatedCost: alloc[i],
 		}
 		if basisSum > 0 {
 			line.SharePct = round2(100 * bases[i] / basisSum)

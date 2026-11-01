@@ -31,6 +31,7 @@ type ButcheryCutAllocatedOutput struct {
 	YieldWeightKg     float64 `json:"yield_weight_kg"`
 	YieldPct          float64 `json:"yield_pct"`
 	MarketPricePerKg  float64 `json:"market_price_per_kg"`
+	ValuePricePerKg   float64 `json:"value_price_per_kg"` // the value key's price: the recipe's, else the sale price
 	TotalSalesValue   float64 `json:"total_sales_value"`
 	AllocationBasis   float64 `json:"allocation_basis"`
 	AllocatedCost     float64 `json:"allocated_cost"`
@@ -217,10 +218,12 @@ func (c *ButcheryController) fetchCutAllocations(r *http.Request, opNo string) [
 	rows, err := c.db.QueryContext(
 		r.Context(),
 		`SELECT p.sku, v.product_name, COALESCE(v.lot_no, ''), v.output_kind,
-		        v.weight_kg, v.yield_pct, COALESCE(p.sale_price, 0),
+		        v.weight_kg, v.yield_pct, COALESCE(p.sale_price, 0), COALESCE(rl.value_price_per_kg, p.sale_price, 0),
 		        v.allocation_basis, v.allocated_cost, v.unit_cost
 		 FROM v_butchery_cost_allocation v
-		 JOIN product p ON p.name = v.product_name
+		 JOIN product p ON p.sku = v.sku
+		 JOIN butchery_operation bo ON bo.op_no = v.op_no
+		 LEFT JOIN butchery_recipe_line rl ON rl.recipe_id = bo.recipe_id AND rl.product_id = p.id
 		 WHERE v.op_no = ?
 		 ORDER BY v.weight_kg DESC`,
 		opNo,
@@ -235,7 +238,7 @@ func (c *ButcheryController) fetchCutAllocations(r *http.Request, opNo string) [
 		var cut ButcheryCutAllocatedOutput
 		if err := rows.Scan(
 			&cut.CutSKU, &cut.Name, &cut.LotNumber, &cut.OutputKind,
-			&cut.YieldWeightKg, &cut.YieldPct, &cut.MarketPricePerKg,
+			&cut.YieldWeightKg, &cut.YieldPct, &cut.MarketPricePerKg, &cut.ValuePricePerKg,
 			&cut.AllocationBasis, &cut.AllocatedCost, &cut.AllocatedUnitCost,
 		); err == nil {
 			cut.TotalSalesValue = cut.YieldWeightKg * cut.MarketPricePerKg

@@ -803,7 +803,7 @@ CREATE OR REPLACE VIEW v_butchery_cost_allocation AS
 SELECT bo.op_no, p.name AS product_name, bout.output_kind, l.lot_no,
        bout.weight_kg,
        ROUND(100 * bout.weight_kg / bo.input_weight_kg, 2) AS yield_pct,
-       bout.allocation_basis, bout.allocated_cost, bout.unit_cost
+       bout.allocation_basis, bout.allocated_cost, bout.unit_cost, p.sku
 FROM butchery_output bout
 JOIN butchery_operation bo ON bo.id = bout.operation_id
 JOIN product p ON p.id = bout.product_id
